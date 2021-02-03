@@ -45,7 +45,7 @@ ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, 
 
 ### Using Binary
 
-Use "KCBox --help" to see the usage of the toolkit, and "KCBox toolname --help" to see the usage of a single tool.
+Use "KCBox --help" to see the usage of the toolkit, and "KCBox toolname --help" to see the options of a single tool.
 
 ### Precautions for Source Code
 
