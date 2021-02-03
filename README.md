@@ -13,7 +13,7 @@ The following researchers have contributed to this project (sorted alphabeticall
 
 ## PreLite Description
 
-PreLite is a light version of preprocessor that can simplify a CNF formula as a simpler one. This tool was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
+PreLite is a light version of preprocessor that can simplify a CNF formula as an equivalent one. This tool was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
 
 ## Panini Description
 
@@ -42,6 +42,10 @@ ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, 
 <!-- ####################################################################### -->
 
 ## Usage
+
+### Using Binary
+
+Use "KCBox --help" to see the usage of the toolkit, and "KCBox toolname --help" to see the usage of a single tool.
 
 ### Precautions for Source Code
 
