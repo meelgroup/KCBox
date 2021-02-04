@@ -107,7 +107,8 @@ public:
 			return;
 		}
 		OBDDC_Manager manager( cnf.Max_Var() );
-		compiler.Compile( manager, cnf, AutomaticalHeur );
+		BDDC root = compiler.Compile( manager, cnf, AutomaticalHeur );
+		if ( CT ) cout << "Number of models: " << manager.Count_Models_Opt( root ) << endl;
 		if ( outfile != nullptr ) {
             ofstream fout( outfile );
             manager.Display( fout );
