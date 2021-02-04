@@ -72,13 +72,14 @@ struct Compiler_Parameters: public Tool_Parameters
 	BoolOption CT;
 	IntOption kdepth;
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
-		lang( "--lang", "KC languages ROBDD (0), OBDD[AND] (1), R2-D2 (2), and CCDD (3)", 1 ),
+		lang( "--lang", "KC languages ROBDD (0), and OBDD[AND] (1)", 1 ),
+//		lang( "--lang", "KC languages ROBDD (0), OBDD[AND] (1), R2-D2 (2), and CCDD (3)", 1 ),
 		out_file( "--out", "the output file with compilation", nullptr ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		CT( "--CT", "performing model counting query", false ),
 		kdepth( "--kdepth", "maximum kernelization depth (not applicable for BDD and OBDD[AND])", 2 )
 	{
-//		Add_Option( &lang );
+		Add_Option( &lang );
 		Add_Option( &out_file );
 		Add_Option( &memo );
 		Add_Option( &CT );

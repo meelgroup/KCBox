@@ -130,8 +130,8 @@ struct BDDC_Debug_Options
 	bool activate_running_time;
 	BDDC_Debug_Options()
 	{
-        verify_Decompose_Infty = true;
-        verify_Convert_Down = true;
+        verify_Decompose_Infty = false;
+        verify_Convert_Down = false;
         verify_Conjoin_One_Zero_Simple = false;
         verify_Conjoin_One_Zero = false;
         verify_Conjoin_One_Zero_Simple_No_Preprocess = false;

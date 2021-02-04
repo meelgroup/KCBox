@@ -87,6 +87,7 @@ public:
 		}
 		OBDDC_Manager manager( cnf.Max_Var() );
 		BDDC root = compiler.Compile( manager, cnf, AutomaticalHeur );
+		if ( CT ) cout << "Number of models: " << manager.Count_Models_Opt( root ) << endl;
 		OBDD_Manager bdd_manager( manager.Var_Order() );
 		manager.Convert_Down_ROBDD( root, bdd_manager );
 		if ( outfile != nullptr ) {

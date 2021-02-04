@@ -17,7 +17,7 @@ PreLite is a light version of preprocessor that can simplify a CNF formula as an
 
 ## Panini Description
 
-Panini is an efficient compiler. So far, it suppots the compilation from CNF formula to OBDD\[$\wdege$\]. This tool was initiated by Yong Lai, Dayou Liu, and Minghao Yin. Later, it was deeply optimized when Yong Lai was in National University of Singapore with the help from Kuldeep S. Meel and Roland H. C. Yap. Kuldeep S. Meel named it as Panini (the name of an ancient linguist). If you use this tool, please cite our paper [New Canonical Representations by Augmenting OBDDs with Conjunctive Decomposition](https://dblp.org/rec/journals/jair/LaiLY17.html?view=bibtex)
+Panini is an efficient compiler. So far, it suppots the compilation from CNF formula to OBDD or OBDD\[$\wedge$\]. This tool was initiated by Yong Lai, Dayou Liu, and Minghao Yin. Later, it was deeply optimized when Yong Lai was in National University of Singapore with the help from Kuldeep S. Meel and Roland H. C. Yap. Kuldeep S. Meel named it as Panini (the name of an ancient linguist). If you use this tool, please cite our paper [New Canonical Representations by Augmenting OBDDs with Conjunctive Decomposition](https://dblp.org/rec/journals/jair/LaiLY17.html?view=bibtex)
 
 ## ExactMC Description
 
