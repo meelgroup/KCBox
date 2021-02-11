@@ -40,8 +40,6 @@ ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, 
 ```
 cd build 
 ./build.sh 
-cp KCBox .. 
-cd ..
 ```
 
 <!-- ####################################################################### -->
