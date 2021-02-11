@@ -28,18 +28,20 @@ ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, 
 ## Installation
 
 ### Prerequisites
-- cmake 
-- g++ 
-- make
-- libraries:
-   - zlib
-   - gmp
+
+```
+sudo apt-get install build-essential cmake
+sudo apt-get install zlib-devel
+sudo apt-get install libgmp-dev
+```
 
 ### Commands
 
 ```
-cd build 
-./build.sh 
+mkdir build && cd build
+cp ../scripts/build.sh .
+chmod u+x build.sh
+./build.sh
 ```
 
 <!-- ####################################################################### -->
