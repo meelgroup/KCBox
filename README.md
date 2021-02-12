@@ -15,7 +15,7 @@ The following researchers have contributed to this project (sorted alphabeticall
 
 ## PreLite Description
 
-PreLite is a light version of preprocessor that can simplify a CNF formula in DIMACS format as an equivalent one, and therefore can works with knowledge compilers, such as c2d and D4.
+PreLite is a light version of preprocessor that can simplify a CNF formula in DIMACS format as an equivalent one, and therefore can work with knowledge compilers, such as c2d and D4.
 For example, (x1 or x2) and (not x1 or not x2 or not x3) can be expressed in DIMACS format as follows:
 
 ```
