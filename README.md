@@ -16,7 +16,7 @@ The following researchers have contributed to this project (sorted alphabeticall
 ## PreLite Description
 
 PreLite is a light version of preprocessor that can simplify a CNF formula in DIMACS format as an equivalent one. 
-For example, (x1 or x2) and (not x1 or not x2 or not x3) can be expressed as follows:
+For example, (x1 or x2) and (not x1 or not x2 or not x3) can be expressed in DIMACS format as follows:
 
 ```
 p cnf 3 2
