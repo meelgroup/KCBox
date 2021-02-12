@@ -32,7 +32,7 @@ Panini is an efficient compiler. So far, it suppots the compilation from CNF for
 
 ## ExactMC Description
 
-ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. It performs counting wrt a KC language called constrained conjunction \& decision diagrams that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
+ExactMC is a scalable exact model counter. It performs counting wrt a KC language called constrained conjunction \& decision diagrams that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
 
 <!-- ####################################################################### -->
 
