@@ -3,7 +3,7 @@
 KCBox is a long-term project that aims at developping an open-source toolkit for knowledge compilation (KC) and KC-related reasoning tasks. 
 It should be emphasized that this projected is GPLv3 licensed.
 So far, we have released three tools: PreLite, Panini, and ExactMC.
-The following researchers have contributed to this project (sorted alphabetically by last name; see history.txt for a rough description): 
+The following researchers have contributed to this project (sorted alphabetically by last name; see history.txt for a simple description): 
 
 - Yong Lai
 - Dayou Liu
@@ -15,15 +15,24 @@ The following researchers have contributed to this project (sorted alphabeticall
 
 ## PreLite Description
 
-PreLite is a light version of preprocessor that can simplify a CNF formula as an equivalent one. Since PreLite was used as the first kernelization in ExactMC, if you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
+PreLite is a light version of preprocessor that can simplify a CNF formula in DIMACS format as an equivalent one. 
+For example, (x1 or x2) and (not x1 or not x2 or not x3) can be expressed as follows:
+
+```
+p cnf 3 2
+1 2 0
+-1 -2 -3 0
+```
+
+Since PreLite was designed for the first kernelization in ExactMC, if you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
 
 ## Panini Description
 
-Panini is an efficient compiler. So far, it suppots the compilation from CNF formula to OBDD or OBDD\[$\wedge$\]. If you use this tool, please cite our paper [New Canonical Representations by Augmenting OBDDs with Conjunctive Decomposition](https://dblp.org/rec/journals/jair/LaiLY17.html?view=bibtex)
+Panini is an efficient compiler. So far, it suppots the compilation from CNF formula in DIMACS format to OBDD or OBDD\[$\wedge$\], which are the format of tractable circuits. If you use this tool, please cite our paper [New Canonical Representations by Augmenting OBDDs with Conjunctive Decomposition](https://dblp.org/rec/journals/jair/LaiLY17.html?view=bibtex)
 
 ## ExactMC Description
 
-ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. It performs counting wrt a KC language called constrained conjunction \& decision diagrams that supports linear model counting. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
+ExactMC is a scalable exact model counter. This tool was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. It performs counting wrt a KC language called constrained conjunction \& decision diagrams that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
 
 <!-- ####################################################################### -->
 
