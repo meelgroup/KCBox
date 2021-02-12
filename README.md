@@ -1,15 +1,8 @@
 # KCBox
 
 KCBox is a long-term project that aims at developping an open-source toolkit for knowledge compilation (KC) and KC-related reasoning tasks. 
-It should be emphasized that this projected is GPLv3 licensed.
 So far, we have released three tools: PreLite, Panini, and ExactMC.
-The following researchers have contributed to this project (sorted alphabetically by last name; see history.txt for a simple description): 
-
-- Yong Lai
-- Dayou Liu
-- Kuldeep S. Meel
-- Roland H. C. Yap
-- Minghao Yin
+It should be emphasized that this projected is GPLv3 licensed.
 
 <!-- ####################################################################### -->
 
@@ -66,6 +59,18 @@ Use "KCBox --help" to see the usage of the toolkit, and "KCBox toolname --help" 
 ### Precautions for Source Code
 
 - Directory solvers contains some other tools that are used for debugging. If they does not work on your computer, please build them yourself.
+
+The following researchers have contributed to this project (sorted alphabetically by last name; see history.txt for a simple description): 
+
+<!-- ####################################################################### -->
+
+## Contributors
+
+- Yong Lai (laiy@jlu.edu.cn)
+- Dayou Liu (dyliu@jlu.edu.cn)
+- Kuldeep S. Meel (meel@comp.nus.edu.sg)
+- Roland H. C. Yap (ryap@comp.nus.edu.sg)
+- Minghao Yin (ymh@nenu.edu.cn)
 
 <!-- ####################################################################### -->
 
