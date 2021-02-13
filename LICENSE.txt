@@ -1,4 +1,4 @@
-Copyright (C) 2016-2021 Contributors of KCBox, see README and history files
+Copyright (C) 2016-2021 Contributors of KCBox (see README for their names)
 All rights reserved.
 
 ===================
