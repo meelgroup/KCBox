@@ -64,7 +64,7 @@ Use "KCBox --help" to see the usage of the toolkit, and "KCBox toolname --help" 
 
 ## Contributors
 
-The following researchers have contributed to this project (sorted alphabetically by last name; see history.txt for a simple description): 
+The following researchers have contributed to this project (sorted alphabetically by last name; see history.txt for a rough description of contributions): 
 
 - Yong Lai (laiy@jlu.edu.cn)
 - Dayou Liu (dyliu@jlu.edu.cn)
