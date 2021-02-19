@@ -2,7 +2,6 @@
 
 KCBox is a long-term project that aims at developping an open-source toolkit for knowledge compilation (KC) and KC-related reasoning tasks. 
 So far, we have released three tools: PreLite, Panini, and ExactMC.
-It should be emphasized that this projected is GPLv3 licensed.
 
 <!-- ####################################################################### -->
 
