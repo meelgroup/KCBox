@@ -461,7 +461,7 @@ public:
 		size_t new_count = Block_Count( capacity );
 		if ( new_count < old_count ) {
 			_blocks.resize( new_count );
-			_size = new_count * _size_per_block;
+			if ( _size > new_count * _size_per_block ) _size = new_count * _size_per_block;
 		}
 		else if ( new_count > old_count ) {
 			while ( new_count > _blocks.capacity() ) Realloc_Blocks();
@@ -472,7 +472,20 @@ public:
 			}
 		}
 	}
-	T & operator [] ( size_t i ) { assert( i < _size ); return _blocks[Upper_Loc(i)][Lower_Loc(i)]; }
+	void Shrink_To_Fit()
+	{
+		size_t new_count = Block_Count( _size );
+		_blocks.resize( new_count );
+		_blocks.shrink_to_fit();
+	}
+	T & operator [] ( size_t i )
+	{
+		if ( i >= _size ) {
+			cerr << "ERROR[BlockVector]: " << i << " exceeds " << _size << endl;
+			assert( i < _size );
+		}
+		return _blocks[Upper_Loc(i)][Lower_Loc(i)];
+	}
 	T & Back() { return (*this)[_size - 1]; }
 	void Push_Back( T elem )
 	{
@@ -485,13 +498,21 @@ public:
 	void Simply_Erase( size_t i ) { (*this)[i] = (*this)[_size - 1]; _size--; }
 	T Pop_Back() { return (*this)[--_size]; }
 	void Clear() { _size = 0; }
+	void Swap( BlockVector<T> & other )
+	{
+		swap( _size_per_block, other._size_per_block );
+		swap( _bits_of_size_per_block, other._bits_of_size_per_block );
+		swap( _block_mask, other._block_mask );
+		_blocks.swap( other._blocks );
+		swap( _size, other._size );
+	}
 protected:
 	unsigned Upper_Loc( unsigned i ) { return i >> _bits_of_size_per_block; }
 	unsigned Lower_Loc( unsigned i ) { return i & _block_mask; }
-	size_t Block_Count( unsigned capacity ) { return ( capacity + _bits_of_size_per_block - 1 ) >> _bits_of_size_per_block; }
+	size_t Block_Count( unsigned capacity ) { return ( capacity + _size_per_block - 1 ) >> _bits_of_size_per_block; }
 	void Realloc_Blocks()
 	{
-		vector<vector<T>> new_blocks( _blocks.size() * 2 );
+		vector<vector<T>> new_blocks( _blocks.capacity() * 2 );
 		new_blocks.resize( _blocks.size() );
 		for ( size_t i = 0; i < _blocks.size(); i++ ) {
 			new_blocks[i].swap( _blocks[i] );

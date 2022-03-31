@@ -1,6 +1,6 @@
 # KCBox
 
-KCBox is a long-term project that aims at developping an open-source toolkit for knowledge compilation (KC) and KC-related reasoning tasks. 
+KCBox is a long-term project that aims at developping an open-source toolbox for knowledge compilation (KC) and KC-related reasoning tasks. 
 So far, we have released three tools: PreLite, Panini, and ExactMC.
 
 <!-- ####################################################################### -->
@@ -34,7 +34,7 @@ ExactMC is a scalable exact model counter. It performs counting wrt a KC languag
 
 ```
 sudo apt-get install build-essential cmake
-sudo apt-get install zlib-devel
+sudo apt-get install zlib1g.dev
 sudo apt-get install libgmp-dev
 ```
 
