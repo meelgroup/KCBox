@@ -34,7 +34,8 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
 protected:
-	void Filter_Long_Learnts_With_Kernelization();
+	void Get_All_Imp_Component( Component & comp, vector<Model *> & models );
+	void Filter_Long_Learnts();
 protected:
 	void Kernelize_Without_Imp();
 	void Store_Active_Clauses_Component( Stack_Frame & frame, Component & comp );

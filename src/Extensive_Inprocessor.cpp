@@ -78,7 +78,40 @@ size_t Extensive_Inprocessor::Memory()
 	return mem;
 }
 
-void Extensive_Inprocessor::Filter_Long_Learnts_With_Kernelization()
+void Extensive_Inprocessor::Get_All_Imp_Component( Component & comp, vector<Model *> & models )
+{
+	StopWatch begin_watch;
+	Literal lit;
+	assert( !models.empty() );
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) begin_watch.Start();
+	if ( Learnts_Exploded() ) Filter_Long_Learnts();
+	BCP( _num_dec_stack - 1 );
+	Mark_Models_Component( comp, models );
+	Init_Heur_Decaying_Sum_Component( comp );  // ToDo: rename
+	vector<unsigned>::const_iterator old_start = comp.VarIDs_Begin(), start, stop = comp.VarIDs_End();
+//	Debug_Print_Visit_Number( cerr, __LINE__, 10000 );  // ToRemove
+	if ( DEBUG_OFF ) cerr << "#levels = " << _num_levels << ", #vars = " << comp.Vars_Size();  // ToModify
+	for ( start = old_start; ( lit = Pick_Imp_Component_Heuristic( comp, start ) ) <= 2 * _max_var + 1; ) {
+		Reason reason = Imply_Lit_Out_Reason_Component( comp, lit, models );
+		if ( reason != Reason::undef ) {
+			if ( Lit_Undecided( lit ) ) {  /// it is possible that \lit was assigned in \Imply_Lit_Out_Reason_Component
+				Assign( lit, reason );
+				BCP( _num_dec_stack - 1 );
+			}
+		}
+	}
+	if ( DEBUG_OFF ) {  // ToModify
+		cerr << ", time = " << begin_watch.Get_Elapsed_Seconds() << endl;  // ToRemove
+	}
+	if ( DEBUG_OFF ) Verify_Current_Imps();  // ToModify
+	for ( start = old_start; start < stop; start++ ) {
+		_model_seen[*start + *start] = false;
+		_model_seen[*start + *start + 1] = false;
+	}
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_solve += begin_watch.Get_Elapsed_Seconds();
+}
+
+void Extensive_Inprocessor::Filter_Long_Learnts()
 {
 	unsigned i, j;
 	for ( i = _clause_status.size(); i < _long_clauses.size(); i++ ) {

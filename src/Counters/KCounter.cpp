@@ -764,7 +764,6 @@ void KCounter::Count_With_SAT_Imp_Computing()
 		if ( Num_Components_On_Current_Level() <= 1 ) { // decision or preparation
 			switch ( _state_stack[_num_levels - 1] ) {
 			case 0:
-				if ( Learnts_Exploded() ) Filter_Long_Learnts_With_Kernelization();
 				Get_All_Imp_Component( Parent_of_Current_Component(), _models_stack[_num_levels - 1] );
 				_num_comp_stack += Dynamic_Decompose_Component( Parent_of_Current_Component(), _comp_stack + _comp_offsets[_num_levels - 1] );
 				if ( Is_Current_Level_Empty() ) {
