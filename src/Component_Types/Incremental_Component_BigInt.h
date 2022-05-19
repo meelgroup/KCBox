@@ -490,6 +490,10 @@ public:
 	unsigned Hit_Component( Component & comp )
 	{
 		Cacheable_Component<BigInt>::_infor = _hit_infor;  /// NOTE: for different Unified_Component_Cache, Cacheable_Component::_infor is different, so update Cacheable_Component::_infor before Hit
+		if ( comp.ClauseIDs_Size() > _num_long_cl ) {
+			_num_long_cl = comp.ClauseIDs_Size();
+			_big_cacheable_component.Update_Bits( NumVars( _max_var), _num_long_cl );
+		}
 		_big_cacheable_component.Assign( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
 		unsigned i, old_cache_size = _pool.Size();
 		unsigned pos = _pool.Hit( _big_cacheable_component, _hash_memory );

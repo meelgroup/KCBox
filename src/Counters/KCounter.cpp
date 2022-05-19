@@ -48,6 +48,7 @@ void KCounter::Reset()
 
 size_t KCounter::Memory()
 {
+	if ( _max_var == Variable::undef ) return 0;
 	size_t mem = Extensive_Inprocessor::Memory() + _component_cache.Memory();
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		mem += _models_stack[i].capacity() * sizeof(unsigned);
