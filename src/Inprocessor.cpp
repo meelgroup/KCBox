@@ -982,7 +982,7 @@ Reason Inprocessor::BCP_Component( Component & comp, unsigned start )
 	for ( ; start < _num_dec_stack; start++ ) {
 		Literal lit = ~_dec_stack[start];
 		for ( i = 0, size = _binary_clauses[lit].size(); i < size; i++ ) {
-			if ( Lit_UNSAT( _binary_clauses[lit][i] ) ) {
+			if ( Lit_UNSAT( _binary_clauses[lit][i] ) && comp.Search_Var( _binary_clauses[lit][i].Var() ) ) {
 				_big_learnt[1] = _binary_clauses[lit][i];
 				return Reason( lit );
 			}
@@ -1014,7 +1014,7 @@ Reason Inprocessor::BCP_Component( Component & comp, unsigned start )
 			else {
 				unit = true;
 				for ( j = 3; j < clause.Size(); j++ ) {
-					Literal li = clause[j];
+					li = clause[j];
 					if ( !Lit_UNSAT( li ) ) {  // l is not falsified
 						unit = false;
 						clause[j] = clause[1];
@@ -1026,13 +1026,15 @@ Reason Inprocessor::BCP_Component( Component & comp, unsigned start )
 				}
 			}
 			if ( unit ) {
-				if ( Lit_Decided( clause[0] ) ) {
-					_big_learnt[1] = clause[0];
-					return Reason( watched[i], SAT_REASON_CLAUSE );  // (*itr)->lits[0] is falsified
-				}
-				else if ( comp.Search_Var( clause[0].Var() ) ) {
-					Assign( clause[0], Reason( watched[i], SAT_REASON_CLAUSE ) );
-					i++;
+				if ( comp.Search_Var( clause[0].Var() ) ) {
+					if ( Lit_Decided( clause[0] ) ) {
+						_big_learnt[1] = clause[0];
+						return Reason( watched[i], SAT_REASON_CLAUSE );  // (*itr)->lits[0] is falsified
+					}
+					else  {
+						Assign( clause[0], Reason( watched[i], SAT_REASON_CLAUSE ) );
+						i++;
+					}
 				}
 				else i++;
 			}
