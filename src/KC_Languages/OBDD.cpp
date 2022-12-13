@@ -17,7 +17,7 @@ _op_table( LARGE_HASH_TABLE * 10 )
 
 void OBDD_Manager::Allocate_and_Init_Auxiliary_Memory()
 {
-    Assignment::Allocate_and_Init_Auxiliary_Memory( Variable( _var_order.Max() ) );
+	_result_stack = new NodeID [_max_var + 2];
 }
 
 void OBDD_Manager::Add_Fixed_Nodes()
@@ -57,6 +57,7 @@ OBDD_Manager::~OBDD_Manager()
 
 void OBDD_Manager::Free_Auxiliary_Memory()
 {
+	delete [] _result_stack;
 }
 
 void OBDD_Manager::Reorder( const Chain & new_order )
@@ -411,7 +412,7 @@ BDD OBDD_Manager::Convert( CNF_Formula & cnf )
 
 BDD OBDD_Manager::Conjoin( BDD left, BDD right )
 {
-	Binary_Map_Node op_table_node;
+	Binary_Map_Node<NodeID, NodeID, NodeID> op_table_node;
 	_node_stack[0] = left;
 	_path[0] = right;
 	_node_mark_stack[0] = 1;
@@ -486,7 +487,7 @@ BDD OBDD_Manager::Conjoin( BDD left, BDD right )
 
 BDD OBDD_Manager::Disjoin( BDD left, BDD right )
 {
-	Binary_Map_Node op_table_node;
+	Binary_Map_Node<NodeID, NodeID, NodeID> op_table_node;
 	_node_stack[0] = left;
 	_path[0] = right;
 	_node_mark_stack[0] = 1;

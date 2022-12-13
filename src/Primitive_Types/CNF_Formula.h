@@ -26,12 +26,13 @@ protected:
 	unsigned _val;
 public:
 	Variable() {}
-	explicit Variable( unsigned var ) { _val = var; }
+	explicit Variable( unsigned var ): _val(var) {}
+	Variable( const Variable &other ): _val(other._val) {}
 	Variable Next() const { return Variable( _val + 1 ); }
 	Variable & operator ++(int) { _val++; return *this; }
 	Variable & operator --(int) { _val--; return *this; }
 	Variable & operator = ( unsigned var ) { _val = var; return *this; }
-	Variable & operator = ( Variable var ) { _val = var; return *this; }
+	Variable & operator = ( const Variable other ) { _val = other._val; return *this; }
 	bool operator == (const Variable &other) const { return _val == other._val; }
 	bool operator != (const Variable &other) const { return _val != other._val; }
 	bool operator == (const unsigned other) const { return _val == other; }
@@ -180,14 +181,14 @@ public:
 		_lits[0] = lit0;
 		_lits[1] = lit1;
 	}
-	Clause( Literal * lits, unsigned size ): _size( size )
+	Clause( const Literal * lits, unsigned size ): _size( size )
 	{
 		Allocate_Memory();
 		for ( unsigned i = 0; i < size; i++ ) {
 			_lits[i] = lits[i];
 		}
 	}
-	Clause( vector<Literal> & lits ): _size( lits.size() )
+	Clause( const vector<Literal> & lits ): _size( lits.size() )
 	{
 		Allocate_Memory();
 		for ( unsigned i = 0; i < _size; i++ ) {
@@ -286,6 +287,7 @@ public:
 	void Add_Ternary_Clause( Literal lit0, Literal lit1, Literal lit2 ) { Literal lits[3] = {lit0, lit1, lit2}; _clauses.push_back( Clause( lits, 3 ) ); }
 	void Add_Clause( Clause & cl ) { _clauses.push_back( cl.Copy() ); }  /// allocate space
 	void Add_Clause( Big_Clause & cl ) { _clauses.push_back( cl ); }  /// allocate space
+	void Input_Clause( Clause & cl ) { _clauses.push_back( cl ); }  /// not allocate space
 	unsigned Num_Vars() const { return _max_var - Variable::start + 1; }
 	Variable Max_Var() const { return _max_var; }
 	BigInt Known_Count() const { return _known_count; }
@@ -302,6 +304,7 @@ protected:
     bool Get_Line( istream & fin, char line[] );
     bool Read_Known_Result( char line[] );
     unsigned Read_Clause( char line[], Literal lits[] );
+    Literal Read_Lit( char * & p );
 	void Read_Independent_Support( char line[] );
 	void Generate_Lit_Membership_Lists( vector<vector<unsigned>> & membership_lists );
 	void Generate_Var_Membership_Lists( vector<vector<unsigned>> & membership_lists );
@@ -343,7 +346,7 @@ public:
 protected:
 	void Read_MC_Competition_Format( istream & fin );
     bool Get_Line_MC_Competition( istream & fin, char line[] );
-	void Read_Weight( char line[] );
+	void Read_Literal_Weight( char * p );
 	void Read_MiniC2D_Format( istream & fin );
     bool Get_Line_MiniC2D( istream & fin, char line[] );
 	void Remove_Zero();

@@ -45,7 +45,7 @@ void Solver::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToDo: wh
 	_heur_sorted_lits = new Literal [2 * _max_var + 4];  // "heur_lits[2 * max_var + 2]" and "heur_lits[2 * max_var + 3]" is sometimes used to reduce the number of iteration
 	_heur_lits_heap.Enlarge_Index( 2 * _max_var + 1, _heur_decaying_sum );
 	_var_rank = new unsigned [2 * _max_var + 2];
-	_big_clause.Reserve( _max_var );
+	_big_clause.Reserve( 2 * NumVars( _max_var ) );  /// NOTE: avoid overflow with tautology
 	_big_learnt.Reserve( _max_var );  // used in learning conflict
 	if ( Hyperscale_Problem() ) _model_pool = new Model_Pool( _max_var, 1 );
 	else if ( Large_Scale_Problem() ) _model_pool = new Model_Pool( _max_var, _max_var );
@@ -102,6 +102,46 @@ void Solver::Reset()
 	_long_clauses.clear();
 }
 
+void Solver::operator = ( Solver & another )
+{
+	Allocate_and_Init_Auxiliary_Memory( another._max_var );
+	Decision_Manager::operator=( another);
+	_no_instance = another._no_instance;
+	_unary_clauses = another._unary_clauses;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		Literal lit( i, false );
+		_binary_clauses[lit] = another._binary_clauses[lit];
+		_old_num_binary_clauses[lit] = another._old_num_binary_clauses[lit];
+		_long_watched_lists[lit] = another._long_watched_lists[lit];
+		lit = Literal( i, true );
+		_binary_clauses[lit] = another._binary_clauses[lit];
+		_old_num_binary_clauses[lit] = another._old_num_binary_clauses[lit];
+		_long_watched_lists[lit] = another._long_watched_lists[lit];
+	}
+	_old_num_long_clauses = another._old_num_long_clauses;
+	for ( Clause & clause: another._long_clauses ) {
+		_long_clauses.push_back( clause.Copy() );
+	}
+	_clause_status = another._clause_status;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		_heur_sorted_lits[i + i - Literal::start] = another._heur_sorted_lits[i + i - Literal::start];
+		_heur_sorted_lits[i + i + 1 - Literal::start] = another._heur_sorted_lits[i + i + 1 - Literal::start];
+		_heur_decaying_sum[i + i] = another._heur_decaying_sum[i + i];
+		_heur_decaying_sum[i + i + 1] = another._heur_decaying_sum[i + i + 1];
+	}
+	_heur_lit_sentinel = Literal( _max_var.Next(), false );
+	_heur_sorted_lits[2 * _max_var + 2 - Literal::start] = _heur_lit_sentinel;  // NOTE: this line guarantee the correctness of "Branch"
+	_heur_sorted_lits[2 * _max_var + 3 - Literal::start] = ~_heur_lit_sentinel;
+	_heur_decaying_sum[_heur_lit_sentinel] = -1;  /// NOTE: to speed up Branch and Branch_Component by using only one comparison in for-loop
+	_heur_decaying_sum[~_heur_lit_sentinel] = -2;  /// NOTE: return 2 * _max_var + 2 exactly when all variables are assigned
+	if ( running_options.sat_heur_lits == Heuristic_Literal_Heap ) {
+		_heur_lits_heap.Build( _heur_sorted_lits, 2 * NumVars( _max_var ) );
+	}
+	*_model_pool = *another._model_pool;
+	running_options = another.running_options;
+	debug_options = another.debug_options;
+}
+
 void Solver::Open_Oracle_Mode( Variable var_bound )
 {
 	Allocate_and_Init_Auxiliary_Memory( var_bound );
@@ -117,8 +157,8 @@ void Solver::Close_Oracle_Mode()
 bool Solver::Solve( CNF_Formula & cnf, vector<Model *> & models )
 {
 	if ( running_options.display_solving_process ) {
-		cout << "Number of original variables: " << cnf.Num_Vars() << endl;
-		cout << "Number of original clauses: " << cnf.Num_Clauses() << endl;
+		cout << running_options.display_prefix << "Number of original variables: " << cnf.Num_Vars() << endl;
+		cout << running_options.display_prefix << "Number of original clauses: " << cnf.Num_Clauses() << endl;
 	}
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( !Load_Instance( cnf ) ) {
@@ -136,8 +176,8 @@ bool Solver::Solve( CNF_Formula & cnf, vector<Model *> & models )
 		Display_Statistics( cout );
 	}
 	if ( running_options.display_solving_process ) {
-		if ( sat ) cout << "SAT" << endl;
-		else cout << "UNSAT" << endl;
+		if ( sat ) cout << "s SATISFIABLE" << endl;
+		else cout << "s UNSATISFIABLE" << endl;
 	}
 	return sat;
 }
@@ -311,8 +351,7 @@ void Solver::Init_Heur_Decaying_Sum()
 		break;
 	case Heuristic_Literal_Heap:
 		running_options.sat_heur_cumulative_inc = 1;
-		_heur_num_lits = 2 * NumVars( _max_var );
-		_heur_lits_heap.Build( _heur_sorted_lits, _heur_num_lits );
+		_heur_lits_heap.Build( _heur_sorted_lits, 2 * NumVars( _max_var ) );
 		break;
 	}
 }
@@ -721,7 +760,9 @@ void Solver::Bump_Heur_Lit( Literal lit )
 void Solver::Rescale_Heur_Decaying_Sum()
 {
 	ASSERT( running_options.sat_heur_lits == Heuristic_Literal_Heap );
-	cerr << "rescale" << endl;
+	if ( running_options.display_solving_process && running_options.profile_solving != Profiling_Close ) {
+		cout << running_options.display_prefix << "rescale" << endl;
+	}
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		_heur_decaying_sum[Literal( i, false )] /= running_options.sat_heur_bound;
 		_heur_decaying_sum[Literal( i, true )] /= running_options.sat_heur_bound;
@@ -1011,6 +1052,31 @@ Literal Solver::Branch_Component( Component & comp )
 		}
 		return _heur_lit_sentinel;
 	}
+}
+
+Reason Solver::Assign_Late( unsigned level, Literal lit, Reason reason )
+{
+	ASSERT( !Var_Decided( lit.Var() ) && level < _num_levels && reason != Reason::undef );
+	stack<Literal> old_decisions;
+	while ( _num_levels > level + 1 ) {
+		Backtrack();
+		assert( _reasons[_dec_stack[_num_dec_stack].Var()] == Reason::undef );
+		old_decisions.push( _dec_stack[_num_dec_stack] );
+	}
+	Assign( lit, reason );
+	Reason conf = BCP( _num_dec_stack - 1);
+	if ( conf != Reason::undef ) return conf;
+	while ( old_decisions.size() > 1 ) {
+		Extend_New_Level();
+		Literal decision = old_decisions.top();
+		old_decisions.pop();
+		Assign( decision );
+		conf = BCP( _num_dec_stack - 1);
+		if ( conf != Reason::undef ) return conf;
+	}
+	Extend_New_Level();
+	Assign( old_decisions.top() );
+	return BCP( _num_dec_stack - 1);
 }
 
 unsigned Solver::Num_Clauses()

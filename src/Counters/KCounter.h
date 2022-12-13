@@ -23,6 +23,7 @@ public:
 	~KCounter();
 	void Reset();
 	size_t Memory();
+	void Set_Max_Var( Variable max_var ) { Allocate_and_Init_Auxiliary_Memory( max_var ); }
 protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
@@ -68,7 +69,6 @@ protected:
 	bool Estimate_Hardness( Component & comp );
 	lbool Try_Final_Kernelization();  // return whether solved by this function
 	bool Estimate_Final_Kernelization_Effect();
-	bool Estimate_Kernelization_Effect_Enough_Decisions( unsigned step );
 	void Leave_Tmp_Kernelization();
 	void Leave_Final_Kernelization();
 	void Compute_Second_Var_Order_Automatical( Component & comp );
@@ -81,7 +81,14 @@ protected:
 	void Calculate_Decision();
 	void Backtrack_Decision_Imp();
 	void Iterate_Decision_Next();
+public:
+	BigInt Count_Models( CNF_Formula & cnf, vector<Model *> & models, double timeout );
 protected:
+	void Count_With_Implicite_BCP( double timeout );
+	void Terminate_Counting();
+	void Count_With_SAT_Imp_Computing( double timeout );  // employ SAT engine to compute implied literals
+	bool Try_Shift_To_Implicite_BCP( double timeout );
+	BigInt Backtrack_Failure();
 	bool Is_Memory_Exhausted();
 public:
 	static void Debug() { Debug_File(); }
@@ -121,6 +128,7 @@ public:
 		KCounter counter;
 		counter.debug_options.verify_count = false;
 		counter.debug_options.verify_component_count = false;
+		counter.running_options.detect_AND_gates = false;
 		counter.running_options.static_heur = parameters.static_heur;
 		counter.running_options.phase_selecting = false;
 		counter.running_options.max_kdepth = parameters.kdepth;
@@ -128,23 +136,33 @@ public:
 		counter.running_options.trivial_variable_bound = 128;
 		counter.running_options.display_kernelizing_process = false;
 		counter.running_options.max_memory = parameters.memo;
-		Heuristic heur;
-		if ( parameters.heur == 1 ) heur = minfill;
-		else if ( parameters.heur == 2 ) heur = LinearLRW;
-		else if ( parameters.heur == 3 ) heur = Dminfill;
-		else if ( parameters.heur == 4 ) heur = VSADS;
-		else if ( parameters.heur == 5 ) heur = DLCS;
-		else if ( parameters.heur == 6 ) heur = DLCP;
-		else heur = AutomaticalHeur;
+		Heuristic heur = Parse_Heuristic( parameters.heur );
+		if ( quiet ) {
+			counter.running_options.profile_solving = Profiling_Close;
+			counter.running_options.profile_preprocessing = Profiling_Close;
+			counter.running_options.profile_counting = Profiling_Close;
+		}
+		if ( parameters.competition ) counter.running_options.display_prefix = "c o ";
 		ifstream fin( infile );
 		CNF_Formula cnf( fin );
 		fin.close();
+		BigInt count;
 		if ( cnf.Max_Var() == Variable::undef ) {
-			cout << "Number of models: " << cnf.Known_Count() << endl;
-			return;
+			count = cnf.Known_Count();
+			if ( count != 0 ) cout << "s SATISFIABLE" << endl;
+			else cout << "s UNSATISFIABLE" << endl;
 		}
-		BigInt count = counter.Count_Models( cnf, heur );
-		cout << "Number of models: " << count << endl;
+		else count = counter.Count_Models( cnf, heur );
+		cout << counter.running_options.display_prefix << "Number of models: " << count << endl;
+		if ( parameters.competition ) {  // for model counting competition
+			cout << "c s type mc" << endl;
+			cout << "c o The solver log10-estimates a solution of " << count << endl;
+			long exp;
+			double num = count.TransformDouble_2exp( exp );
+			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;
+			cout << "c o Arbitrary precision result is " << count << endl;
+			cout << "c s exact arb int " << count << endl;
+		}
 	}
 };
 

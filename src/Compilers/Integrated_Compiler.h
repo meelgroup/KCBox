@@ -74,44 +74,70 @@ public:
 		manager.Display( fout );
 		fout.close();
 	}
-	static void Test_OBDD_Compiler( const char * infile, bool CT, const char * outfile )
+	static void Test_OBDD_Compiler( const char * infile, Compiler_Parameters & parameters, bool quiet )
 	{
 		Compiler compiler;
+		Heuristic heur = Parse_Heuristic( parameters.heur );
+		if ( heur != AutomaticalHeur && heur != minfill && heur != LexicographicOrder ) {
+			cerr << "ERROR: the heuristic is not supported yet!" << endl;
+			exit( 0 );
+		}
+		if ( quiet ) {
+			compiler.running_options.profile_solving = Profiling_Close;
+			compiler.running_options.profile_preprocessing = Profiling_Close;
+			compiler.running_options.profile_compiling = Profiling_Close;
+		}
+		if ( parameters.CT.Exists() || parameters.US.Exists() ) {
+			cerr << "ERROR: the query is not supported yet!" << endl;
+			exit( 0 );
+		}
 		ifstream fin( infile );
 		CNF_Formula cnf( fin );
 		fin.close();
 		if ( cnf.Max_Var() == Variable::undef ) {
-			if ( compiler.running_options.display_compiling_process ) cout << "Number of edges: 0" << endl;
-			if ( CT ) cout << "Number of models: " << cnf.Known_Count() << endl;
+			if ( compiler.running_options.display_compiling_process ) cout << "c o Number of edges: 0" << endl;
 			return;
 		}
 		OBDDC_Manager manager( cnf.Max_Var() );
-		BDDC root = compiler.Compile( manager, cnf, AutomaticalHeur );
-		if ( CT ) cout << "Number of models: " << manager.Count_Models_Opt( root ) << endl;
+		BDDC root = compiler.Compile( manager, cnf, heur );
 		OBDD_Manager bdd_manager( manager.Var_Order() );
 		manager.Convert_Down_ROBDD( root, bdd_manager );
-		if ( outfile != nullptr ) {
-            ofstream fout( outfile );
-            bdd_manager.Display( fout );
-            fout.close();
+		if ( parameters.out_file != nullptr ) {
+			ofstream fout( parameters.out_file );
+			bdd_manager.Display( fout );
+			fout.close();
 		}
 	}
-	static void Test_OBDDC_Compiler( const char * infile, bool CT, const char * outfile )
+	static void Test_OBDDC_Compiler( const char * infile, Compiler_Parameters & parameters, bool quiet )
 	{
 		Compiler compiler;
+		Heuristic heur = Parse_Heuristic( parameters.heur );
+		if ( heur != AutomaticalHeur && heur != minfill && heur != LexicographicOrder ) {
+			cerr << "ERROR: the heuristic is not supported yet!" << endl;
+			exit( 0 );
+		}
+		if ( quiet ) {
+			compiler.running_options.profile_solving = Profiling_Close;
+			compiler.running_options.profile_preprocessing = Profiling_Close;
+			compiler.running_options.profile_compiling = Profiling_Close;
+		}
+		if ( parameters.US.Exists() ) {
+			cerr << "ERROR: the query is not supported yet!" << endl;
+			exit( 0 );
+		}
 		ifstream fin( infile );
 		CNF_Formula cnf( fin );
 		fin.close();
 		if ( cnf.Max_Var() == Variable::undef ) {
-			if ( compiler.running_options.display_compiling_process ) cout << "Number of edges: 0" << endl;
-			if ( CT ) cout << "Number of models: " << cnf.Known_Count() << endl;
+			if ( compiler.running_options.display_compiling_process ) cout << "c o Number of edges: 0" << endl;
+			if ( parameters.CT ) cout << "c o Number of models: " << cnf.Known_Count() << endl;
 			return;
 		}
 		OBDDC_Manager manager( cnf.Max_Var() );
-		BDDC root = compiler.Compile( manager, cnf, AutomaticalHeur );
-		if ( CT ) cout << "Number of models: " << manager.Count_Models_Opt( root ) << endl;
-		if ( outfile != nullptr ) {
-            ofstream fout( outfile );
+		BDDC root = compiler.Compile( manager, cnf, heur );
+		if ( parameters.CT ) cout << "c o Number of models: " << manager.Count_Models_Opt( root ) << endl;
+		if ( parameters.out_file != nullptr ) {
+			ofstream fout( parameters.out_file );
             manager.Display( fout );
             fout.close();
 		}

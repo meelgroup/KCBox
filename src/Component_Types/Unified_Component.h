@@ -181,6 +181,8 @@ public:
 				var |= ( _bits[begin / UNSIGNED_SIZE + 1] << ( UNSIGNED_SIZE - begin % UNSIGNED_SIZE ) ) & vcode_mask; // NOTE: a == ( a >> UNSIGNED_SIZE )
 			comp.Add_Var( Variable( var + Variable::start ) );
 		}
+		comp.Add_Var( Variable::undef );  /// NOTE: prevent comp.Vars() from reallocating memory when push_back mar_var + 1 later
+		comp.Dec_Var();  /// pop Variable::undef
 		for ( i = 0; i < _num_bin_cl; i++ ) {
 			lit = ( _bits[begin / UNSIGNED_SIZE] >> ( begin % UNSIGNED_SIZE ) ) & bccode_mask;
 			if ( bccode_size > UNSIGNED_SIZE - begin % UNSIGNED_SIZE )

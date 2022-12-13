@@ -20,7 +20,6 @@ void Diagram_Manager::Allocate_and_Init_Auxiliary_Memory( Variable max_var )
 	_path_mark = new unsigned [2 * _max_var + 2];
 	_node_stack = new NodeID [2 * _max_var + 4];
 	_node_mark_stack = new unsigned [2 * _max_var + 4];
-	_result_stack = new unsigned [_max_var + 2];
 	_var_seen = new bool [_max_var + 1];
 	_lit_seen = new bool [2 * _max_var + 2];
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
@@ -41,7 +40,6 @@ void Diagram_Manager::Free_Auxiliary_Memory()
 	delete [] _path_mark;
 	delete [] _node_stack;
 	delete [] _node_mark_stack;
-	delete [] _result_stack;
 	delete [] _var_seen;
 	delete [] _lit_seen;
 }

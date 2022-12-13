@@ -42,7 +42,8 @@ protected:
 	unsigned _id;
 public:
 	NodeID() {}
-	NodeID( unsigned id ) { _id = id; }
+	NodeID( unsigned id ): _id( id ) {}
+	NodeID( const NodeID &n ): _id( n._id ) {}
 	NodeID & operator ++(int) { _id++; return *this; }
 	NodeID & operator = ( NodeID node ) { _id = node._id; return *this; }
 	bool operator == (const NodeID &other) const { return _id == other._id; }
@@ -76,6 +77,7 @@ public:
 	bool Var_LT( Variable x, Variable y ) { return _var_order.Less_Than( x, y ); }
 	bool Var_LE( Variable x, Variable y ) { return _var_order.Less_Eq( x, y ); }
 	bool Lit_LT( Literal lit, Literal lit2 ) { return _var_order.Less_Than( lit.Var(), lit2.Var() ); }
+	bool Lit_LE( Literal lit, Literal lit2 ) { return _var_order.Less_Eq( lit.Var(), lit2.Var() ); }
 	const Chain & Var_Order() const { return _var_order; }
 	void Generate_Lexicographic_Var_Order( Variable max_var )
 	{
@@ -99,8 +101,6 @@ protected:
 	NodeID * _node_stack;
 	unsigned * _node_mark_stack;
 	vector<NodeID> _visited_nodes;
-	unsigned * _result_stack;
-	unsigned _num_result_stack;
 	bool * _var_seen;
 	bool * _lit_seen;
 public:

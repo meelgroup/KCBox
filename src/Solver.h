@@ -43,7 +43,7 @@ protected:
 	unsigned * _dec_offsets;
 	unsigned _num_levels;  // each level includes decision literals (in _dec_stack) and components (in comp_stack)
 	unsigned _base_dec_level;
-public:
+protected:
 	Decision_Manager() {}
 	~Decision_Manager() { if ( _max_var != Variable::undef ) Free_Auxiliary_Memory(); }
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToDo: whether can we optimize when mv < max_var
@@ -72,6 +72,18 @@ public:
 			Un_Assign( _dec_stack[i].Var() );
 		}
 		_num_levels = _num_dec_stack = 0;
+	}
+	void operator = ( Decision_Manager & another )
+	{
+		Allocate_and_Init_Auxiliary_Memory( another._max_var );
+		while ( _num_dec_stack < another._num_dec_stack ) {
+			Literal lit = another._dec_stack[_num_dec_stack];
+			Assign( lit, _reasons[lit.Var()] );
+		}
+		for ( ; _num_levels < another._num_levels; _num_levels++ ) {
+			_dec_offsets[_num_levels] = another._dec_offsets[_num_levels];
+		}
+		_base_dec_level = another._base_dec_level;
 	}
 	void Assign( Variable var, bool val, Reason reason )
 	{
@@ -114,7 +126,7 @@ public:
 	}
 };
 
-class Solver: protected Decision_Manager
+class Solver: public Decision_Manager
 {
 protected:
 	bool _no_instance;
@@ -132,7 +144,6 @@ protected:
 	vector<unsigned> _clause_stack;  // used to store the IDs of the seen clauses
 	double * _heur_decaying_sum;  // used for VSIDS and VSADS
 	Literal * _heur_sorted_lits;  // the lits in the array are sorted by heur_decaying_sum
-	unsigned _heur_num_lits;  // record the number of active lits
 	Literal _heur_lit_sentinel;  // the sentinel in heur_sorted_lits
 	Heap<Literal, double> _heur_lits_heap;
 	unsigned * _var_rank;  // used for conflict learning, and dynamic decomposition
@@ -148,6 +159,7 @@ public:
 	void Close_Oracle_Mode();
 	bool Is_Oracle_Mode() const { return running_options.variable_bound != Variable::undef; }
 	void Reset();   /// this function should be called after calling Preprocess()
+	void operator = ( Solver & another );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
@@ -190,6 +202,8 @@ protected:
 	void Update_Heur_Decaying_Sum_Sorted_List_Component( Component & comp );
 	void Update_Heur_Decaying_Sum_Heap_Component( Component & comp );
 	Literal Branch_Component( Component & comp );
+protected:
+	Reason Assign_Late( unsigned level, Literal lit, Reason reason );
 protected:
 	unsigned Num_Clauses();
 	unsigned Old_Num_Clauses();
@@ -235,7 +249,6 @@ public:
 public:
 	Statistics statistics;
 	Running_Options running_options;
-protected:
 	Debug_Options debug_options;
 public:
 	static void Debug()

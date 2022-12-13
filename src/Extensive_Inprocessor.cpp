@@ -209,16 +209,70 @@ void Extensive_Inprocessor::Filter_Long_Learnts()
 	if ( running_options.sat_heur_lits == Heuristic_Literal_Heap ) running_options.sat_heur_cumulative_inc = 1;
 }
 
+void Extensive_Inprocessor::Get_All_Projected_Imp_Component( Component & comp, vector<Model *> & models )
+{
+	StopWatch begin_watch;
+	Literal lit;
+	assert( !models.empty() );
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) begin_watch.Start();
+	if ( Learnts_Exploded() ) Filter_Long_Learnts();
+	Get_Approx_Imp_Component_Partial_IBCP( comp );
+	Mark_Models_Component( comp, models );
+	Init_Heur_Decaying_Sum_Component( comp );  // ToDo: rename
+	vector<unsigned>::const_iterator old_start = comp.VarIDs_Begin(), start, stop = comp.VarIDs_End();
+//	Debug_Print_Visit_Number( cerr, __LINE__, 10000 );  // ToRemove
+	if ( DEBUG_OFF ) cerr << "#levels = " << _num_levels << ", #vars = " << comp.Vars_Size();  // ToModify
+	for ( start = old_start; ( lit = Pick_Projected_Imp_Component_Heuristic( comp, start ) ) <= 2 * _max_var + 1; ) {
+		Reason reason = Imply_Projected_Lit_Out_Reason_Component( comp, lit, models );
+		if ( reason != Reason::undef ) {
+			if ( Lit_Undecided( lit ) ) {  /// it is possible that \lit was assigned in \Imply_Lit_Out_Reason_Component
+				Assign( lit, reason );
+				BCP( _num_dec_stack - 1 );
+			}
+		}
+	}
+	if ( DEBUG_OFF ) {  // ToModify
+		cerr << ", time = " << begin_watch.Get_Elapsed_Seconds() << endl;  // ToRemove
+	}
+	if ( DEBUG_OFF ) Verify_Current_Imps();  // ToModify
+	for ( start = old_start; start < stop; start++ ) {
+		_model_seen[*start + *start] = false;
+		_model_seen[*start + *start + 1] = false;
+	}
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_solve += begin_watch.Get_Elapsed_Seconds();
+}
+
+bool Extensive_Inprocessor::Estimate_Kernelization_Effect_Enough_Decisions( unsigned step, unsigned ratio )
+{
+	unsigned last_level = Search_Last_Kernelizition_Level();
+	unsigned num_decisions = _num_dec_stack - _dec_offsets[last_level + 1];
+	unsigned num_levels = _num_levels - last_level - 1;
+	if ( running_options.display_kernelizing_process && running_options.profiling_ext_inprocessing >= Profiling_Detail ) {
+		cout << running_options.display_prefix << "level " << last_level + 1 << " -> " << _num_levels - 1 << " (#decisions: " << num_decisions << ")" << endl;
+	}
+	return num_decisions > step && num_levels < num_decisions / ratio;
+}
+
 void Extensive_Inprocessor::Kernelize_Without_Imp()
 {
+	if ( DEBUG_OFF ) {
+		static unsigned num_visited = 0;  // ToRemove
+		if ( ++num_visited == 13 ) {
+			CNF_Formula * cnf = Output_Original_Clauses_In_Component( Current_Component() );
+			cnf->Sort_Clauses();
+			ofstream ferr( "debug/debug3.cnf" );
+			ferr << *cnf;
+			ferr.close();
+		}
+	}
 /*	static unsigned num_visited = 0;  // ToRemove
 	if ( ++num_visited == 1 ) {
 		Display_Clauses( cerr, true );
 	}*/
 //	Display_Decision_Stack( cerr, 1 );
 //	Debug_Print_Visit_Number( cerr, __FUNCTION__, __LINE__ );  // ToRemove
-	if ( running_options.display_kernelizing_process ) {
-		cout << "kernelizing: " << Current_Component().Vars_Size() << " vars, " << Current_Component().ClauseIDs_Size() << " long clauses" << endl;
+	if ( running_options.display_kernelizing_process && running_options.profiling_ext_inprocessing >= Profiling_Detail ) {
+		cout << running_options.display_prefix << "kernelizing: " << Current_Component().Vars_Size() << " vars, " << Current_Component().ClauseIDs_Size() << " long clauses" << endl;
 	}
 	StopWatch begin_watch, tmp_watch;
 	if ( running_options.profiling_ext_inprocessing >= Profiling_Abstract ) begin_watch.Start();
@@ -245,7 +299,7 @@ void Extensive_Inprocessor::Kernelize_Without_Imp()
 	} while ( Replace_Equivalent_Lit_Component( comp ) );
 	Block_Binary_Clauses_Component( comp );
 	if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) Rename_Clauses_Linear_Ordering_Component( comp );
-	if ( DEBUG_OFF ) Verify_Kernelization();  // ToModify
+	if ( debug_options.verify_kernelization ) Verify_Kernelization();
 	// fifth: store literal equivalences
 	Store_Lit_Equivalences_Component( _call_stack[level], comp );
 	// sixth: update component
@@ -253,8 +307,8 @@ void Extensive_Inprocessor::Kernelize_Without_Imp()
 	Update_Kernelized_Component( comp, _call_stack[level].Component_VarIDs() );
 	_fixed_num_long_clauses = _old_num_long_clauses;
 	if ( running_options.profiling_ext_inprocessing >= Profiling_Abstract ) statistics.time_kernelize += begin_watch.Get_Elapsed_Seconds();
-	if ( running_options.display_kernelizing_process ) {
-		cout << "kernelization effect: " << Current_Component().Vars_Size() << " vars, " << Current_Component().ClauseIDs_Size() << " long clauses" << endl;
+	if ( running_options.display_kernelizing_process && running_options.profiling_ext_inprocessing >= Profiling_Detail ) {
+		cout << running_options.display_prefix << "kernelization effect: " << Current_Component().Vars_Size() << " vars, " << Current_Component().ClauseIDs_Size() << " long clauses" << endl;
 	}
 //	Display_Component( comp, cerr );  // ToRemove
 }
@@ -1169,14 +1223,14 @@ void Extensive_Inprocessor::Batch_Preprocess()
 	if ( running_options.profiling_ext_inprocessing >= Profiling_Abstract ) begin_watch.Start();
 	for ( unsigned i = 0; i < _input_frames.size(); i++ ) {
 		assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-		if ( running_options.display_kernelizing_process ) cout << "Begin kernelization..." << endl;
+		if ( running_options.display_kernelizing_process ) cout << running_options.display_prefix << "Begin kernelization..." << endl;
 		assert( _input_frames[i].Lit_Equivalences().empty() );
 		Load_Frame( _input_frames[i] );
 		bool cnf_sat = Preprocess( _models_stack[0] );
 		_input_frames[i].Set_Existed( cnf_sat );
 		if ( _input_frames[i].Existed() ) Store_Frame( _input_frames[i] );
 		Preprocessor::Reset();
-		if ( running_options.display_kernelizing_process ) cout << "Kernelization done." << endl;
+		if ( running_options.display_kernelizing_process ) cout << running_options.display_prefix << "Kernelization done." << endl;
 	}
 	if ( running_options.profiling_ext_inprocessing >= Profiling_Abstract ) statistics.time_kernelize += begin_watch.Get_Elapsed_Seconds();
 }

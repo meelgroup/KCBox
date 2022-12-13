@@ -23,27 +23,38 @@ struct Search_Node
 	unsigned imp_size;
 	NodeID * ch;
 	unsigned ch_size;
+	unsigned caching_loc;
 	Node_Infor infor;
-	Search_Node( bool val ): imp_size( 0 ), ch_size( 0 )  // constant node
+	Search_Node(): caching_loc( UNSIGNED_UNDEF ) {}
+	Search_Node( unsigned num_imp, unsigned num_ch ): imp_size( num_imp ), ch_size( num_ch ), caching_loc( UNSIGNED_UNDEF )
+	{
+		Allocate_Memory();
+	}
+	Search_Node( bool val ): imp_size( 0 ), ch_size( 0 ), caching_loc( UNSIGNED_UNDEF )  // constant node
 	{
 		Allocate_Memory();
 		if ( !val ) sym = SEARCH_CONFLICTED;
 		else sym = SEARCH_EMPTY;
 	}
-	Search_Node( Literal lit ): sym( SEARCH_DECOMPOSED ), imp_size( 1 ), ch_size( 0 )  // literal node
+	Search_Node( Literal lit ): sym( SEARCH_DECOMPOSED ), imp_size( 1 ), ch_size( 0 ), caching_loc( UNSIGNED_UNDEF )  // literal node
 	{
 		Allocate_Memory();
 		imp[0] = lit;
 	}
-	Search_Node( Decision_Node & dnode, unsigned cloc ): sym( dnode.var ), imp_size( 0 ), ch_size( 3 )
+	Search_Node( Variable var, NodeID low, NodeID high, unsigned cloc ): sym( var ), imp_size( 0 ), ch_size( 2 ), caching_loc( cloc )
+	{
+		Allocate_Memory();
+		ch[0] = low;
+		ch[1] = high;
+	}
+	Search_Node( Decision_Node & dnode, unsigned cloc ): sym( dnode.var ), imp_size( 0 ), ch_size( 2 ), caching_loc( cloc )
 	{
 		Allocate_Memory();
 		ch[0] = dnode.low;
 		ch[1] = dnode.high;
-		ch[2] = cloc;
 	}
 	Search_Node( const Literal * lits, unsigned num_lits, const NodeID * comps, unsigned num_comps ):
-		sym( SEARCH_DECOMPOSED ), imp_size( num_lits ), ch_size( num_comps )  // decomposition node
+		sym( SEARCH_DECOMPOSED ), imp_size( num_lits ), ch_size( num_comps ), caching_loc( UNSIGNED_UNDEF )  // decomposition node
 	{
 		Allocate_Memory();
 		for ( unsigned i = 0; i < num_lits; i++ ) {  // no leaf node
@@ -53,8 +64,8 @@ struct Search_Node
 			ch[i] = comps[i];
 		}
 	}
-	Search_Node( NodeID comp, const Literal * lit_pairs, unsigned num_pairs ):
-		sym( SEARCH_KERNELIZED ), imp_size( num_pairs * 2 ), ch_size( 1 )
+	Search_Node( NodeID comp, const Literal * lit_pairs, unsigned num_pairs, unsigned cloc ):
+		sym( SEARCH_KERNELIZED ), imp_size( num_pairs * 2 ), ch_size( 1 ), caching_loc( cloc )
 	{
 		Allocate_Memory();
 		for ( unsigned i = 0; i < num_pairs; i++ ) {  // no leaf node
@@ -63,8 +74,8 @@ struct Search_Node
 		}
 		ch[0] = comp;
 	}
-	Search_Node( NodeID comp, const vector<Literal> & lit_pairs ):
-		sym( SEARCH_KERNELIZED ), imp_size( lit_pairs.size() ), ch_size( 1 )
+	Search_Node( NodeID comp, const vector<Literal> & lit_pairs, unsigned cloc ):
+		sym( SEARCH_KERNELIZED ), imp_size( lit_pairs.size() ), ch_size( 1 ), caching_loc( cloc )
 	{
 		Allocate_Memory();
 		for ( unsigned i = 0; i < imp_size; i += 2 ) {  // no leaf node
@@ -73,9 +84,10 @@ struct Search_Node
 		}
 		ch[0] = comp;
 	}
-	Search_Node( NodeID node ): imp_size( 0 )  // non-constant leaf node
+	Search_Node( NodeID node, unsigned cloc = UNSIGNED_UNDEF ): imp_size( 0 ), caching_loc( cloc )  // non-constant leaf node
 	{
 		if ( node != NodeID::undef ) {
+			assert( cloc != UNSIGNED_UNDEF );
 			ch_size = 1;
 			Allocate_Memory();
 			sym = SEARCH_KNOWN;
@@ -92,8 +104,22 @@ struct Search_Node
         delete [] imp;
         delete [] ch;
 	}
+	void Realloc_Memory()
+	{
+		Free();
+		imp = new Literal [imp_size];
+		if ( imp_size > 0 && imp == NULL ) {
+			cerr << "ERROR[Search_Node]: fail for allocating space!" << endl;
+			exit( 1 );
+		}
+		ch = new NodeID [ch_size];
+		if ( ch_size > 0 && ch == NULL ) {
+			cerr << "ERROR[Search_Node]: fail for allocating space!" << endl;
+			exit( 1 );
+		}
+	}
 	size_t Memory() const { return sizeof( Search_Node ) + sizeof( Literal ) * imp_size + sizeof( NodeID ) * ch_size; }
-	void Display( ostream & out )
+	void Display( ostream & out ) const
 	{
 		if ( sym == SEARCH_CONFLICTED ) out << "Conflicted";
 		else if ( sym == SEARCH_EMPTY ) out << "Empty";
@@ -120,7 +146,8 @@ struct Search_Node
 				out << ' ' << ExtLit( imp[i] ) << ' ' << ExtLit( imp[i + 1] );
 			}
 		}
-		else out << "Decision on " << sym << ": low " << ch[0] << ", high " << ch[1] << ", cache " << ch[2];
+		else out << "Decision on " << sym << ": low " << ch[0] << ", high " << ch[1];
+		if ( caching_loc != UNSIGNED_UNDEF ) out << ", cache " << caching_loc;
 	}
 	void Display_Stat( ostream & out )
 	{

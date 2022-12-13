@@ -63,7 +63,9 @@ class OBDD_Manager: public Diagram_Manager, public Linear_Order
 protected:
 	Hash_Table<BDD_Node> _nodes;
 protected:
-	Binary_Map _op_table;
+	NodeID * _result_stack;
+	unsigned _num_result_stack;
+	Binary_Map<NodeID, NodeID, NodeID> _op_table;
 public:
 	OBDD_Manager( const Chain & var_order );
 	OBDD_Manager( istream & fin );

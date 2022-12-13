@@ -11,7 +11,7 @@ using namespace std;
 
 Compiler::Compiler():
 _num_rsl_stack( 0 ),
-_remove_redundancy_trigger( 2000000 )
+_remove_redundancy_trigger( running_options.removing_redundant_nodes_trigger )
 {
 }
 
@@ -48,6 +48,7 @@ void Compiler::Reset()
 
 size_t Compiler::Memory()
 {
+	if ( _max_var == Variable::undef ) return 0;
 	size_t mem = Preprocessor::Memory() + Inprocessor::Memory() + _component_cache.Memory();
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		mem += _models_stack[i].capacity() * sizeof(unsigned);
@@ -60,24 +61,25 @@ BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic he
 {
 	assert( Is_Linear_Ordering( heur ) );
 	StopWatch begin_watch, tmp_watch;
-	if ( running_options.display_compiling_process ) cout << "Compiling..." << endl;
+	if ( !running_options.display_compiling_process ) running_options.display_preprocessing_process = false;
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Compiling..." << endl;
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
 	running_options.activate_easy_compiler = false;
 	running_options.recover_exterior = true;
-	if ( running_options.display_compiling_process ) cout << "Begin preprocess..." << endl;
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
 	bool cnf_sat = Preprocess( cnf, _models_stack[0] );
-	if ( running_options.display_compiling_process ) cout << "Preprocess done." << endl;
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Preprocess done." << endl;
 	if ( !cnf_sat ) {
 		_num_levels--;
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_compiling_process ) {
-			cout << "Done." << endl;
+			cout << running_options.display_prefix << "Done." << endl;
 			if ( running_options.profile_compiling >= Profiling_Abstract ) {
 //				Display_Statistics( 0 );
-				cout << "Number of edges: " << 0 << endl;
-				cout << "Number of models: " << 0 << endl;
+				cout << running_options.display_prefix << "Number of edges: " << 0 << endl;
+				cout << running_options.display_prefix << "Number of models: " << 0 << endl;
 			}
 		}
 		Reset();
@@ -88,7 +90,7 @@ BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic he
 		Un_BCP( _dec_offsets[--_num_levels] );
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_compiling_process ) {
-			cout << "Done." << endl;
+			cout << running_options.display_prefix << "Done." << endl;
 			if ( running_options.profile_compiling >= Profiling_Abstract ) {
 				Display_Statistics( 0 );
 				Display_Result_Statistics( cout, manager, result );
@@ -106,10 +108,10 @@ BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic he
 	_num_rsl_stack--;
 	BDDC result = Make_Node_With_Init_Imp( manager, _rsl_stack[0] );
 	Backtrack();
-	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
+	if ( running_options.display_compiling_process && running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
 	if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
 	if ( running_options.display_compiling_process ) {
-		cout << "Done." << endl;
+		cout << running_options.display_prefix << "Done." << endl;
 		if ( running_options.profile_compiling >= Profiling_Abstract ) {
 			Display_Statistics( 1 );
 			Display_Memory_Status( cout );
@@ -427,7 +429,7 @@ NodeID Compiler::Make_Decision_Node( OBDDC_Manager & manager, NodeID low, NodeID
 
 void Compiler::Component_Cache_Clear()
 {
-	if ( running_options.display_compiling_process ) cout << "clear cache" << endl;
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "clear cache" << endl;
 	StopWatch watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) watch.Start();
 	vector<size_t> kept_locs;
@@ -452,7 +454,7 @@ void Compiler::Remove_Redundant_Nodes( OBDDC_Manager & manager )
 	StopWatch watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) watch.Start();
 	vector<NodeID> kept_nodes;
-	if ( running_options.display_compiling_process ) cout << "remove DAG redundancy: " << manager.Num_Nodes();
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "remove DAG redundancy: " << manager.Num_Nodes();
 	for ( unsigned i = 0; i < _num_rsl_stack; i++ ) {
 		kept_nodes.push_back( _rsl_stack[i] );
 	}
@@ -653,26 +655,26 @@ void Compiler::Display_Statistics( unsigned option )
 {
 	switch ( option ) {
 		case 0:
-			cout << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
-			cout << "time SAT: " << statistics.time_solve << endl;
-			cout << "Total time cost: " << statistics.time_compile << endl;
-			cout << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
-			cout << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
+			cout << running_options.display_prefix << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
+			cout << running_options.display_prefix << "time SAT: " << statistics.time_solve << endl;
+			cout << running_options.display_prefix << "Total time cost: " << statistics.time_compile << endl;
+			cout << running_options.display_prefix << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
+			cout << running_options.display_prefix << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
 			break;
 		case 1:
-			cout << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
-			cout << "time compute minfill: " << statistics.time_minfill << endl;
-			if ( running_options.imp_strategy == SAT_Imp_Computing ) cout << "time SAT: " << statistics.time_solve << endl;
-			else cout << "time IBCP: " << statistics.time_ibcp << endl;
-			cout << "time dynamic decomposition: " << statistics.time_dynamic_decompose << " (" << statistics.time_dynamic_decompose_sort << " sorting)" << endl;
-			cout << "time cnf cache: " << statistics.time_gen_cnf_cache << endl;
-			cout << "time generate DAG: " << statistics.time_gen_dag << endl;
-			cout << "Total time cost: " << statistics.time_compile << endl;
-			cout << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
-			cout << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
+			cout << running_options.display_prefix << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
+			cout << running_options.display_prefix << "time compute tree decomposition: " << statistics.time_tree_decomposition << endl;
+			if ( running_options.imp_strategy == SAT_Imp_Computing ) cout << running_options.display_prefix << "time SAT: " << statistics.time_solve << endl;
+			else cout << running_options.display_prefix << "time IBCP: " << statistics.time_ibcp << endl;
+			cout << running_options.display_prefix << "time dynamic decomposition: " << statistics.time_dynamic_decompose << " (" << statistics.time_dynamic_decompose_sort << " sorting)" << endl;
+			cout << running_options.display_prefix << "time cnf cache: " << statistics.time_gen_cnf_cache << endl;
+			cout << running_options.display_prefix << "time generate DAG: " << statistics.time_gen_dag << endl;
+			cout << running_options.display_prefix << "Total time cost: " << statistics.time_compile << endl;
+			cout << running_options.display_prefix << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
+			cout << running_options.display_prefix << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
 			break;
 		case 10:  // sharpSAT
-			cout << "Total time cost: " << statistics.time_compile << endl;
+			cout << running_options.display_prefix << "Total time cost: " << statistics.time_compile << endl;
 			break;
 		default:
 			cerr << "ERROR[Compiler]: this display mode is not existing!" << endl;
@@ -688,11 +690,11 @@ void Compiler::Display_Memory_Status( ostream & out )
 	for ( i = 0; i < _long_clauses.size(); i++ ) {
 		mem += _long_clauses[i].Size() * sizeof(unsigned) + sizeof(unsigned *) + sizeof(unsigned);
 	}
-	out << "#clauses: " << Num_Clauses() << " (" << mem / (1.0 * 1024 * 1024) << " M)" << endl;
-	out << "#components: " << _component_cache.Size() << " (" << _component_cache.Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
-	if ( DEBUG_OFF ) out << "    Where the duplicate rate is " << _component_cache.Duplicate_Rate() << " and the useless ratio is " << _component_cache.Useless_Rate() << endl;
-	out << "#models: " << _model_pool->Size() << "/" << _model_pool->Capacity() << " (" << _model_pool->Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
-	out << "Total memory: " << Memory() / (1.0 * 1024 * 1024) << "M" << endl;
+	out << running_options.display_prefix << "#clauses: " << Num_Clauses() << " (" << mem / (1.0 * 1024 * 1024) << " M)" << endl;
+	out << running_options.display_prefix << "#components: " << _component_cache.Size() << " (" << _component_cache.Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
+	if ( DEBUG_OFF ) out << running_options.display_prefix << "    Where the duplicate rate is " << _component_cache.Duplicate_Rate() << " and the useless ratio is " << _component_cache.Useless_Rate() << endl;
+	out << running_options.display_prefix << "#models: " << _model_pool->Size() << "/" << _model_pool->Capacity() << " (" << _model_pool->Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
+	out << running_options.display_prefix << "Total memory: " << Memory() / (1.0 * 1024 * 1024) << "M" << endl;
 }
 
 void Compiler::Display_Result_Stack( ostream & out )
@@ -733,9 +735,9 @@ void Compiler::Display_Result_Stack( ostream & out )
 
 void Compiler::Display_Result_Statistics( ostream & out, OBDDC_Manager & manager, BDDC bddc )
 {
-	out << "Number of nodes: " << manager.Num_Nodes( bddc ) << endl;
-	out << "Number of edges: " << manager.Num_Edges( bddc ) << endl;
-//	out << "Number of models: " << manager.Count_Models( bddc ) << endl;
+	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( bddc ) << endl;
+	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( bddc ) << endl;
+	out << running_options.display_prefix << "Number of models: " << manager.Count_Models_Opt( bddc ) << endl;
 }
 
 void Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )
@@ -747,7 +749,7 @@ void Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )
 		break;
 	case minfill:
 		Compute_Var_Order_Min_Fill_Heuristic_Opt();
-		if ( running_options.display_compiling_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
+		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 		break;
 	case FixedLinearOrder:
 		_var_order = vorder;
@@ -770,10 +772,10 @@ void Compiler::Compute_Var_Order_Automatical()
 	Compute_Var_Order_Min_Fill_Heuristic_Bound( treewidth_bound );
 	if ( running_options.treewidth <= treewidth_bound ) {
 		running_options.var_ordering_heur = minfill;
-		if ( running_options.display_compiling_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
+		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 	}
 	else {
-		if ( running_options.display_compiling_process ) cout << "The minfill treewidth: > " << treewidth_bound << endl;
+		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "The minfill treewidth: > " << treewidth_bound << endl;
 		running_options.var_ordering_heur = LinearLRW;
 		Compute_Var_Order_Single_Cluster();
 	}

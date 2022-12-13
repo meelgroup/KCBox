@@ -87,6 +87,7 @@ public:
 	}
 	void Clear_Lit_Equivalences() { _lit_equivalences.clear(); }
 	void Clear_Cached_Binary_Clauses() { _cached_binary_clauses.clear(); }
+	void Free_Long_Clauses() { for ( Clause & clause: _long_clauses ) clause.Free(); }
 	size_t Memory()
 	{
 		return _unary_clauses.capacity() * sizeof(Literal) + \

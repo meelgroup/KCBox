@@ -20,11 +20,17 @@ extern inline int LitIntern2Ext(Lit lit)
     return sign(lit) ? -var(lit) - 1 : var(lit) + 1;
 }
 
+extern inline Lit LitExt2Intern( int lit)
+{
+    int var = abs(lit)-1;
+    return mkLit( var, lit < 0 );
+}
+
 extern inline Lit LitExt2Intern( Solver * solver, int lit)
 {
     int var = abs(lit)-1;
     while ( var >= solver->nVars() ) solver->newVar();
-    return mkLit( var, lit > 0 );
+    return mkLit( var, lit < 0 );
 }
 
 class CustomizedSolver: public Solver

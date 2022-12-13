@@ -44,6 +44,8 @@ extern bool Ext_Backbone( vector<vector<int>>& clauses, Extra_Output & output );
 
 extern int8_t Ext_SimpSolve( vector<vector<int>>& clauses, Extra_Output & output );
 
+extern bool Ext_Block_Literals( vector<vector<int>>& focused, vector<vector<int>>& others, Extra_Output & output );
+
 }
 
 

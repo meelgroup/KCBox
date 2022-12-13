@@ -7,7 +7,7 @@
 namespace KCBox {
 
 
-class Lit_Equivalency  /// based on union-find set
+class Lit_Equivalency  /// based on union-find set, flat means that the height is one
 {
 protected:
 	unsigned _max_var;
@@ -20,21 +20,28 @@ protected:
 	unsigned * _lit_appear_in_sets;  // it is sorted and each cluster is also sorted, and used for optimize Replace_Equivalent_Lit()
 public:
 	Lit_Equivalency();
+	Lit_Equivalency( Variable max_var );
 	Lit_Equivalency( Chain & var_order );
 	~Lit_Equivalency();
-	void Reorder( Chain & var_order );
+	void Reorder( const Chain & var_order );
 	void Reset();
 	bool Empty() const { return _substituted_vars.Empty(); }
 	void Add_Equivalence( Literal lit, Literal lit2 ) { Union( lit, lit2 ); }
+	void Add_Equivalence_Flat( Literal lit, Literal lit2 );
 	void Add_Equivalences( Literal * lit_equivalences );
 	void Add_Equivalences( Literal * pairs, unsigned size );
 	unsigned Output_Equivalences( Literal * pairs );
+	void Output_Equivalences( vector<Literal> & pairs );
 	Literal Rename_Lit( Literal lit ) { return Find( lit ); }
+	Literal Rename_Lit_Flat( Literal lit ) { return _lit_equivalences[lit]; }
 	Variable Rename_Var( Variable var ) { Literal lit = Literal( var, false ); return Find( lit ).Var(); }
 	bool Lit_Renamable( Literal lit ) { return lit != _lit_equivalences[lit]; }
 	bool Var_Renamable( Variable var ) { return Literal( var, false ) != _lit_equivalences[Literal( var, false )]; }
+	bool Equ_Existed( Literal lit ) { return _var_seen[lit.Var()]; }
 	bool Contain_Lit_Equivalence( Literal lit, Literal lit2 ) { return Find( lit ) == Find( lit2 ); }
 	void Intersection( Lit_Equivalency & first, Lit_Equivalency & second );
+	void Intersection_Flat( Lit_Equivalency & first, Lit_Equivalency & second );
+	void Intersection_Flat( vector<Literal> & equ_class, Lit_Equivalency & equivalency );
 	unsigned Cluster_Equivalent_Lits();
 	void Display( ostream & out );
 protected:

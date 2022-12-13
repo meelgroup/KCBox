@@ -3,6 +3,7 @@
 
 #include "Basic_Functions.h"
 #include <unistd.h>
+#include <asm/param.h>
 
 
 namespace KCBox {
@@ -79,6 +80,32 @@ inline size_t Total_Used_Memory()  // idea from Mate Soos
 	size_t page_size_kb = sysconf(_SC_PAGE_SIZE); // in case x86-64 is configured to use 2MB pages
 	size_t resident_set = rss * page_size_kb;
 	return resident_set;
+}
+
+inline float Total_Elapsed_Seconds()
+{
+	using std::ios_base;
+	using std::ifstream;
+	using std::string;
+
+	// 'file' stat seems to give the most reliable results
+	ifstream stat_stream("/proc/self/stat", ios_base::in);
+
+	// dummy vars for leading entries in stat that we don't care about
+	string pid, comm, state, ppid, pgrp, session, tty_nr;
+	string tpgid, flags, minflt, cminflt, majflt, cmajflt;
+	long utime, stime;  // the field we want
+	string cutime, cstime, priority, nice;
+	string O, itrealvalue, starttime, vsize, rss;
+
+	stat_stream >> pid >> comm >> state >> ppid >> pgrp >> session >> tty_nr
+			   >> tpgid >> flags >> minflt >> cminflt >> majflt >> cmajflt
+			   >> utime >> stime >> cutime >> cstime >> priority >> nice
+			   >> O >> itrealvalue >> starttime >> vsize >> rss; // don't care about the rest
+
+	stat_stream.close();
+
+	return (float)(utime + stime) / HZ;
 }
 
 

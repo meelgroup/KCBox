@@ -365,7 +365,7 @@ public:
 		_max_var = Variable::undef;
 		_hash_memory = _pool.Memory();
 		_original_binary_clauses.Clear();
-		_other_clauses.Clear();
+		_other_clauses.Reset();
 		_hit_count = _hit_failed_count = 0;
 	}
 	void Init( unsigned max_var, unsigned num_long_clause, BigInt default_value )
@@ -405,6 +405,18 @@ public:
 		_pool.Clear( kept_locs );
 		_hash_memory = _pool.Memory();
 	}
+	void Clear_Shrink_Half( vector<size_t> & kept_locs )
+	{
+		vector<bool> seen( _pool.Size(), false );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			seen[kept_locs[i]] = true;
+		}
+		for ( unsigned i = 0; i < _pool.Size(); i++ ) {
+			if ( !seen[i] ) delete [] _pool[i]._bits;
+		}
+		_pool.Clear_Shrink_Half( kept_locs );
+		_hash_memory = _pool.Memory();
+	}
 	void Clear_Half( vector<size_t> & kept_locs )
 	{
 		vector<bool> seen( _pool.Size(), false );
@@ -440,6 +452,11 @@ public:
 		_hash_memory -= _pool.Capacity() * sizeof(Cacheable_Component_BigInt);
 		_pool.Reserve( capacity );
 		_hash_memory += _pool.Capacity() * sizeof(Cacheable_Component_BigInt);
+	}
+	void Shrink_To_Fit()
+	{
+		_pool.Shrink_To_Fit();
+		_hash_memory = _pool.Memory();
 	}
 	unsigned Memory() const { return _hash_memory; }
 	unsigned Memory_Show()
@@ -511,8 +528,8 @@ public:
 		return pos;
 	}
 	bool Hit_Successful() { return _pool.Hit_Successful(); }
-	void Read_Component( unsigned loc, Component & comp ) { _pool[loc].Read_Component( comp ); }
-	void Read_Component_Vars( unsigned loc, Component & comp ) { _pool[loc].Read_Rough_Component( comp ); }
+	void Read_Component( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Component( comp ); }
+	void Read_Component_Vars( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Rough_Component( comp ); }
 	void Erase( unsigned loc )
 	{
 		if ( loc == _pool.Size() - 1 ) {

@@ -37,6 +37,7 @@ public:
 	Preprocessor();
 	~Preprocessor();
 	void Reset();   /// this function should be called after calling Preprocess()
+	void operator = ( Preprocessor & another );
 	void Open_Oracle_Mode( Variable var_bound );
 	void Close_Oracle_Mode();
 	void Switch_Recognizing_Backbone( bool is_on ) { running_options.recognize_backbone = is_on; }
@@ -95,6 +96,7 @@ protected:
 	inline void Remove_Old_Long_Clause_No_Learnt( unsigned pos );
 	void Recover_Binary_Learnts( unsigned lit );
 	void Block_Lits_In_Extra_Clause( Clause & clause );
+	void Block_Lits_In_Extra_Clause( Big_Clause & clause );
 	bool Replace_Equivalent_Lit();
 	bool Detect_Lit_Equivalence();
 	bool Detect_Lit_Equivalence_Naive();
@@ -121,6 +123,8 @@ protected:
 	unsigned Analyze_Conflict_Fixed_UIP( Reason confl, unsigned fixed );
 	inline void Add_Extra_Binary_Clause_Naive( Literal lit1, Literal lit2 );
 	unsigned Analyze_Conflict_Naive( unsigned uip );
+	bool Block_Lits_External( vector<Model *> & models );  // block literals and remove clauses
+	void Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>> & simplified, vector<vector<int>> & others, bool * var_filled );  // mark the omitted variable in var_omitted
 protected:
 	void Verify_Backbone( CNF_Formula & cnf );
 	void Verify_Processed_Clauses( CNF_Formula & cnf );
@@ -162,6 +166,8 @@ protected:
 	void Gate_Substitution_Long_Clause( AND_Gate & gate );  // gate[0] <-> gate[1] and gate[2] and ...
 	void Gate_Substitution_Binary_Learnt( AND_Gate & gate );  // gate[0] <-> gate[1] and gate[2] and ...
 	void Add_Only_Old_Binary_Clause( Big_Clause & clause );  // return the true length
+	void Shrink_Max_Var();
+	bool Generate_Models_External( vector<Model *> & models );
 	void Display_Statistics_Sharp( ostream & out );
 protected:
 	void Verify_AND_Gate( AND_Gate & gate );
@@ -174,7 +180,7 @@ protected:
 	bool Replace_AND_Gates( const vector<float> & weights );
 public:
 	void Transform_Exterior_Into_Clauses();  // transform literal equivalences and AND-gates into clauses
-	unsigned Lit_Equivalency_Size() const { return _fixed_num_vars - _unary_clauses.size(); }
+	unsigned Lit_Equivalency_Size() const { return _fixed_num_vars - _unary_clauses.size() - _and_gates.size(); }
 	CNF_Formula * Output_Processed_Clauses();  /// the output result includes the clauses represented by lit_equivalence
 	void Output_Processed_Ext_Clauses( vector<vector<int>> & clauses );  /// the output result includes the clauses represented by lit_equivalence
 	void Output_Same_Count_Ext_Clauses( int & num_vars, vector<vector<int>> & clauses, int & num_omitted_vars );  /// the output formula has the same number of models as the input formula
@@ -249,7 +255,6 @@ public:
 		Preprocessor preprocessor;
 		preprocessor.running_options.display_preprocessing_process = !quiet;
 		vector<Model *> models;
-		preprocessor.running_options.recover_exterior = true;
 		preprocessor.Preprocess( cnf, models );
 		if ( outfile == nullptr ) {
 			preprocessor.Display_Processed_Clauses( cout );

@@ -36,7 +36,9 @@ protected:
 protected:
 	void Get_All_Imp_Component( Component & comp, vector<Model *> & models );
 	void Filter_Long_Learnts();
+	void Get_All_Projected_Imp_Component( Component & comp, vector<Model *> & models );
 protected:
+	bool Estimate_Kernelization_Effect_Enough_Decisions( unsigned step, unsigned ratio );
 	void Kernelize_Without_Imp();
 	void Store_Active_Clauses_Component( Stack_Frame & frame, Component & comp );
 	void Store_Binary_Clauses_Component( Stack_Frame & frame, Component & comp );

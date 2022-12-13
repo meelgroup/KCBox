@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iomanip>
 #include <vector>
+#include <stack>
 #include <queue>
 #include <map>
 #include <bitset>
@@ -111,6 +112,32 @@ extern inline void Bool_Vector( unsigned num, vector<bool>::iterator begin, vect
 	}
 }
 
+extern inline void Shift_Left_Unsafe( double & d, unsigned step )
+{
+	const int DOUBLE_EXP_SHIFT = 52;
+	const ullong DOUBLE_MANT_MASK = (1ull << DOUBLE_EXP_SHIFT) - 1ull;
+	const ullong DOUBLE_EXP_MASK = ((1ull << 63) - 1) & ~DOUBLE_MANT_MASK;
+	ullong * i = (ullong *)(&d);
+	if ((*i & DOUBLE_EXP_MASK) && ((*i & DOUBLE_EXP_MASK) != DOUBLE_EXP_MASK)) {
+		*i += (ullong) step << DOUBLE_EXP_SHIFT;
+	} else if (*i) {
+		d *= (1 << step);
+    }
+}
+
+extern inline void Shift_Right_Unsafe( double & d, unsigned step)
+{
+	const int DOUBLE_EXP_SHIFT = 52;
+	const ullong DOUBLE_MANT_MASK = (1ull << DOUBLE_EXP_SHIFT) - 1ull;
+	const ullong DOUBLE_EXP_MASK = ((1ull << 63) - 1) & ~DOUBLE_MANT_MASK;
+	ullong * i = (ullong *)(&d);
+	if ((*i & DOUBLE_EXP_MASK) && ((*i & DOUBLE_EXP_MASK) != DOUBLE_EXP_MASK)) {
+		*i -= (ullong) step << DOUBLE_EXP_SHIFT;
+	} else if (*i) {
+		d /= (1 << step);
+	}
+}
+
 
 /**************************************** search ****************************************/
 
@@ -171,6 +198,13 @@ extern inline bool Search_Exi_Nonempty( T * data, unsigned len, T element )
 	for ( ; data[low] < element; low++ );
 	data[high - 1] = tmp;
 	return data[low] == element;
+}
+
+template<typename T>
+extern inline bool Search_Exi( T * data, unsigned len, T element )
+{
+	if ( len == 0 ) return false;
+	else return Search_Exi_Nonempty( data, len, element );
 }
 
 template<typename T>
@@ -508,6 +542,85 @@ extern T kth_Element( vector<T> & data, size_t k )
     return data[first];
 }
 
+template<typename T, typename W>
+extern T kth_Element( vector<T> & data, const W & rank, size_t k )
+{
+    if ( k >= data.size() ) {
+        cerr << "ERROR: invalid location when looking for the k-th element!" << endl;
+        exit( 1 );
+    }
+    if ( data.size() == 1 ) return data[0];
+    unsigned i, j;
+    T tmp, pivot;
+    for ( i = j = data.size() - 1; i > 0; i-- ) { // validate the following for-loop
+        if ( rank[data[i]] < rank[data[i-1]] ) {
+            j = i;
+            tmp = data[i-1];
+            data[i-1] = data[i];
+            data[i] = tmp;
+        }
+    }
+    if ( k < j ) return data[k];
+    unsigned first = j, second = data.size() - 1;  // the kth element in the interval [j, size - 1];
+    while ( first < second ) {
+        pivot = data[second];
+        for ( i = first; rank[data[i]] < rank[pivot]; i++ );
+        for ( j = second - 1; rank[data[j]] > rank[pivot]; j-- );
+        while ( i < j ) {
+            tmp = data[i];
+            data[i++] = data[j];
+            data[j--] = tmp;
+            for ( ; rank[data[i]] < rank[pivot]; i++ );
+            for ( ; rank[data[j]] > rank[pivot]; j-- );
+        }
+        data[second] = data[i];
+        data[i] = pivot;
+        if ( i == k ) first = second = k;
+        else if ( i < k ) first = i + 1;
+        else second = i - 1;
+    }
+    return data[first];
+}
+
+template<typename T>
+extern void First_k_Elements( vector<T> & data, size_t k )
+{
+    if ( k > data.size() ) {
+        cerr << "ERROR: less than << " << k << " elements!" << endl;
+        exit( 1 );
+    }
+    if ( k == 0 || k == data.size() ) return;
+    unsigned i, j;
+    T tmp, pivot;
+    for ( i = j = data.size() - 1; i > 0; i-- ) { // validate the following for-loop
+        if ( data[i] < data[i-1] ) {
+            j = i;
+            tmp = data[i-1];
+            data[i-1] = data[i];
+            data[i] = tmp;
+        }
+    }
+    if ( k <= j ) return;
+    unsigned first = j, second = data.size() - 1;  // the kth element in the interval [j, size - 1];
+    while ( first < second ) {
+        pivot = data[second];
+        for ( i = first; data[i] < pivot; i++ );
+        for ( j = second - 1; data[j] > pivot; j-- );
+        while ( i < j ) {
+            tmp = data[i];
+            data[i++] = data[j];
+            data[j--] = tmp;
+            for ( ; data[i] < pivot; i++ );
+            for ( ; data[j] > pivot; j-- );
+        }
+        data[second] = data[i];
+        data[i] = pivot;
+        if ( i == k - 1 ) first = second = k - 1;
+        else if ( i < k - 1 ) first = i + 1;
+        else second = i - 1;
+    }
+}
+
 template<typename T>
 extern void Insert_Sort_Last( T * data, unsigned size )
 {
@@ -528,6 +641,37 @@ extern void Insert_Sort_Last( T * data, unsigned size )
 	}
 }
 
+template<typename T>
+extern void Insert_Sort_Position( T * data, unsigned size, unsigned pos )
+{
+	if ( size <= 1 || pos >= size ) return;
+	unsigned i;
+	T elem = data[pos];
+	if ( elem <= data[0] ) {
+		for ( i = pos; i > 0; i-- ) {
+			data[i] = data[i-1];
+		}
+		data[0] = elem;
+	}
+	else if ( elem < data[pos - 1] ) {
+		for ( i = pos - 1; data[i] > elem; i-- ) {
+			data[i+1] = data[i];
+		}
+		data[i+1] = elem;
+	}
+	else if ( elem >= data[size - 1] ) {
+		for ( i = pos + 1; i < size; i++ ) {
+			data[i-1] = data[i];
+		}
+		data[size - 1] = elem;
+	}
+	else {
+		for ( i = pos + 1; data[i] < elem; i++ ) {
+			data[i-1] = data[i];
+		}
+		data[i-1] = elem;
+	}
+}
 extern void Insert_Sort_Weight( unsigned * data, unsigned size, unsigned * weight );
 
 extern void Insert_Sort_Weight_Part( unsigned * data, unsigned mid, unsigned size, unsigned * weight );

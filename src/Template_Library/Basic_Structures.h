@@ -411,6 +411,7 @@ public:
 	T & operator [] ( unsigned i ) { return _elems[i]; }
 	T & Back() { return _elems[_size - 1]; }
 	void Push_Back( T elem ) { _elems[_size++] = elem; }  /// guarantee externally that _size is less than _capacity
+	void Push_Back( T elem, bool flag ) { _elems[_size] = elem; _size += flag; }  /// guarantee externally that _size is less than _capacity
 	void Erase( size_t i ) { assert( i < _size ); _elems[i] = _elems[--_size]; }
 	T Pop_Back() { return _elems[--_size]; }
 	void Clear() { _size = 0; }
@@ -626,6 +627,18 @@ public:
 		assert( capacity >= _data.size() );
 		_data.reserve( capacity );
 	}
+	void Shrink_To_Fit()
+	{
+		_data.shrink_to_fit();
+		_entries.clear();
+		_entries.shrink_to_fit();
+		_entries.resize( Prime_Close( _data.size() / 2 ) );
+		for ( size_t i = 0; i < _data.size(); i++ ) {
+			size_t key = _data[i].Key();
+			key %= _entries.size();
+			_entries[key].push_back( i );
+		}
+	}
 	size_t Memory() const
 	{
 		size_t mem = 0;
@@ -700,6 +713,11 @@ public:
 		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
 			kept_locs[i] = Hit( kept_elems[i] );
 		}
+	}
+	void Swap( Hash_Table<T> & other )
+	{
+		_entries.swap( other._entries );
+		_data.swap( other._data );
 	}
 	void Reset()
 	{
@@ -809,6 +827,18 @@ public:
 		assert( capacity >= _data.Size() );
 		_data.Reserve( capacity );
 	}
+	void Shrink_To_Fit()
+	{
+		_data.Shrink_To_Fit();
+		_entries.clear();
+		_entries.shrink_to_fit();
+		_entries.resize( Prime_Close( _data.Size() / 2 ) );
+		for ( size_t i = 0; i < _data.Size(); i++ ) {
+			size_t key = _data[i].Key();
+			key %= _entries.size();
+			_entries[key].push_back( i );
+		}
+	}
 	size_t Memory()
 	{
 		size_t mem = 0;
@@ -837,7 +867,7 @@ public:
 	void Resize( size_t new_size )
 	{
 		if ( new_size > _data.Size() ) {
-			cerr << "Warning[Hash_Table]: new size is greater than old size" << endl;
+			cerr << "Warning[Large_Hash_Table]: new size is greater than old size" << endl;
 			return;
 		}
 		for ( size_t i = 0; i < _entries.size(); i++ ) {
@@ -853,7 +883,7 @@ public:
 	void Resize_Entries( size_t new_size )
 	{
 		if ( new_size <= _entries.size() ) {
-			cerr << "Warning[Hash_Table]: new size of _entries is not greater than old size" << endl;
+			cerr << "Warning[Large_Hash_Table]: new size of _entries is not greater than old size" << endl;
 			return;
 		}
 		for ( size_t i = 0; i < _entries.size(); i++ ) {
@@ -884,6 +914,23 @@ public:
 			kept_locs[i] = Hit( kept_elems[i] );
 		}
 	}
+	void Clear_Shrink_Half( vector<size_t> & kept_locs )
+	{
+		vector<T> kept_elems( kept_locs.size() );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_elems[i] = _data[kept_locs[i]];
+		}
+		Clear();
+		_data.Reserve( _data.Capacity() / 2 );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_locs[i] = Hit( kept_elems[i] );
+		}
+	}
+	void Swap( Large_Hash_Table<T> & other )
+	{
+		_entries.swap( other._entries );
+		_data.Swap( other._data );
+	}
 };
 
 
@@ -897,6 +944,8 @@ template<typename T1, typename T2> struct Pair
 {
 	T1 left;
 	T2 right;
+	Pair() {}
+	Pair( T1 first, T2 second ) : left( first ), right( second ) {}
 	bool operator == ( Pair & other ) const
 	{
 		return left == other.left + right == other.right;
@@ -931,12 +980,13 @@ public:
 	unsigned Map( unsigned key ) { Unary_Map_Node node; node.key = key; node.result = UNSIGNED_UNDEF; return (*this)[Hit( node )].result; }
 };
 
+template<class T1, class T2, class TR>
 struct Binary_Map_Node
 {
-	unsigned left;
-	unsigned right;
-	unsigned result;
-	bool operator == ( Binary_Map_Node & other ) const
+	T1 left;
+	T2 right;
+	TR result;
+	bool operator == ( Binary_Map_Node<T1, T2, TR> & other ) const
 	{
 		return ( left == other.left ) + ( right == other.right ) == 2;
 	}
@@ -946,11 +996,12 @@ struct Binary_Map_Node
 	}
 };
 
-class Binary_Map: public Hash_Table<Binary_Map_Node>
+template<class T1, class T2, class TR>
+class Binary_Map: public Hash_Table<Binary_Map_Node<T1, T2, TR>>
 {
 public:
-	Binary_Map(): Hash_Table() {}
-	Binary_Map( unsigned num_entries ): Hash_Table( num_entries ) {}
+	Binary_Map(): Hash_Table<Binary_Map_Node<T1, T2, TR>>() {}
+	Binary_Map( unsigned num_entries ): Hash_Table<Binary_Map_Node<T1, T2, TR>>( num_entries ) {}
 };
 
 template<class T1, class T2, class T3, class TR>
@@ -1723,8 +1774,14 @@ public:
 	{
 		SortedSet<T> & set1 = _sets[s1];
 		SortedSet<T> & set2 = _sets[s2];
-		size_t size = KCBox::Difference_Subset( set1.elems, set1.size, set2.elems, set2.size, _many_elems );
-		return Set( _many_elems, size );
+		KCBox::Difference_Subset( set1.elems, set1.size, set2.elems, set2.size, _many_elems );
+		return Set( _many_elems, set1.size - set2.size );
+	}
+	SetID Differece_Subset( SetID s, const T * elems, unsigned size )
+	{
+		SortedSet<T> & set = _sets[s];
+		KCBox::Difference_Subset( set.elems, set.size, elems, size, _many_elems );
+		return Set( _many_elems, set.size - size );
 	}
 	void Display( ostream & out )
 	{
@@ -1858,7 +1915,7 @@ public:
 			}
 		}
 	}
-	template<typename W> void Sort( vector<unsigned> & data, W & rank )
+	template<typename W> void Sort( vector<unsigned> & data, const W & rank )
 	{
 		if ( data.size() <= 1 ) return;
 		unsigned i, j, tmp;
@@ -2044,6 +2101,14 @@ protected:
 	}
 public:
     Heap( unsigned max_index, W * weights ): _indices( max_index + 1, -1 ), _weights( weights ) {}
+    void operator = ( Heap<T, W> & another )
+    {
+		_elems = another._elems;
+		_indices = another._indices;
+		for ( T & elem: _elems ) {
+			assert( _weights[elem] == another._weights[elem] );
+		}
+    }
     void Enlarge_Index( unsigned max_index, W * weights )
     {
     	_weights = weights;
@@ -2065,13 +2130,13 @@ public:
         _elems.push_back( elem );
 		Sift_Up( _indices[elem] );
     }
-    void Update( T elem )
-    {
-    	ASSERT( Contain( elem ) );
-    	int i = _indices[elem], p = Parent( i );
-    	if ( _weights[i] >= _weights[p] ) Sift_Up( i );
-    	else Sift_Down( i );
-    }
+	void Update( T elem )
+	{
+		ASSERT( Contain( elem ) );
+		int i = _indices[elem], p = Parent( i );
+		if ( _weights[elem] >= _weights[_elems[p]] ) Sift_Up( i );
+		else Sift_Down( i );
+	}
 	void Prioritize( T elem ) { if ( Contain( elem ) ) Sift_Up( _indices[elem] ); }
 	void Erase( T elem )
     {
@@ -2103,7 +2168,7 @@ public:
 		if ( DEBUG_OFF ) Verify();
         return elem;
     }
-    void Build( const T elems[], unsigned size )
+    void Build( const T elems[], const unsigned size )
     {
     	Clear();
     	_elems.resize( size );

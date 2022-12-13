@@ -8,6 +8,14 @@ Lit_Equivalency::Lit_Equivalency(): _max_var( Variable::undef )
 {
 }
 
+Lit_Equivalency::Lit_Equivalency( Variable max_var ): _max_var( max_var )
+{
+	for ( unsigned i = Variable::start; i <= max_var; i++ ) {
+		_var_order.Append( i );
+	}
+	Allocate_and_Init_Auxiliary_Memory();
+}
+
 Lit_Equivalency::Lit_Equivalency( Chain & var_order ): _max_var( var_order.Max() ), _var_order( var_order )
 {
     if ( NumVars( Variable( var_order.Max() ) ) != var_order.Size() ) {
@@ -47,7 +55,7 @@ void Lit_Equivalency::Free_Auxiliary_Memory()
 	delete [] _lit_appear_in_sets;
 }
 
-void Lit_Equivalency::Reorder( Chain & var_order )
+void Lit_Equivalency::Reorder( const Chain & var_order )
 {
     if ( var_order.Max() != _max_var ) {
         Free_Auxiliary_Memory();
@@ -68,6 +76,17 @@ void Lit_Equivalency::Reset()
         _var_seen[var] = false;
 	}
 	_substituted_vars.Clear();
+}
+
+void Lit_Equivalency::Add_Equivalence_Flat( Literal lit, Literal lit2 )
+{
+	assert( Lit_LT( lit, lit2 ) && lit == _lit_equivalences[lit] && lit2 == _lit_equivalences[lit2] );
+	_lit_equivalences[lit2] = lit;
+	_lit_equivalences[~lit2] = ~lit;
+	_substituted_vars.Push_Back( lit.Var(), !_var_seen[lit.Var()] );
+	_var_seen[lit.Var()] = true;
+	_substituted_vars.Push_Back( lit2.Var(), !_var_seen[lit2.Var()] );
+	_var_seen[lit2.Var()] = true;
 }
 
 void Lit_Equivalency::Add_Equivalences( Literal * lit_equivalences  )
@@ -106,6 +125,24 @@ unsigned Lit_Equivalency::Output_Equivalences( Literal * pairs )
 	return size;
 }
 
+void Lit_Equivalency::Output_Equivalences( vector<Literal> & pairs )
+{
+	Uniquify();
+	for ( unsigned i = 0; i < _substituted_vars.Size(); i++ ) {
+		Literal lit = Literal( _substituted_vars[i], false );
+		if ( lit == _lit_equivalences[lit] ) continue;
+		Literal lit_neg = Literal( _substituted_vars[i], true );
+		if ( _lit_equivalences[lit].Sign() ) {
+			pairs.push_back( _lit_equivalences[lit] );
+			pairs.push_back( lit );
+		}
+		else {
+			pairs.push_back( _lit_equivalences[lit_neg] );
+			pairs.push_back( lit_neg );
+		}
+	}
+}
+
 Literal Lit_Equivalency::Find( Literal lit )
 {
     Literal root = _lit_equivalences[lit];
@@ -139,14 +176,10 @@ void Lit_Equivalency::Union( Literal lit, Literal lit2 )
     _lit_equivalences[lit2] = root;
     _lit_equivalences[~root2] = ~root;
     _lit_equivalences[~lit2] = ~root;
-    if ( !_var_seen[lit.Var()] ) {
-        _substituted_vars.Push_Back( lit.Var() );
-        _var_seen[lit.Var()] = true;
-    }
-    if ( !_var_seen[lit2.Var()] ) {
-        _substituted_vars.Push_Back( lit2.Var() );
-        _var_seen[lit2.Var()] = true;
-    }
+	_substituted_vars.Push_Back( lit.Var(), !_var_seen[lit.Var()] );
+	_var_seen[lit.Var()] = true;
+	_substituted_vars.Push_Back( lit2.Var(), !_var_seen[lit2.Var()] );
+	_var_seen[lit2.Var()] = true;
 }
 
 void Lit_Equivalency::Uniquify()
@@ -217,6 +250,61 @@ unsigned Lit_Equivalency::Cluster_Equivalent_Lits()
 		}
 	}
 	return cluster_size;
+}
+
+void Lit_Equivalency::Intersection_Flat( Lit_Equivalency & first, Lit_Equivalency & second )
+{
+    if ( first._substituted_vars.Size() < second._substituted_vars.Size() ) {
+        unsigned cluster_size = first.Cluster_Equivalent_Lits();
+        for ( unsigned i = 0; i < cluster_size; i += 2 ) {
+            vector<Literal> & cluster = first._equivalent_lit_sets[i];
+            Intersection_Flat( cluster, second );
+        }
+    }
+    else {
+        unsigned cluster_size = second.Cluster_Equivalent_Lits();
+        for ( unsigned i = 0; i < cluster_size; i += 2 ) {
+            vector<Literal> & cluster = second._equivalent_lit_sets[i];
+            Intersection_Flat( cluster, first );
+        }
+    }
+}
+
+void Lit_Equivalency::Intersection_Flat( vector<Literal> & equ_class, Lit_Equivalency & equivalency )
+{
+	for ( unsigned i = 0; i < equ_class.size(); i++ ) {
+		Literal lit = equ_class[i];
+		if ( !equivalency.Lit_Renamable( lit ) ) continue;
+		if ( Lit_Renamable( lit ) ) continue;
+		Literal lit_equ = equivalency.Rename_Lit_Flat( lit );
+		Literal min_lit = lit;
+		for ( unsigned j = 0; j < i; j++ ) {
+			Literal lit2 = equ_class[j];
+			if ( lit_equ == equivalency.Rename_Lit_Flat( lit2 ) ) {  // Reduce the callings of Lit_Equivalency::Find()
+				if ( Lit_LT( lit2, min_lit ) ) {
+					_lit_vector.Push_Back( min_lit );
+					min_lit = lit2;
+				}
+				else _lit_vector.Push_Back( lit2 );
+			}
+		}
+		for ( unsigned j = i + 1; j < equ_class.size(); j++ ) {
+			Literal lit2 = equ_class[j];
+			if ( lit_equ == equivalency.Rename_Lit_Flat( lit2 ) ) {
+				if ( Lit_LT( lit2, min_lit ) ) {
+					_lit_vector.Push_Back( min_lit );
+					min_lit = lit2;
+				}
+				else _lit_vector.Push_Back( lit2 );
+			}
+		}
+		for ( unsigned j = 0; j < _lit_vector.Size(); j++ ) {
+			if ( !Lit_Renamable( _lit_vector[j] ) ) {
+				Add_Equivalence_Flat( min_lit, _lit_vector[j] );
+			}
+		}
+		_lit_vector.Clear();
+	}
 }
 
 void Lit_Equivalency::Display( ostream & out )

@@ -654,7 +654,7 @@ unsigned Greedy_Graph::Induced_Width_Min_Fill_Bound( unsigned bound )
 	return inducedwidth;
 }
 
-void Greedy_Graph::Display( ostream & out)
+void Greedy_Graph::Display( ostream & out )
 {
 	out << "Vertices:";
 	unsigned last = UNSIGNED_UNDEF;
@@ -682,6 +682,33 @@ void Greedy_Graph::Display( ostream & out)
 		out << endl;
 	}
 	out << "End." << endl;
+}
+
+void Greedy_Graph::Display_PACE( ostream & out )
+{
+	unsigned last = UNSIGNED_UNDEF;
+	for ( unsigned v = 0; v <= max_vertex; v++ ) {
+		if ( vertices[v].degree != UNSIGNED_UNDEF ) last = v;
+	}
+	if ( last == UNSIGNED_UNDEF ) {
+		out << "p tw 1 0";
+		return;
+	}
+	vector<Pair<unsigned, unsigned>> edges;
+	bool has_zero = ( vertices[0].degree != UNSIGNED_UNDEF && vertices[0].degree != 0 );
+	for ( unsigned v = !has_zero; v <= last; v++ ) {
+		if ( vertices[v].degree == UNSIGNED_UNDEF ) continue;
+		Neighbour * p = vertices[v].adjacency->next;
+		while ( p->vertex <= max_vertex ) {
+			Pair<unsigned, unsigned> edge( v + has_zero, p->vertex + has_zero );
+			edges.push_back( edge );
+			p = p->next;
+		}
+	}
+	out << "p tw " << last + has_zero << ' ' << edges.size() << endl;
+	for ( Pair<unsigned, unsigned> e : edges) {
+		out << e.left << ' ' << e.right << '\n';
+	}
 }
 
 void Greedy_Graph::Display_Degree( ostream & fout)
@@ -986,27 +1013,6 @@ Simple_TreeD::Simple_TreeD( Greedy_Graph & graph, unsigned bound, bool opt ): _m
 	}
 }
 
-Simple_TreeD::~Simple_TreeD()
-{
-	unsigned cluster_size = _clusters.size() - 1;
-	TreeD_Cluster_Adjacency * tail = _clusters[cluster_size].adj->next;
-	vector<Simple_TreeD_Cluster>::iterator itr = _clusters.begin();
-	vector<Simple_TreeD_Cluster>::iterator end = _clusters.end() - 1;
-	for ( ; itr < end; itr++ ) {
-		delete [] itr->vars;
-		TreeD_Cluster_Adjacency * p = itr->adj;
-		while ( p != tail ) {
-			TreeD_Cluster_Adjacency * tmp = p;
-			if ( p->sep != nullptr ) delete [] p->sep;
-			p = p->next;
-			delete tmp;
-		}
-	}
-	delete end->adj;
-	delete tail;
-	Free_Auxiliary_Memory();
-}
-
 void Simple_TreeD::Add_First_Cluster( Simple_TreeD_Cluster & cluster )
 {
 	assert( cluster.adj == nullptr );
@@ -1040,6 +1046,266 @@ void Simple_TreeD::Add_Cluster( Simple_TreeD_Cluster & cluster, unsigned neighbo
 	}
 	pre->next = new TreeD_Cluster_Adjacency( old_size, p );
 	_clusters[neighbour].degree++;
+}
+
+Simple_TreeD::Simple_TreeD( istream & in )
+{
+	if ( in.fail() ) {
+		cerr << "ERROR[Simple_TreeD]: the tree decomposition file cannot be opened!" << endl;
+		exit( 0 );
+	}
+	vector<unsigned> arr;
+	char line[MAX_LINE];
+	in.getline( line, MAX_LINE );
+	char * p = line;
+	while ( Read_String_Change( p, "c" ) ) {
+		in.getline( line, MAX_LINE );
+		p = line;
+	}
+	if ( !Read_String_Change( p, "s" ) ) {
+		cerr << "ERROR[Simple_TreeD]: invalid header!" << endl;
+		exit( 0 );
+	}
+	if ( !Read_String_Change( p, "td" ) ) {
+		cerr << "ERROR[Simple_TreeD]: invalid header!" << endl;
+		exit( 0 );
+	}
+	Exactly_Read_Unsigneds( p, arr );
+	unsigned num_clusters = arr[0];
+	_max_vertex = arr[2];
+	Allocate_and_Init_Auxiliary_Memory();
+	_clusters.resize( num_clusters + 1 );
+	QSorter sorter;
+	TreeD_Cluster_Adjacency * tail = new TreeD_Cluster_Adjacency( num_clusters, nullptr ); // exact one dummy node shared by all clusters
+	_clusters[num_clusters].adj = new TreeD_Cluster_Adjacency( 0, tail );
+	_clusters[num_clusters].degree = 0;
+	_clusters[num_clusters].infor = UNSIGNED_UNDEF;
+	for ( unsigned i = 0; i < num_clusters; i++ ) {
+		in.getline( line, MAX_LINE );
+		p = line;
+		if ( !Read_String_Change( p, "b" ) ) {
+			cerr << "ERROR[Simple_TreeD]: invalid cluster!" << endl;
+			exit( 0 );
+		}
+		arr.clear();
+		Exactly_Read_Unsigneds( p, arr );
+		if ( arr[0] != i + 1 ) {
+			cerr << "ERROR[Simple_TreeD]: invalid cluster!" << endl;
+			assert( arr[0] == i + 1 );
+		}
+		_clusters[i].vars = new unsigned [arr.size() - 1];
+		for ( unsigned j = 1; j < arr.size(); j++ ) {
+			_clusters[i].vars[j-1] = arr[j];
+		}
+		_clusters[i].num_vars = arr.size() - 1;
+		_clusters[i].adj = new TreeD_Cluster_Adjacency( 0, tail );
+		_clusters[i].degree = 0;
+		_clusters[i].infor = UNSIGNED_UNDEF;
+		sorter.Sort( _clusters[i].vars, _clusters[i].num_vars );
+	}
+	for ( unsigned i = 0; i < num_clusters - 1; i++ ) {
+		in.getline( line, MAX_LINE );
+		p = line;
+		arr.clear();
+		Exactly_Read_Unsigneds( p, arr );
+		if ( arr.size() != 2 || arr[0] > num_clusters || arr[1] > num_clusters ) {
+			cerr << "ERROR[Simple_TreeD]: invalid tree relationship!" << endl;
+			exit( 0 );
+		}
+		Add_Cluster_Neighbour( arr[0] - 1, arr[1] - 1 );
+	}
+	Minimize();
+}
+
+void Simple_TreeD::Add_Cluster_Neighbour( unsigned cluster, unsigned neighbour )
+{
+	TreeD_Cluster_Adjacency * pre = _clusters[cluster].adj;
+	TreeD_Cluster_Adjacency * p = pre->next;
+	while ( p->ordinal < neighbour ) {
+		pre = p;
+		p = p->next;
+	}
+	pre->next = new TreeD_Cluster_Adjacency( neighbour, p );
+	_clusters[cluster].degree++;
+	pre = _clusters[neighbour].adj;
+	p = pre->next;
+	while ( p->ordinal < cluster ) {
+		pre = p;
+		p = p->next;
+	}
+	pre->next = new TreeD_Cluster_Adjacency( cluster, p );
+	_clusters[neighbour].degree++;
+}
+
+void Simple_TreeD::Minimize()
+{
+	for ( unsigned i = 0; i < _clusters.size() - 1; i++ ) {  // _clusters.size() might change
+		Simple_TreeD_Cluster & cluster = _clusters[i];
+		TreeD_Cluster_Adjacency * p = cluster.adj->next;
+		bool merged = false;
+		while ( p->ordinal < _clusters.size() - 1 ) {
+			Simple_TreeD_Cluster & neighbour = _clusters[p->ordinal];
+			if ( Subset( neighbour.vars, neighbour.num_vars, cluster.vars, cluster.num_vars ) ) {
+				Merge_Cluster_Neighbour( i, p->ordinal );
+				merged = true;
+				break;
+			}
+			p = p->next;
+		}
+		i -= merged;
+	}
+	if ( _clusters.size() - 1 == 1 ) return;
+	_clusters[0].infor = 0;
+	TreeD_Cluster_Adjacency * adj = _clusters[0].adj->next;
+	unsigned * c_stack = new unsigned [_clusters.size() - 1]; // c denotes cluster
+	c_stack[0] = adj->ordinal;
+	unsigned num_c_stack = 1;
+	for ( adj = adj->next; adj->ordinal < _clusters.size() - 1; adj = adj->next ) {
+		c_stack[num_c_stack++] = adj->ordinal;
+	}
+	while ( num_c_stack ) {
+		unsigned top = c_stack[num_c_stack - 1];
+		if ( _clusters[top].degree == 1 ) {
+			if ( _clusters[top].num_vars == 1 ) Remove_Leaf( top );
+			num_c_stack--;
+		}
+		else if ( _clusters[top].infor == UNSIGNED_UNDEF ) { // "UNSIGNED_UNDEF - 1" denotes "visited" but its children is unvisited yet
+			adj = _clusters[top].adj->next;
+			for ( ; _clusters[adj->ordinal].infor == UNSIGNED_UNDEF; adj = adj->next ) {
+				c_stack[num_c_stack++] = adj->ordinal;
+			}
+			for ( adj = adj->next; adj->ordinal < _clusters.size() - 1; adj = adj->next ) {
+				c_stack[num_c_stack++] = adj->ordinal;
+			}
+			_clusters[top].infor = 0;
+		}
+		else num_c_stack--;
+	}
+	delete [] c_stack;
+	for ( unsigned i = 0; i < _clusters.size() - 1; i++ ) {
+		_clusters[i].infor = UNSIGNED_UNDEF;
+	}
+}
+
+void Simple_TreeD::Merge_Cluster_Neighbour( unsigned cluster, unsigned neighbour )
+{
+	unsigned num_clusters = _clusters.size() - 1;
+	TreeD_Cluster_Adjacency * pre = _clusters[neighbour].adj;
+	TreeD_Cluster_Adjacency * p = pre->next;
+	while ( p->ordinal < cluster ) {
+		pre = p;
+		p = p->next;
+	}
+	pre->next = p->next;
+	delete p;  // remove cluster from neighbour's adjacency
+	_clusters[neighbour].degree--;
+	for ( unsigned i = 0; i < num_clusters; i++ ) {
+		pre = _clusters[i].adj;
+		p = _clusters[i].adj->next;
+		while ( p->ordinal < neighbour ) {
+			pre = p;
+			p = p->next;
+		}
+		if ( p->ordinal == neighbour ) {  // remove neighbour from _clusters[i]'s adjacency
+			_clusters[i].degree--;
+			pre->next = p->next;
+			delete p;
+			p = pre->next;
+		}
+		while ( p->ordinal < num_clusters ) {
+			p->ordinal--;
+			p = p->next;
+		}
+	}
+	_clusters[num_clusters].adj->next->ordinal--;
+	p = _clusters[neighbour].adj->next;
+	delete [] _clusters[neighbour].vars;
+	delete _clusters[neighbour].adj;
+	_clusters.erase( _clusters.begin() + neighbour );
+	if ( cluster > neighbour ) cluster--;
+	Add_Cluster_Neighbours( cluster, p );
+}
+
+void Simple_TreeD::Add_Cluster_Neighbours( unsigned cluster, TreeD_Cluster_Adjacency * adj )
+{
+	unsigned num_clusters = _clusters.size() - 1;
+	TreeD_Cluster_Adjacency * pre = _clusters[cluster].adj;
+	while ( adj->ordinal < num_clusters ) {
+		unsigned neighbour = adj->ordinal;
+		while ( pre->next->ordinal < neighbour ) {
+			pre = pre->next;
+		}
+		TreeD_Cluster_Adjacency * tmp = adj;
+		adj = adj->next;
+		tmp->next = pre->next;
+		pre->next = tmp;
+		pre = pre->next;
+		_clusters[cluster].degree++;
+		TreeD_Cluster_Adjacency * p = _clusters[neighbour].adj;
+		TreeD_Cluster_Adjacency * q = p->next;
+		while ( q->ordinal < cluster ) {
+			p = q;
+			q = q->next;
+		}
+		p->next = new TreeD_Cluster_Adjacency( cluster, q );
+		_clusters[neighbour].degree++;
+	}
+}
+
+void Simple_TreeD::Remove_Leaf( unsigned leaf )
+{
+	assert( _clusters[leaf].degree == 1 );
+	unsigned num_clusters = _clusters.size() - 1;
+	unsigned neighbour = _clusters[leaf].adj->next->ordinal;
+	TreeD_Cluster_Adjacency * pre = _clusters[neighbour].adj;
+	TreeD_Cluster_Adjacency * p = pre->next;
+	while ( p->ordinal < leaf ) {
+		pre = p;
+		p = p->next;
+	}
+	assert( p->ordinal == leaf );
+	pre->next = p->next;
+	delete p;  // remove leaf from neighbour's adjacency
+	_clusters[neighbour].degree--;
+	for ( unsigned i = 0; i < num_clusters; i++ ) {
+		pre = _clusters[i].adj;
+		p = _clusters[i].adj->next;
+		while ( p->ordinal < leaf ) {
+			pre = p;
+			p = p->next;
+		}
+		assert( p->ordinal != leaf );
+		while ( p->ordinal < num_clusters ) {
+			p->ordinal--;
+			p = p->next;
+		}
+	}
+	_clusters[num_clusters].adj->next->ordinal--;
+	delete [] _clusters[leaf].vars;
+	delete _clusters[leaf].adj->next;
+	delete _clusters[leaf].adj;
+	_clusters.erase( _clusters.begin() + leaf );
+}
+
+Simple_TreeD::~Simple_TreeD()
+{
+	unsigned cluster_size = _clusters.size() - 1;
+	TreeD_Cluster_Adjacency * tail = _clusters[cluster_size].adj->next;
+	vector<Simple_TreeD_Cluster>::iterator itr = _clusters.begin();
+	vector<Simple_TreeD_Cluster>::iterator end = _clusters.end() - 1;
+	for ( ; itr < end; itr++ ) {
+		delete [] itr->vars;
+		TreeD_Cluster_Adjacency * p = itr->adj;
+		while ( p != tail ) {
+			TreeD_Cluster_Adjacency * tmp = p;
+			if ( p->sep != nullptr ) delete [] p->sep;
+			p = p->next;
+			delete tmp;
+		}
+	}
+	delete end->adj;
+	delete tail;
+	Free_Auxiliary_Memory();
 }
 
 void Simple_TreeD::Compute_All_Separators()
@@ -1414,6 +1680,153 @@ void Simple_TreeD::Display( ostream & fout )
 		fout << "];" << endl;
 	}
 	fout << "End." << endl;
+}
+
+void Simple_TreeD::Verify()
+{
+	unsigned num_clusters = _clusters.size() - 1;
+	for ( unsigned i = 0; i < num_clusters; i++ ) {
+		Simple_TreeD_Cluster & cluster = _clusters[i];
+		for ( unsigned j = 1; j < cluster.num_vars; j++ ) {
+			if ( cluster.vars[j-1] >= cluster.vars[j] ) {
+				cerr << "Cluster " << i << " has unsorted variables!" << endl;
+				assert( cluster.vars[j-1] < cluster.vars[j] );
+			}
+		}
+		TreeD_Cluster_Adjacency * p = cluster.adj->next;
+		unsigned deg = 0;
+		while ( p->ordinal < num_clusters ) {
+			TreeD_Cluster_Adjacency * q = _clusters[p->ordinal].adj->next;
+			while ( q->ordinal < i ) {
+				q = q->next;
+			}
+			if ( q->ordinal != i ) {
+				cerr << "ERROR[Simple_TreeD]: cluster " << p->ordinal << " should have a child " << i << endl;
+				assert( q->ordinal == i );
+			}
+			p = p->next;
+			deg++;
+		}
+		assert( cluster.degree == deg );
+	}
+	for ( unsigned i = 0; i <= _max_vertex; i++ ) {
+		bool checked = false;
+		for ( unsigned j = 0; j < num_clusters; j++ ) {
+			Simple_TreeD_Cluster & cluster = _clusters[j];
+			if ( !checked && Search_Exi( cluster.vars, cluster.num_vars, i ) ) {
+				DFS_With_Vertex_Appearance( cluster, i );
+				checked = true;
+			}
+			if ( cluster.infor == 0 ) {
+				cluster.infor = UNSIGNED_UNDEF;
+			}
+			else if ( Search_Exi( cluster.vars, cluster.num_vars, i ) ) {
+				cerr << "ERROR[Simple_TreeD]: " << i << " appears in Cluster " << j << ':';
+				for ( unsigned k = 0; k < cluster.num_vars; k++ ) {
+					cerr << ' ' << cluster.vars[k];
+				}
+				cerr << endl;
+				assert( !Search_Exi( cluster.vars, cluster.num_vars, i ) );
+			}
+		}
+	}
+}
+
+void Simple_TreeD::Verify( Greedy_Graph & graph )
+{
+	unsigned num_clusters = _clusters.size() - 1;
+	assert( _max_vertex == graph.Max_Vertex() );
+	for ( unsigned i = 0; i < num_clusters; i++ ) {
+		Simple_TreeD_Cluster & cluster = _clusters[i];
+		for ( unsigned j = 0; j < cluster.num_vars - 1; j++ ) {
+			if ( cluster.vars[j] >= cluster.vars[j+1] ) {
+				cerr << "Cluster " << i << " has unsorted variables!" << endl;
+				assert( cluster.vars[j] < cluster.vars[j+1] );
+			}
+		}
+		TreeD_Cluster_Adjacency * p = cluster.adj->next;
+		unsigned deg = 0;
+		while ( p->ordinal < num_clusters ) {
+			TreeD_Cluster_Adjacency * q = _clusters[p->ordinal].adj->next;
+			while ( q->ordinal < i ) {
+				q = q->next;
+			}
+			assert( q->ordinal == i );
+			p = p->next;
+			deg++;
+		}
+		assert( cluster.degree == deg );
+	}
+	for ( unsigned i = 0; i <= _max_vertex; i++ ) {
+		bool checked = false;
+		vector<Neighbour *> edges = graph.Neighbours( i );
+		for ( unsigned j = 0; j < num_clusters; j++ ) {
+			Simple_TreeD_Cluster & cluster = _clusters[j];
+			if ( !checked && Search_Exi_Nonempty( cluster.vars, cluster.num_vars, i ) ) {
+				DFS_With_Vertex_Appearance( cluster, i );
+				checked = true;
+			}
+			if ( cluster.infor == 0 ) {
+				cluster.infor = UNSIGNED_UNDEF;
+				for ( unsigned k = 0; k < edges.size(); k++ ) {
+					if ( edges[k]->infor != UNSIGNED_UNDEF && edges[k]->infor != 0 ) {
+						cerr << i << ": " << edges[k]->vertex << endl;
+					}
+					if ( edges[k]->infor == UNSIGNED_UNDEF ) {
+						if ( Search_Exi_Nonempty( cluster.vars, cluster.num_vars, edges[k]->vertex ) ) edges[k]->infor = 0;
+					}
+				}
+			}
+			else if ( Search_Exi_Nonempty( cluster.vars, cluster.num_vars, i ) ) {
+				cerr << "ERROR[Simple_TreeD]: " << i << " appears in Cluster " << j << ':';
+				for ( unsigned k = 0; k < cluster.num_vars; k++ ) {
+					cerr << ' ' << cluster.vars[k];
+				}
+				cerr << endl;
+				assert( !Search_Exi_Nonempty( cluster.vars, cluster.num_vars, i ) );
+			}
+		}
+		for ( unsigned k = 0; k < edges.size(); k++ ) {
+			assert( edges[k]->infor != UNSIGNED_UNDEF );
+			edges[k]->infor = UNSIGNED_UNDEF;
+		}
+	}
+}
+
+void Simple_TreeD::DFS_With_Vertex_Appearance( Simple_TreeD_Cluster & source, unsigned vertex )
+{
+	assert( Search_Exi( source.vars, source.num_vars, vertex ) );
+	unsigned cluster_size = _clusters.size() - 1;
+	unsigned * c_stack = new unsigned [cluster_size]; // c denotes cluster
+	unsigned num_c_stack = 0;
+	source.infor = 0;
+	TreeD_Cluster_Adjacency * adj = source.adj->next;
+	for ( ; adj->ordinal < cluster_size; adj = adj->next ) {
+		Simple_TreeD_Cluster & cluster = _clusters[adj->ordinal];
+		if ( Search_Exi( cluster.vars, cluster.num_vars, vertex ) ) {
+			c_stack[num_c_stack++] = adj->ordinal;
+		}
+	}
+	while ( num_c_stack ) {
+		unsigned top = c_stack[num_c_stack - 1];
+		_clusters[top].infor = 0;
+		num_c_stack--;
+		if ( _clusters[top].degree == 1 ) continue;
+		adj = _clusters[top].adj->next;
+		for ( ; _clusters[adj->ordinal].infor == UNSIGNED_UNDEF; adj = adj->next ) {
+			Simple_TreeD_Cluster & cluster = _clusters[adj->ordinal];
+			if ( Search_Exi( cluster.vars, cluster.num_vars, vertex ) ) {
+				c_stack[num_c_stack++] = adj->ordinal;
+			}
+		}
+		for ( adj = adj->next; adj->ordinal < cluster_size; adj = adj->next ) {
+			Simple_TreeD_Cluster & cluster = _clusters[adj->ordinal];
+			if ( Search_Exi( cluster.vars, cluster.num_vars, vertex ) ) {
+				c_stack[num_c_stack++] = adj->ordinal;
+			}
+		}
+	}
+	delete [] c_stack;
 }
 
 

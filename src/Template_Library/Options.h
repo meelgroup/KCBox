@@ -43,6 +43,7 @@ public:
 	operator bool () { return _val; }
 	int Match( int & i, int argc, const char * argv[] )
 	{
+		assert( i < argc );
 		if ( Matched( argv[i] ) ) {
 			i++;
 			Register();
@@ -109,7 +110,7 @@ protected:
 	float _val;
 	float _default;
 public:
-	FloatOption( const char * name, const char * description, const int value ):
+	FloatOption( const char * name, const char * description, const float value ):
 		Option( name, description ), _val( value ), _default( value ) {}
 	operator double () { return _val; }
 	int Match( int & i, int argc, const char * argv[] )

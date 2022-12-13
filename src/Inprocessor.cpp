@@ -46,6 +46,7 @@ void Inprocessor::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToD
 	_comp_offsets = new unsigned [2 * max_var + 2];
 	_active_comps = new unsigned [2 * max_var + 2];  // recording the current component which is being compiled
 	_state_stack = new unsigned [2 * max_var + 2];
+	_var_projected.assign( max_var + 2, false );
 }
 
 void Inprocessor::Free_Auxiliary_Memory()
@@ -145,18 +146,18 @@ void Inprocessor::Compute_Var_Order_Min_Fill_Heuristic_Bound( unsigned bound )
 		Simple_TreeD treed( *pg, bound );
 		running_options.treewidth = treed.Width();
 		if ( running_options.treewidth <= bound ) {
-			Generate_Var_Order_Min_Fill( treed );
+			Generate_Var_Order_From_TreeD( treed );
 		}
 	}
 	else {
 		Simple_TreeD treed( *pg, bound, true );  /// optimized for large-scale problems
 		running_options.treewidth = treed.Width();
 		if ( running_options.treewidth <= bound ) {
-			Generate_Var_Order_Min_Fill( treed );
+			Generate_Var_Order_From_TreeD( treed );
 		}
 	}
 	delete pg;
-	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_minfill = begin_watch.Get_Elapsed_Seconds();
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_tree_decomposition = begin_watch.Get_Elapsed_Seconds();
 }
 
 void Inprocessor::Compute_Var_Order_Min_Fill_Heuristic_Opt()
@@ -166,9 +167,9 @@ void Inprocessor::Compute_Var_Order_Min_Fill_Heuristic_Opt()
 	Greedy_Graph * pg = Create_Primal_Graph();
 	Simple_TreeD treed( *pg );
 	running_options.treewidth = treed.Width();
-	Generate_Var_Order_Min_Fill( treed );
+	Generate_Var_Order_From_TreeD( treed );
 	delete pg;
-	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_minfill = begin_watch.Get_Elapsed_Seconds();
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_tree_decomposition = begin_watch.Get_Elapsed_Seconds();
 }
 
 Greedy_Graph * Inprocessor::Create_Primal_Graph()
@@ -380,7 +381,7 @@ void Inprocessor::Var_Weight_For_Tree_Decomposition_Without_Sorting( double * va
 	}
 }
 
-void Inprocessor::Generate_Var_Order_Min_Fill( Simple_TreeD & treed )
+void Inprocessor::Generate_Var_Order_From_TreeD( Simple_TreeD & treed )
 {
 	double * var_weight = new double [_max_var + 1];
 	Var_Weight_For_Tree_Decomposition( var_weight );
@@ -400,7 +401,7 @@ void Inprocessor::Generate_Var_Order_Min_Fill( Simple_TreeD & treed )
 	delete [] var_weight;
 }
 
-void Inprocessor::Generate_Var_Order_Min_Fill( Simple_TreeD & treed, double * var_weight )
+void Inprocessor::Generate_Var_Order_From_TreeD( Simple_TreeD & treed, double * var_weight )
 {
 	Chain init_order = treed.Transform_Chain( var_weight );
 	for ( unsigned i = 0; i < init_order.Size(); i++ ) {
@@ -415,6 +416,29 @@ void Inprocessor::Generate_Var_Order_Min_Fill( Simple_TreeD & treed, double * va
 		}
 	}
 	_var_order.Append( _max_var.Next() );  /// Note: I cannot remember why this line is needed, maybe in order to terminate some loop
+}
+
+void Inprocessor::Compute_Var_Order_Flow_Cutter()
+{
+	StopWatch begin_watch;
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) begin_watch.Start();
+	const char * graph_file = "solvers/flow_cutter_pace17-input.txt";
+	const char * solver_file = "solvers/flow_cutter_pace17";
+	const char * treed_file = "solvers/flow_cutter_pace17-output.txt";
+	Greedy_Graph * pg = Create_Primal_Graph();
+	ofstream fout( graph_file );
+	pg->Display_PACE( fout );
+	fout.close();
+	string cmd = string("timeout ") + "120s " + solver_file + " " + graph_file + " > " + treed_file + " 2>/dev/null";
+	int status = system(cmd.c_str());
+	assert(status >= 0);
+	ifstream fin( treed_file );
+	Simple_TreeD treed( fin );
+	treed.Verify( *pg );
+	running_options.treewidth = treed.Width();
+	Generate_Var_Order_From_TreeD( treed );
+	delete pg;
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_tree_decomposition = begin_watch.Get_Elapsed_Seconds();
 }
 
 void Inprocessor::Compute_Var_Order_Lexicographic()
@@ -530,7 +554,7 @@ void Inprocessor::Compute_Dynamic_Min_Fill_Bound( unsigned bound )
 		}
 	}
 	delete pg;
-	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_minfill = begin_watch.Get_Elapsed_Seconds();
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_tree_decomposition = begin_watch.Get_Elapsed_Seconds();
 }
 
 unsigned Inprocessor::Compute_Var_Order_Min_Fill_Bound_Component( Component & comp, unsigned bound )
@@ -547,7 +571,7 @@ unsigned Inprocessor::Compute_Var_Order_Min_Fill_Bound_Component( Component & co
 	}
 	delete pg;
 	delete [] var_weight;
-	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_minfill += begin_watch.Get_Elapsed_Seconds();
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_tree_decomposition += begin_watch.Get_Elapsed_Seconds();
 	return treewidth;
 }
 
@@ -1245,7 +1269,7 @@ Reason Inprocessor::Get_Approx_Imp_Component_Full_IBCP( Component & comp )
 			comp.Dec_Var();  /// pop _max_var.Next()
 			if ( i >= num_var ) break;
 			Assign( comp.Vars(i), false, Reason::undef );
-			Reason confl = BCP_Component( comp, _dec_offsets[_num_levels - 1] );
+			confl = BCP_Component( comp, _dec_offsets[_num_levels - 1] );
 			if ( confl != Reason::undef ) {
 				Analyze_Conflict_Fixed_UIP( confl, Literal( comp.Vars(i), false ) );
 				Un_BCP( _dec_offsets[_num_levels - 1] );
@@ -1282,7 +1306,7 @@ Reason Inprocessor::Get_Approx_Imp_Component_Full_IBCP( Component & comp )
 			for ( ; i != UNSIGNED_UNDEF && Var_Decided( comp.Vars(i) ); i-- );
 			if ( i == UNSIGNED_UNDEF ) break;
 			Assign( comp.Vars(i), false, Reason::undef );
-			Reason confl = BCP_Component( comp, _dec_offsets[_num_levels - 1] );
+			confl = BCP_Component( comp, _dec_offsets[_num_levels - 1] );
 			if ( confl != Reason::undef ) {
 				Analyze_Conflict_Fixed_UIP( confl, Literal( comp.Vars(i), false ) );
 				Un_BCP( _dec_offsets[_num_levels - 1] );
@@ -1333,7 +1357,7 @@ unsigned Inprocessor::Analyze_Conflict_Fixed_UIP( Reason confl, Literal fixed ) 
 		_var_seen[var] = true;
 		if ( _var_stamps[var] + 1 != _num_levels ) _big_learnt.Add_Lit( clause[2] );
 		for ( i = 3; i < clause.Size(); i++ ) {
-			unsigned var = clause[i].Var();
+			var = clause[i].Var();
 			_var_seen[var] = true;
 			if ( _var_stamps[var] + 1 != _num_levels ) _big_learnt.Add_Lit( clause[i] );
 		}
@@ -1363,7 +1387,7 @@ unsigned Inprocessor::Analyze_Conflict_Fixed_UIP( Reason confl, Literal fixed ) 
 				if ( _var_stamps[var] + 1 != _num_levels ) _big_learnt.Add_Lit( clause[2] );
 			}
 			for ( i = 3; i < clause.Size(); i++ ) {
-				unsigned var = clause[i].Var();
+				var = clause[i].Var();
 				if ( !_var_seen[var] ) {
 					_var_seen[var] = true;
 					if ( _var_stamps[var] + 1 != _num_levels ) _big_learnt.Add_Lit( clause[i] );
@@ -1769,9 +1793,6 @@ Variable Inprocessor::Pick_Good_Var_Component( Component & comp )  // using clau
 	case LexicographicOrder:
 		return Pick_Good_Var_Linearly_Component( comp );
 		break;
-	case Dminfill:
-		return Pick_Good_Var_Dminfill_Component( comp );
-		break;
 	case VSADS:
 		if ( !SHIELD_OPTIMIZATION ) return Pick_Good_Var_VSADS_Component( comp );
 		else return Pick_Good_Var_VSADS_Improved_Component( comp );
@@ -1781,6 +1802,9 @@ Variable Inprocessor::Pick_Good_Var_Component( Component & comp )  // using clau
 		break;
 	case DLCP:
 		return Pick_Good_Var_DLCP_Component( comp );
+		break;
+	case dynamic_minfill:
+		return Pick_Good_Var_Dminfill_Component( comp );
 		break;
 	default:
 		cerr << "ERROR[Inprocessor]: This heuristic strategy is undefined!" << endl;
@@ -2049,6 +2073,24 @@ Variable Inprocessor::Pick_Good_Var_DLCP_Component( Component & comp )  // using
 	return Variable( *best );
 }
 
+Variable Inprocessor::Pick_Good_Projected_Var_Linearly_Component( Component & comp )
+{
+	vector<unsigned>::const_iterator itr = comp.VarIDs_Begin(), end = comp.VarIDs_End();
+	bool projected = _var_projected[*(end - 1)];
+	_var_projected[*(end - 1)] = true;
+	for ( ; !_var_projected[*itr]; itr++ ) {}
+	_var_projected[*(end - 1)] = projected;
+	if ( !_var_projected[*itr] ) return Variable::undef;
+	unsigned best = *itr;
+	for ( itr++; itr < end; itr++ ) {
+		assert( !Var_Decided( Variable( *itr ) ) );
+		if ( _var_projected[*itr] && _var_order.Less_Than( *itr, best ) ) {
+			best = *itr;
+		}
+	}
+	return Variable( best );
+}
+
 void Inprocessor::Rename_Clauses_Fixed_Ordering()
 {
 	if ( _unary_clauses.size() == _fixed_num_vars ) return;
@@ -2059,6 +2101,7 @@ void Inprocessor::Rename_Clauses_Fixed_Ordering()
 		lit = ~lit;
 		if ( lit != _lit_equivalences[lit] ) _lit_equivalency.Add_Equivalence( lit, _lit_equivalences[lit] );
 	}
+	if ( _lit_equivalency.Empty() ) return;
 //	_lit_equivalency.Display( cerr );  // ToRemove
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		Literal lit( i, false );
@@ -2309,21 +2352,20 @@ void Inprocessor::Display_Conflict( Reason confl, ostream & out )
 
 CNF_Formula * Inprocessor::Output_Old_Clauses()
 {
-	unsigned i;
 	CNF_Formula * cnf = new CNF_Formula( _max_var );
 	for ( Literal lit = Literal::start; lit <= 2 * _max_var + 1;  ) {
-		for ( i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
 			if ( lit > _binary_clauses[lit][i] ) continue;
 			cnf->Add_Binary_Clause( lit, _binary_clauses[lit][i] );
 		}
 		lit++;
-		for ( i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
 			if ( lit > _binary_clauses[lit][i] ) continue;
 			cnf->Add_Binary_Clause( lit, _binary_clauses[lit][i] );
 		}
 		lit++;
 	}
-	for ( i = 0; i < _old_num_long_clauses; i++ ) {
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
 		cnf->Add_Clause( _long_clauses[i] );
 	}
 	return cnf;
@@ -2598,6 +2640,7 @@ void Inprocessor::Get_All_Imp_Component( Component & comp, vector<Model *> & mod
 
 void Inprocessor::Mark_Models_Component( Component & comp, vector<Model *> & models )
 {
+	if ( debug_options.verify_model ) Verify_Models_Component( models, comp );
 	vector<unsigned>::const_iterator old_start = comp.VarIDs_Begin(), start, stop = comp.VarIDs_End();
 	vector<Model *>::iterator begin = models.begin(), end = models.end() - 1;
 	if ( begin == end ) {
@@ -2650,14 +2693,14 @@ void Inprocessor::Init_Heur_Decaying_Sum_Sorted_Lists_Component( Component & com
 
 void Inprocessor::Init_Heur_Decaying_Sum_Heap_Component( Component & comp )
 {
-	_heur_num_lits = 0;
+	unsigned heur_num_lits = 0;
 	for ( unsigned i = 0; i < comp.Vars_Size(); i++ ) {
 		Variable var = comp.Vars( i );
 		if ( Var_Decided( var ) ) continue;
-		_heur_sorted_lits[_heur_num_lits++] = Literal( var, false );
-		_heur_sorted_lits[_heur_num_lits++] = Literal( var, true );
+		_heur_sorted_lits[heur_num_lits++] = Literal( var, false );
+		_heur_sorted_lits[heur_num_lits++] = Literal( var, true );
 	}
-	_heur_lits_heap.Build( _heur_sorted_lits, _heur_num_lits );
+	_heur_lits_heap.Build( _heur_sorted_lits, heur_num_lits );
 }
 
 bool Inprocessor::Learnts_Exploded()
@@ -3048,12 +3091,152 @@ void Inprocessor::Add_Model_Component( vector<int8_t> & minisat_model, Component
 	models.push_back( model );
 }
 
+unsigned Inprocessor::Num_Projected_Vars_Assigned( unsigned start )  // vars[num] == max_var
+{
+    unsigned num = 0;
+    for ( ; start < _num_dec_stack; start++ ) {
+        bool projected = _var_projected[_dec_stack[start].Var()];  // selected only if the position is not greater than max_var;
+        num += projected;
+    }
+	return num;
+}
+
 void Inprocessor::Reset_Extra_Binary_Clauses()
 {
 	for ( unsigned i = Variable::start; i <= _max_var; i++ ) {
 		_extra_binary_clauses[i + i].clear();
 		_extra_binary_clauses[i + i + 1].clear();
 	}
+}
+
+void Inprocessor::Get_All_Projected_Imp_Component( Component & comp, vector<Model *> & models )
+{
+	StopWatch begin_watch;
+	Literal lit;
+	assert( !models.empty() );
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) begin_watch.Start();
+	if ( Learnts_Exploded() ) Filter_Long_Learnts();
+	BCP( _num_dec_stack - 1 );
+	Mark_Models_Component( comp, models );
+	Init_Heur_Decaying_Sum_Component( comp );  // ToDo: rename
+	vector<unsigned>::const_iterator old_start = comp.VarIDs_Begin(), start, stop = comp.VarIDs_End();
+//	Debug_Print_Visit_Number( cerr, __LINE__, 10000 );  // ToRemove
+	if ( DEBUG_OFF ) cerr << "#levels = " << _num_levels << ", #vars = " << comp.Vars_Size();  // ToModify
+	for ( start = old_start; ( lit = Pick_Projected_Imp_Component_Heuristic( comp, start ) ) <= 2 * _max_var + 1; ) {
+		Reason reason = Imply_Projected_Lit_Out_Reason_Component( comp, lit, models );
+		if ( reason != Reason::undef ) {
+			if ( Lit_Undecided( lit ) ) {  /// it is possible that \lit was assigned in \Imply_Lit_Out_Reason_Component
+				Assign( lit, reason );
+				BCP( _num_dec_stack - 1 );
+			}
+		}
+	}
+	if ( DEBUG_OFF ) {  // ToModify
+		cerr << ", time = " << begin_watch.Get_Elapsed_Seconds() << endl;  // ToRemove
+	}
+	if ( DEBUG_OFF ) Verify_Current_Imps();  // ToModify
+	for ( start = old_start; start < stop; start++ ) {
+		_model_seen[*start + *start] = false;
+		_model_seen[*start + *start + 1] = false;
+	}
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_solve += begin_watch.Get_Elapsed_Seconds();
+}
+
+Literal Inprocessor::Pick_Projected_Imp_Component_Heuristic( Component & comp, vector<unsigned>::const_iterator & start )
+{
+	_var_projected[_max_var + 1] = true;
+	comp.Add_Var( _max_var.Next() );  /// NOTE: to terminate the following for-loops
+	for ( ; ; start++ ) {
+		if ( !_var_projected[*start] || Var_Decided( Variable( *start ) ) ) continue;
+		if ( !_model_seen[*start + *start] || !_model_seen[*start + *start + 1] ) break;
+	}
+	Literal lit( Variable( *start ), _model_seen[*start + *start + 1] );
+	vector<unsigned>::const_iterator itr = start + 1;
+	vector<unsigned>::const_iterator end = comp.VarIDs_End();
+	for ( ; itr < end; itr++ ) {
+		if ( !_var_projected[*itr] || Var_Decided( Variable( *itr ) ) ) continue;
+		if ( _model_seen[*itr + *itr] && _model_seen[*itr + *itr + 1] ) continue;
+		Literal tmp( Variable( *itr ), _model_seen[*itr + *itr + 1] );
+		if ( _heur_decaying_sum[tmp] > _heur_decaying_sum[lit] ) lit = tmp;
+	}
+	comp.Dec_Var();  /// pop _max_var.Next()
+	_var_projected[_max_var + 1] = false;
+	return lit;
+}
+
+Reason Inprocessor::Imply_Projected_Lit_Out_Reason_Component( Component & comp, Literal lit, vector<Model *> & models )
+{
+	assert( Lit_Undecided( lit ) && _var_projected[lit.Var()] );
+	unsigned old_num_levels = _num_levels;
+	Reason sat_reason;
+	while ( true ) {
+		Extend_New_Level();
+		Assign( ~lit );
+		Reason conf = BCP( _num_dec_stack - 1 );
+		if ( conf != Reason::undef ) {
+			Analyze_Conflict_Fixed_UIP( conf, ~lit );
+			Backjump( old_num_levels );  /// NOTE: need to put back to heap
+			return Add_Learnt_Sort_Component( comp );
+		}
+		if ( running_options.profile_solving >= Profiling_Detail ) statistics.num_solve++;
+		unsigned num_restart = 0;
+		double restart_bound = Restart_Bound_Component( comp );
+		while ( ( sat_reason = Search_Solution_Projected_Component( comp, restart_bound ) ) == Reason::unknown ) {
+			restart_bound *= running_options.sat_restart_trigger_inc;
+			num_restart++;
+		}
+		if ( sat_reason != Reason::mismatched ) break;  // Otherwise, we detected another implied literal not \lit
+		Backjump( old_num_levels );
+		Assign( _big_learnt[0], Add_Learnt_Sort_Component( comp ) );  // Analyzing Conflict was done in Search_Solution_Component
+		BCP( _num_dec_stack - 1 );
+		if ( running_options.profile_solving >= Profiling_Detail ) statistics.num_unsat_solve++;
+		if ( Lit_SAT( lit ) ) return _reasons[lit.Var()];  // already Backtracked
+	}
+	if ( sat_reason == Reason::undef ) {
+		Add_Marked_Model_Component( comp, models );  // Un_BCP will change _assignment
+		Backjump( old_num_levels );
+		if ( debug_options.verify_model ) Verify_Model_Component( models.back(), comp );
+		return Reason::undef;
+	}
+	else {
+		Analyze_Conflict_Fixed_UIP( sat_reason, ~lit );
+		Backjump( old_num_levels );
+		if ( running_options.profile_solving >= Profiling_Detail ) statistics.num_unsat_solve++;
+		return Add_Learnt_Sort_Component( comp );
+	}
+}
+
+Reason Inprocessor::Search_Solution_Projected_Component( Component & comp, unsigned conf_limit )
+{
+	unsigned old_num_levels = _num_levels;
+	assert( old_num_levels >= 3 );  /// required all initialized implied literals are pulled out
+	unsigned old_size = _long_clauses.size();
+	Literal branch;
+	while ( ( branch = Branch_Component( comp ) ) != _heur_lit_sentinel ) {
+		Extend_New_Level();
+		Assign( branch );
+		Reason conf = BCP( _num_dec_stack - 1 );
+		while ( conf != Reason::undef ) {
+			assert( _num_levels >= old_num_levels );
+			if ( _num_levels == old_num_levels ) {
+				return conf;  // UNSAT
+			}
+			unsigned back_level = Analyze_Conflict( conf );
+			assert( _big_learnt.Size() > 1 && back_level >= 2 );  /// not required all initialized implied literals are pulled out
+			if ( back_level < old_num_levels - 1 ) {
+				Backjump( old_num_levels );
+				return Reason::mismatched;  // implied literal by some previous level before \old_num_levels
+			}
+			Backjump( back_level + 1 );
+			Assign( _big_learnt[0], Add_Learnt_Sort_Component( comp ) );
+			if ( _long_clauses.size() - old_size > conf_limit ) {
+				Backjump( old_num_levels );
+				return Reason::unknown;  // restart
+			}
+			conf = BCP( _num_dec_stack - 1 );
+		}
+	}
+	return Reason::undef;  // SAT
 }
 
 void Inprocessor::Verify_Model_Component( Model * model, Component & comp )
@@ -3087,6 +3270,40 @@ void Inprocessor::Verify_Model_Component( Model * model, Component & comp )
 			cerr << "ERROR[Inprocessor]: not satisfy ";
 			clause.Display( cerr );
 			assert( false );
+		}
+	}
+}
+
+void Inprocessor::Verify_Models_Component( vector<Model *> models, Component & comp )
+{
+	for ( vector<Model *>::iterator itr = models.begin(); itr < models.end(); itr++ ) {
+		unsigned i, j;
+		for ( i = 0; i < comp.Vars_Size(); i++ ) {
+			Literal lit( comp.Vars(i), !(**itr)[comp.Vars(i)] );
+			for ( j = 0; j < _old_num_binary_clauses[lit]; j++ ) {
+				Literal li = _binary_clauses[lit][j];
+				if ( lit > li ) continue;
+				if ( Lit_SAT( li ) ) continue;
+				if ( (*itr)->Falsify( li ) ) {
+					cerr << "ERROR[Inprocessor]: Model " << itr - models.begin() << " does not satisfy ";
+					cerr << ExtLit( lit ) << " " << ExtLit( li ) << endl;
+					assert( false );
+				}
+			}
+		}
+		for ( i = 0; i < comp.ClauseIDs_Size(); i++ ) {
+			Clause & clause = _long_clauses[comp.ClauseIDs( i )];
+			for ( j = 0; j < clause.Size(); j++ ) {
+				Literal lit = clause[j];
+				if ( Lit_SAT( lit ) ) break;
+				if ( Lit_UNSAT( lit ) ) continue;
+				if ( (**itr)[lit.Var()] == lit.Sign() ) break;
+			}
+			if ( j == clause.Size() ) {
+				cerr << "ERROR[Inprocessor]: Model " << itr - models.begin() << " does not satisfy ";
+				clause.Display( cerr );
+				assert( false );
+			}
 		}
 	}
 }
@@ -3298,6 +3515,52 @@ CNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp
 	return cnf;
 }
 
+void Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp, vector<Clause> & clauses )
+{
+	for ( unsigned i = 0; i < comp.Vars_Size(); i++ ) {
+		_var_map[comp.Vars(i)] = i + Variable::start;
+	}
+	for ( unsigned i = 0; i < comp.Vars_Size() ; i++ ) {
+		Variable var = comp.Vars(i);
+		if ( Var_Decided( var ) ) {
+			clauses.push_back( Literal( _var_map[var], _assignment[var] ) );
+			continue;
+		}
+		Literal lit = Literal( _var_map[var], false );
+		for ( unsigned j = 0; j < _old_num_binary_clauses[var + var]; j++ ) {
+			Literal old_lit = _binary_clauses[var + var][j];
+			if ( var + var > old_lit ) continue;
+			if ( Lit_Decided( old_lit ) ) continue;
+			Literal lit2 = Literal( _var_map[old_lit.Var()], old_lit.Sign() );
+			clauses.push_back( Clause( lit, lit2 ) );
+		}
+		lit = Literal( _var_map[var], true );
+		for ( unsigned j = 0; j < _old_num_binary_clauses[var + var + 1]; j++ ) {
+			Literal old_lit = _binary_clauses[var + var + 1][j];
+			if ( var + var + 1 > old_lit ) continue;
+			if ( Lit_Decided( old_lit ) ) continue;
+			Literal lit2 = Literal( _var_map[old_lit.Var()], old_lit.Sign() );
+			clauses.push_back( Clause( lit, lit2 ) );
+		}
+	}
+	for ( unsigned i = 0; i < comp.ClauseIDs_Size(); i++ ) {
+		_big_clause.Clear();
+		Clause & clause = _long_clauses[comp.ClauseIDs(i)];
+		unsigned j;
+		for ( j = 0; j < clause.Size(); j++ ) {
+			Literal old_lit = clause[j];
+			if ( Lit_SAT( old_lit ) ) break;
+			if ( Lit_UNSAT( old_lit ) ) continue;
+			Literal lit = Literal( _var_map[old_lit.Var()], old_lit.Sign() );
+			_big_clause.Add_Lit( lit );
+		}
+		if ( j == clause.Size() ) {
+			assert( _big_clause.Size() >= 2 );
+			clauses.push_back( Clause( _big_clause ) );
+		}
+	}
+}
+
 void Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp, vector<vector<int>> & eclauses )
 {
 	unsigned i, j;
@@ -3363,7 +3626,7 @@ void Inprocessor::Pick_Models( vector<Model *> & source, Literal lit, vector<Mod
 
 void Inprocessor::Move_Models( vector<Model *> & source, vector<Model *> & target )
 {
-	target = source;
+	target.insert( target.end(), source.begin(), source.end() );
 	source.clear();
 }
 
@@ -3390,6 +3653,18 @@ void Inprocessor::Copy_Models( vector<Model *> & source, vector<Model *> & targe
 		target[i] = source[i];
 	}
 	assert( !source.empty() && !target.empty() );
+}
+
+void Inprocessor::Raise_Models( vector<Model *> & source, unsigned target_level )
+{
+	for ( Model * model: source ) {
+		for ( unsigned i = _dec_offsets[target_level]; i < _num_dec_stack; i++ ) {
+			model->Assign( _dec_stack[i] );
+		}
+	}
+	vector<Model *> & target = _models_stack[target_level];
+	target.insert( target.end(), source.begin(), source.end() );
+	source.clear();
 }
 
 void Inprocessor::Input_Models( vector<Model *> & source )
@@ -3456,7 +3731,7 @@ void Inprocessor::Input_Models_Component( Component & comp, vector<Model *> & so
 
 void Inprocessor::Lend_Models( vector<Model *> & models, unsigned size )
 {
-	assert( Is_Oracle_Mode() );
+	assert( _max_var != Variable::undef );
 	for ( unsigned i = 0; i < size; i++ ) {
 		models.push_back( _model_pool->Allocate() );
 	}

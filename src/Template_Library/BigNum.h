@@ -12,6 +12,7 @@ namespace KCBox {
 
 class BigInt
 {
+	friend class BigFloat;
 	friend int sscanf( char str[], BigInt & i );
 	friend void printf( BigInt & i );
 	friend istream & operator >> ( istream & fin, BigInt & i );
@@ -42,10 +43,21 @@ public:
 	bool operator != ( const BigInt& other ) const { return mpz_cmp(_xCount, other._xCount) != 0; }
 	bool operator != ( const long num ) const { return mpz_cmp_si(_xCount, num) != 0; }
 	double TransformDouble() { return mpz_get_d( _xCount ); }
+	double TransformDouble_2exp( long & exp ) { return mpz_get_d_2exp( &exp , _xCount ); }
 	void Assign_2exp( const int e ) { mpz_set_si(_xCount, 1);  mpz_mul_2exp(_xCount, _xCount, e); }
 	void Mul_2exp( const int e ) { mpz_mul_2exp(_xCount, _xCount, e); }
 	void Div_2exp( const int e ) { mpz_div_2exp(_xCount, _xCount, e); }
 	bool Divisible_2exp( const int e ) { return mpz_divisible_2exp_p(_xCount, e ); }
+	bool LE_2exp( const int e ) const
+	{
+	    mpz_t tmp;
+		mpz_init( tmp );
+	    mpz_set_ui( tmp, 1 );
+	    mpz_mul_2exp(tmp, tmp, e);
+	    bool result = mpz_cmp(_xCount, tmp) <= 0;
+	    mpz_clear( tmp );
+	    return result;
+	}
 	size_t Memory() const { return sizeof(mpz_t) + _xCount->_mp_alloc * sizeof(mp_limb_t); }
 protected:
 	mpz_t _xCount;
@@ -62,6 +74,7 @@ public:
     BigFloat() { mpf_init(_xCount); }
     BigFloat( double num ) { mpf_init_set_d(_xCount, num); }
     BigFloat( const BigFloat &other ) { mpf_init_set(_xCount, other._xCount); }
+    BigFloat( const BigInt other ) { mpf_init(_xCount);  mpf_set_z(_xCount, other._xCount); }
     ~BigFloat() { mpf_clear(_xCount); }
     void operator = (const BigFloat &other) { mpf_set(_xCount, other._xCount); }
     void operator = (double num) { mpf_set_d(_xCount, num); }
@@ -69,6 +82,18 @@ public:
     void operator -= (const BigFloat &other) { mpf_sub(_xCount, _xCount, other._xCount); }
     void operator *= (const BigFloat &other) { mpf_mul(_xCount, _xCount, other._xCount); }
     void operator /= (const BigFloat &other) { mpf_div(_xCount, _xCount, other._xCount); }
+    BigFloat operator * (const BigFloat &other)
+    {
+    	BigFloat result;
+    	mpf_mul(result._xCount, _xCount, other._xCount);
+    	return result;
+	}
+    BigFloat operator / (const BigFloat &other)
+    {
+    	BigFloat result;
+    	mpf_div(result._xCount, _xCount, other._xCount);
+    	return result;
+	}
     bool operator < (const BigFloat &other) const { return mpf_cmp(_xCount, other._xCount) < 0; }
     bool operator < (const double num) const { return mpf_cmp_d(_xCount, num) < 0; }
     bool operator > (const BigFloat &other) const { return mpf_cmp(_xCount, other._xCount) > 0; }
@@ -83,7 +108,7 @@ public:
 	void Assign_2exp( const int e ) { mpf_set_d(_xCount, 1);  mpf_mul_2exp(_xCount, _xCount, e); }
 	void Mul_2exp( const int e ) { mpf_mul_2exp(_xCount, _xCount, e); }
 	void Div_2exp( const int e ) { mpf_div_2exp(_xCount, _xCount, e); }
-	bool LE_2exp( const int e )
+	bool LE_2exp( const int e ) const
 	{
 	    mpf_t tmp;
 		mpf_init( tmp );

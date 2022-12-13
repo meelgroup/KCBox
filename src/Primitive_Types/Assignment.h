@@ -14,6 +14,7 @@ protected:
 public:
     lbool(): _val( -1 ) { }
     explicit lbool( bool v ) : _val( v ) {}
+    lbool( const lbool &b ) : _val( b._val ) {}
 	lbool & operator = ( lbool b ) { _val = b._val; return *this; }
 	lbool & operator = ( bool v ) { _val = v; return *this; }
 	bool operator == (const lbool &other) const { return _val == other._val; }
@@ -302,7 +303,6 @@ protected:
 
 class Model_Pool
 {
-	friend class Compiler;
 protected:
 	Variable _max_var;
 	Model * _allocated;  // Doubly linked list with a sentinel node
@@ -336,6 +336,16 @@ public:
 			delete itr;
 		}
 	}
+	void operator = ( Model_Pool & another )
+	{
+		Reset_Max_Var( another._max_var );
+		for ( Model * itr = _allocated->pre; itr != _allocated; itr = itr->pre ) {
+			Model * model = Allocate();
+			for ( unsigned i = 0; i < model->Size( _max_var ); i++ ) {
+				model->bits[i] = itr->bits[i];
+			}
+		}
+	}
 	void Free_Unallocated_Models()
 	{
 		while ( _unallocated != NULL ) {  // delete the list _unallocated
@@ -364,6 +374,33 @@ public:
 		_allocated->pre = _allocated;
 		_allocated->next = _allocated;
 		_unallocated = NULL;
+	}
+	void Shrink_Max_Var( Variable new_max_var, Variable var_map[] )
+	{
+		assert( new_max_var < _max_var );
+		for ( Model * itr = _allocated->next; itr != _allocated; itr = itr->next ) {  // delete the list _allocated
+			unsigned size = itr->Size( new_max_var );
+			unsigned * new_bits = new unsigned [size];
+			unsigned * old_bits = itr->bits;
+			itr->bits = new_bits;
+			for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+				Variable x_map = var_map[x];
+				if ( x_map <= new_max_var ) {
+					itr->bits = old_bits;
+					bool val = (*itr)[x];
+					itr->bits = new_bits;
+					itr->Assign( x_map, val );
+				}
+			}
+			delete [] old_bits;
+		}
+		while ( _unallocated != nullptr ) {  // delete the list _unallocated
+			Model * itr = _unallocated;
+			_unallocated = _unallocated->next;
+			delete itr;
+		}
+		_max_var = new_max_var;
+		_unallocated = nullptr;
 	}
 	Model * Allocate()
 	{

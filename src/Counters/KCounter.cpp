@@ -42,7 +42,7 @@ void KCounter::Free_Auxiliary_Memory()
 
 void KCounter::Reset()
 {
-	Inprocessor::Reset();
+	Extensive_Inprocessor::Reset();
 	_component_cache.Reset();
 }
 
@@ -60,19 +60,23 @@ size_t KCounter::Memory()
 BigInt KCounter::Count_Models( CNF_Formula & cnf, Heuristic heur )
 {
 	StopWatch begin_watch, tmp_watch;
-	if ( running_options.display_counting_process ) cout << "Counting models..." << endl;
+	if ( !running_options.display_counting_process ) {
+		running_options.display_preprocessing_process = false;
+		running_options.display_kernelizing_process = false;
+	}
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Counting models..." << endl;
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( running_options.profile_counting >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-	if ( running_options.display_counting_process ) cout << "Begin preprocess..." << endl;
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
 	running_options.detect_lit_equivalence = ( running_options.max_kdepth > 0 );
-	bool cnf_sat = Preprocess( cnf, _models_stack[0] );
-	if ( running_options.display_counting_process ) cout << "Preprocess done." << endl;
+	bool cnf_sat = Preprocess_Sharp( cnf, _models_stack[0] );
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Preprocess done." << endl;
 	if ( !cnf_sat ) {
 		_num_levels--;
 		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_counting_process ) {
-			cout << "Done." << endl;
+			cout << running_options.display_prefix << "Done." << endl;
 			if ( running_options.profile_counting >= Profiling_Abstract ) {
 //				Display_Statistics( 0 );
 			}
@@ -84,7 +88,7 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, Heuristic heur )
 		BigInt count = Backtrack_Init();
 		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_counting_process ) {
-			cout << "Done." << endl;
+			cout << running_options.display_prefix << "Done." << endl;
 			if ( running_options.profile_counting >= Profiling_Abstract ) {
 				Display_Statistics( 0 );
 			}
@@ -93,10 +97,11 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, Heuristic heur )
 		return count;
 	}
 	Store_Lit_Equivalences( _call_stack[0] );
+	_fixed_num_vars -= _and_gates.size();
 	Gather_Infor_For_Counting();
 	if ( !running_options.static_heur ) Choose_Running_Options( heur );
 	else Choose_Running_Options_Static( heur );
-	running_options.Display( cout );  // ToRemove
+	if ( running_options.display_counting_process && running_options.profile_counting != Profiling_Close ) running_options.Display( cout );  // ToRemove
 	Set_Current_Level_Kernelized( true );
 	Create_Init_Level();
 	if ( running_options.imp_strategy != SAT_Imp_Computing ) {  // ToModify
@@ -112,12 +117,14 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, Heuristic heur )
 		Count_With_SAT_Imp_Computing();
 	}
 	Set_Current_Level_Kernelized( false );
+	_fixed_num_vars += _and_gates.size();
 	Load_Lit_Equivalences( _call_stack[0] );
+	_call_stack[0].Clear_Lit_Equivalences();
 	BigInt count = Backtrack_Init();
 	if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
 	if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
 	if ( running_options.display_counting_process ) {
-		cout << "Done." << endl;
+		cout << running_options.display_prefix << "Done." << endl;
 		if ( running_options.profile_counting >= Profiling_Abstract ) {
 			Display_Statistics( 1 );
 			Display_Memory_Status( cout );
@@ -156,7 +163,7 @@ void KCounter::Choose_Running_Options( Heuristic heur )
 		break;
 	case minfill:
 		Compute_Var_Order_Min_Fill_Heuristic_Opt();
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 		break;
 	case LinearLRW:
 		Compute_Var_Order_Single_Cluster();
@@ -164,15 +171,15 @@ void KCounter::Choose_Running_Options( Heuristic heur )
 	case LexicographicOrder:
 		Compute_Var_Order_Lexicographic();
 		break;
-	case Dminfill:
-		Compute_Dynamic_Min_Fill_Bound( _max_var );
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
-		break;
 	case VSADS:
 		break;
 	case DLCS:
 		break;
 	case DLCP:
+		break;
+	case dynamic_minfill:
+		Compute_Dynamic_Min_Fill_Bound( _max_var );
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 		break;
 	default:
 		cerr << "ERROR[KCounter]: this heuristic strategy is not supported yet!" << endl;
@@ -200,16 +207,16 @@ void KCounter::Choose_Running_Options( Heuristic heur )
 
 void KCounter::Compute_Var_Order_Automatical()
 {
-	const unsigned bound = 128;
+	const unsigned upper_bound = 128;
 	unsigned treewidth_bound = _unsimplifiable_num_vars / 7;
-	if ( treewidth_bound > bound ) treewidth_bound = bound;
+	if ( treewidth_bound > upper_bound ) treewidth_bound = upper_bound;
 	Compute_Var_Order_Min_Fill_Heuristic_Bound( treewidth_bound );
 	if ( running_options.treewidth <= treewidth_bound ) {
 		running_options.var_ordering_heur = minfill;
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 	}
 	else {
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: > " << treewidth_bound << endl;
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: > " << treewidth_bound << endl;
 		running_options.var_ordering_heur = DLCP;  // ToModify
 		if ( running_options.var_ordering_heur == LinearLRW ) Compute_Var_Order_Single_Cluster();
 	}
@@ -224,7 +231,7 @@ void KCounter::Choose_Running_Options_Static( Heuristic heur )
 		break;
 	case minfill:
 		Compute_Var_Order_Min_Fill_Heuristic_Opt();
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 		break;
 	case LexicographicOrder:
 		Compute_Var_Order_Lexicographic();
@@ -244,10 +251,10 @@ void KCounter::Compute_Var_Order_Automatical_Static()
 	Compute_Var_Order_Min_Fill_Heuristic_Bound( treewidth_bound );
 	if ( running_options.treewidth <= treewidth_bound ) {
 		running_options.var_ordering_heur = minfill;
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: " << running_options.treewidth << endl;
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 	}
 	else {
-		if ( running_options.display_counting_process ) cout << "The minfill treewidth: > " << treewidth_bound << endl;
+		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: > " << treewidth_bound << endl;
 		running_options.var_ordering_heur = LinearLRW;
 		Compute_Var_Order_Single_Cluster();
 	}
@@ -256,7 +263,7 @@ void KCounter::Compute_Var_Order_Automatical_Static()
 void KCounter::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
-	if ( Is_Ordering_minfill( running_options.var_ordering_heur ) ) {
+	if ( Is_TreeD_Based_Ordering( running_options.var_ordering_heur ) ) {
 		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
 		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
 		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
@@ -522,7 +529,7 @@ BigInt KCounter::Component_Cache_Map( Component & comp )
 	}
 	if ( DEBUG_OFF && comp.caching_loc == 9 ) {  // ToRemove
 		comp.Display( cerr );
-		_incremental_comp.Display( cerr );
+		if ( _current_kdepth > 1 ) _incremental_comp.Display( cerr );
 		Display_Component( comp, cerr );
 	}
 	if ( Cache_Clear_Applicable() ) Component_Cache_Clear();
@@ -612,8 +619,8 @@ bool KCounter::Cache_Clear_Applicable()
 	if ( _component_cache.Memory() > max_mem * 0.7 ) return true;
 	if ( _component_cache.Size() < _component_cache.Capacity() || _component_cache.Hit_Successful() ) return false;
 	size_t mem = Total_Used_Memory();
-	if ( running_options.display_counting_process ) {
-		cout << (float) _component_cache.Memory() / GB << " (cache) /";
+	if ( running_options.display_counting_process && running_options.profile_counting != Profiling_Close ) {
+		cout << running_options.display_prefix << (float) _component_cache.Memory() / GB << " (cache) / ";
 		cout << (float) mem / GB << " (total) in GB" << endl;
 	}
 	if ( mem < max_mem * 0.8 ) return false;
@@ -622,7 +629,7 @@ bool KCounter::Cache_Clear_Applicable()
 
 void KCounter::Component_Cache_Clear()
 {
-	if ( running_options.display_counting_process ) cout << "clear cache" << endl;
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "clear cache" << endl;
 	vector<size_t> kept_locs;
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		kept_locs.push_back( _comp_stack[_comp_offsets[i]].caching_loc );
@@ -633,7 +640,7 @@ void KCounter::Component_Cache_Clear()
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		if ( _call_stack[i].Existed() ) kept_locs.push_back( _call_stack[i].Get_Caching_Loc() );
 	}
-	if ( true ) _component_cache.Clear( kept_locs );  // ToModify
+	if ( true ) _component_cache.Clear_Shrink_Half( kept_locs );  // ToModify
 	else _component_cache.Clear_Half( kept_locs );
 	unsigned index = 0;
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
@@ -859,7 +866,7 @@ bool KCounter::Try_Shift_To_Implicite_BCP()
 		Compute_Second_Var_Order_Automatical( comp );
 		if ( false && comp.Vars_Size() > running_options.trivial_variable_bound && \
 			running_options.var_ordering_heur != minfill && \
-			running_options.var_ordering_heur != Dminfill ) {
+			running_options.var_ordering_heur != dynamic_minfill ) {
 			_var_order.Swap( old_order );
 			running_options.var_ordering_heur = old_heur;
 			running_options.imp_strategy = SAT_Imp_Computing;
@@ -981,26 +988,15 @@ bool KCounter::Estimate_Final_Kernelization_Effect()
 		else return false;
 	}
 	else if ( true ) {
-		return Estimate_Kernelization_Effect_Enough_Decisions( step );
+		return Estimate_Kernelization_Effect_Enough_Decisions( step, 3 );
 	}
 	else if ( true ) {
 		if ( Current_Component().Vars_Size() > running_options.trivial_variable_bound * 2 ) return false;
-		return Estimate_Kernelization_Effect_Enough_Decisions( step );
+		return Estimate_Kernelization_Effect_Enough_Decisions( step, 3 );
 	}
 	else {
 		return Current_Component().Vars_Size() <= running_options.trivial_variable_bound / ratio;
 	}
-}
-
-bool KCounter::Estimate_Kernelization_Effect_Enough_Decisions( unsigned step )
-{
-	unsigned last_level = Search_Last_Kernelizition_Level();
-	unsigned num_decisions = _num_dec_stack - _dec_offsets[last_level + 1];
-	unsigned num_levels = _num_levels - last_level - 1;
-	if ( running_options.display_kernelizing_process ) {
-		cout << last_level + 1 << " -> " << _num_levels - 1 << " (" << num_decisions << ")" << endl;
-	}
-	return num_decisions > step && num_levels < num_decisions / 3;
 }
 
 void KCounter::Leave_Tmp_Kernelization()
@@ -1105,11 +1101,11 @@ bool KCounter::Estimate_Kernelization_Effect()
 		else return false;
 	}
 	else if ( running_options.var_ordering_heur == DLCP ) {
-		return Estimate_Kernelization_Effect_Enough_Decisions( running_options.kernelizing_step );
+		return Estimate_Kernelization_Effect_Enough_Decisions( running_options.kernelizing_step, 3 );
 	}
-	else if ( Is_Ordering_minfill( running_options.var_ordering_heur ) ) {
+	else if ( Is_TreeD_Based_Ordering( running_options.var_ordering_heur ) ) {
 		if ( Current_Component().Vars_Size() > running_options.trivial_variable_bound * 2 ) return false;
-		return Estimate_Kernelization_Effect_Enough_Decisions( running_options.kernelizing_step );
+		return Estimate_Kernelization_Effect_Enough_Decisions( running_options.kernelizing_step, 3 );
 	}
 	else {
 		return Current_Component().Vars_Size() <= running_options.trivial_variable_bound / ratio;
@@ -1234,6 +1230,364 @@ void KCounter::Iterate_Decision_Next()
 	_active_comps[_num_levels - 1]++;
 }
 
+BigInt KCounter::Count_Models( CNF_Formula & cnf, vector<Model *> & models, double timeout )
+{
+	StopWatch begin_watch, tmp_watch;
+	if ( !running_options.display_counting_process ) {
+		running_options.display_preprocessing_process = false;
+		running_options.display_kernelizing_process = false;
+	}
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Counting models..." << endl;
+	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
+	if ( running_options.profile_counting >= Profiling_Abstract ) begin_watch.Start();
+	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
+	running_options.detect_lit_equivalence = ( running_options.max_kdepth > 0 );
+	_models_stack[0] = models;
+	models.clear();
+	bool cnf_sat = Preprocess_Sharp( cnf, _models_stack[0] );
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Preprocess done." << endl;
+	if ( !cnf_sat ) {
+		_num_levels--;
+		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
+		if ( running_options.display_counting_process ) {
+			cout << running_options.display_prefix << "Done." << endl;
+			if ( running_options.profile_counting >= Profiling_Abstract ) {
+//				Display_Statistics( 0 );
+			}
+		}
+		Reset();
+		return 0;
+	}
+	if ( Non_Unary_Clauses_Empty() ) {
+		BigInt count = Backtrack_Init();
+		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
+		if ( running_options.display_counting_process ) {
+			cout << running_options.display_prefix << "Done." << endl;
+			if ( running_options.profile_counting >= Profiling_Abstract ) {
+				Display_Statistics( 0 );
+			}
+		}
+		Reset();
+		return count;
+	}
+	Store_Lit_Equivalences( _call_stack[0] );
+	_fixed_num_vars -= _and_gates.size();
+	Gather_Infor_For_Counting();
+	if ( !running_options.static_heur ) Choose_Running_Options( AutomaticalHeur );
+	else Choose_Running_Options_Static( AutomaticalHeur );
+	if ( running_options.display_counting_process && running_options.profile_counting != Profiling_Close ) running_options.Display( cout );  // ToRemove
+	Set_Current_Level_Kernelized( true );
+	Create_Init_Level();
+	if ( running_options.imp_strategy != SAT_Imp_Computing ) {  // ToModify
+		Recycle_Models( _models_stack[0] );
+		if ( Large_Scale_Problem() ) _model_pool->Free_Unallocated_Models();
+		Count_With_Implicite_BCP( timeout );
+	}
+	else {
+		if ( running_options.max_kdepth > 1 ) {
+			if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) _lit_equivalency.Reorder( _var_order );
+			Encode_Long_Clauses();
+		}
+		Count_With_SAT_Imp_Computing( timeout );
+	}
+	Set_Current_Level_Kernelized( false );
+	_fixed_num_vars += _and_gates.size();
+	Load_Lit_Equivalences( _call_stack[0] );
+	_call_stack[0].Clear_Lit_Equivalences();
+	BigInt count;
+	if ( _num_rsl_stack == 1 ) count = Backtrack_Init();
+	else count = Backtrack_Failure();
+	if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
+	if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
+	if ( running_options.display_counting_process ) {
+		cout << running_options.display_prefix << "Done." << endl;
+		if ( running_options.profile_counting >= Profiling_Abstract ) {
+			Display_Statistics( 1 );
+			Display_Memory_Status( cout );
+		}
+	}
+	Reset();
+	if ( debug_options.verify_count ) {
+		BigInt verified_count = Count_Verified_Models_d4( cnf );
+		cerr << count << " vs " << verified_count << endl;
+		assert( count == verified_count );
+	}
+	return count;
+}
+
+void KCounter::Count_With_Implicite_BCP( double timeout )
+{
+	StopWatch stop_watch;
+	stop_watch.Start();
+	unsigned old_num_levels = _num_levels;
+	unsigned old_num_rsl_stack = _num_rsl_stack;
+	Variable var;
+	BigInt cached_result;
+	Reason backjump_reason = Reason::undef;  // just used for omitting warning
+	unsigned backjump_level;
+	while ( _num_levels >= old_num_levels ) {
+		if ( DEBUG_OFF ) {
+			if ( Num_Components_On_Current_Level() <= 1 && _state_stack[_num_levels - 1] == 0 )
+				Display_Component( Parent_of_Current_Component(), cerr );  // ToRemove
+			else Display_Component( Current_Component(), cerr );  // ToRemove
+			Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	//		system( "pause" );
+//			Display_Comp_And_Decision_Stacks( cerr );  // ToRemove
+		}
+		if ( stop_watch.Get_Elapsed_Seconds() >= timeout ) break;
+		if ( Num_Components_On_Current_Level() <= 1 ) { // decision or preparation
+			switch ( _state_stack[_num_levels - 1] ) {
+			case 0:
+				backjump_reason = Get_Approx_Imp_Component( Parent_of_Current_Component(), backjump_level );
+				if ( backjump_reason != Reason::undef ) {
+					Backjump_Decision( backjump_level );
+					break;
+				}
+				_num_comp_stack += Dynamic_Decompose_Component( Parent_of_Current_Component(), _comp_stack + _comp_offsets[_num_levels - 1] );
+				if ( Is_Current_Level_Empty() ) {
+					Backtrack_True();
+				}
+				else if ( Is_Current_Level_Decision() ) {
+					cached_result = Component_Cache_Map( Current_Component() );
+					if ( cached_result != -1 ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
+						Backtrack_Known( cached_result );
+					}
+					else _state_stack[_num_levels - 1]++;
+				}
+				else _state_stack[_num_levels - 1] = 0;
+				break;
+			case 1:
+				_state_stack[_num_levels - 1]++;
+				var = Pick_Good_Var_Component( Current_Component() );
+				Extend_New_Level();
+				Assign( Literal( var, false ) );
+				break;
+			case 2:
+				if ( _rsl_stack[_num_rsl_stack - 1] != 0 ) {
+					_state_stack[_num_levels - 1]++;
+					Extend_New_Level();
+					Assign( ~_dec_stack[_num_dec_stack] );
+				}
+				else {
+					_num_rsl_stack--;  // pop 0
+					_num_comp_stack = _comp_offsets[_num_levels - 1];  // re-decompose
+					_state_stack[_num_levels - 1] = 0;
+					Assign( ~_dec_stack[_num_dec_stack], backjump_reason );  // reason is assigned in the last iteration
+				}
+				break;
+			case 3:
+				Backtrack_Decision();
+				break;
+			}
+		}
+		else { // decomposition
+			assert( _active_comps[_num_levels - 1] == _comp_offsets[_num_levels - 1] + _state_stack[_num_levels - 1] / 3 );
+			if ( Is_Current_Level_Active() ) {  // not all components have been processed
+				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
+				case 0:
+					cached_result = Component_Cache_Map( Current_Component() );
+					if ( cached_result != -1 ) {  /// NOTE: backjump makes that there are unknown cacheable component
+						Iterate_Known( cached_result );
+						_state_stack[_num_levels - 1] += 2;
+					}
+					else {
+						var = Pick_Good_Var_Component( Current_Component() );
+						Extend_New_Level();
+						Assign( Literal( var, false ) );
+					}
+					break;
+				case 1:
+					if ( _rsl_stack[_num_rsl_stack - 1] != 0 ) {
+						Extend_New_Level();
+						Assign( ~_dec_stack[_num_dec_stack] );
+					}
+					else {
+						_num_rsl_stack--;  // pop 0
+						Assign( ~_dec_stack[_num_dec_stack], backjump_reason );
+						backjump_reason = Get_Approx_Imp_Component( Current_Component(), backjump_level );  /// current component rather than parent component
+						if ( backjump_reason != Reason::undef ) {
+							Backjump_Decomposition( backjump_level );
+							break;
+						}
+						unsigned num_comp = Dynamic_Decompose_Component( Current_Component(), _comp_stack + _num_comp_stack );
+						_num_comp_stack += num_comp - 1;  // Replace one component with its sub-components
+						Current_Component() = _comp_stack[_num_comp_stack];
+						if ( Is_Current_Level_Decision() && !Is_Current_Level_Active() ) {	// all components except one collapsed into literals
+							Backtrack_Decomposition2Decision();  // overwrite the result of the only one component
+						}
+						else if ( Is_Current_Level_Decision() ) {	// all components except one collapsed into literals, and this component is not handled yet
+							assert( _active_comps[_num_levels - 1] == _num_comp_stack - 1 );
+							cached_result = Component_Cache_Map( Current_Component() );  /// NOTE: the current component was after the collapsed one
+							if ( cached_result != -1 ) {  /// NOTE: backjump makes that there are unknown cacheable component
+								Backtrack_Known( cached_result );
+							}
+							else _state_stack[_num_levels - 1] = 1;
+						}
+						else _state_stack[_num_levels - 1] -= 2;
+					}
+					break;
+				case 2:
+					Iterate_Decision();
+					break;
+				}
+			}
+			else {  // all components are already processed
+				Backtrack_Decomposition();
+			}
+		}
+	}
+	if ( _num_levels == old_num_levels - 1 ) assert( _num_rsl_stack == old_num_rsl_stack + 1 );
+	else Terminate_Counting();
+}
+
+void KCounter::Terminate_Counting()
+{
+	_num_rsl_stack = 0;
+	_swap_frame.Clear();
+	while ( _num_levels > 1 ) {
+		_call_stack[_num_levels - 1].Free_Long_Clauses();
+		_call_stack[_num_levels - 1].Clear();
+		Recycle_Models( _models_stack[_num_levels - 1] );
+		Backtrack();
+	}
+}
+
+void KCounter::Count_With_SAT_Imp_Computing( double timeout )
+{
+	StopWatch stop_watch, tmp_watch;
+	stop_watch.Start();
+	Variable var;
+	BigInt cached_result;
+	Move_Models( _models_stack[0], _models_stack[1] );
+	while ( _num_levels > 1 ) {
+		if ( DEBUG_OFF ) {
+			if ( Num_Components_On_Current_Level() <= 1 && _state_stack[_num_levels - 1] == 0 )
+				Display_Component( Parent_of_Current_Component(), cerr );  // ToRemove
+			else Display_Component( Current_Component(), cerr );  // ToRemove
+			Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	//		system( "pause" );
+			Display_Comp_And_Decision_Stacks( cerr );  // ToRemove
+		}
+		if ( stop_watch.Get_Elapsed_Seconds() >= timeout ) break;
+		if ( Num_Components_On_Current_Level() <= 1 ) { // decision or preparation
+			switch ( _state_stack[_num_levels - 1] ) {
+			case 0:
+				Get_All_Imp_Component( Parent_of_Current_Component(), _models_stack[_num_levels - 1] );
+				_num_comp_stack += Dynamic_Decompose_Component( Parent_of_Current_Component(), _comp_stack + _comp_offsets[_num_levels - 1] );
+				if ( Is_Current_Level_Empty() ) {
+					Recycle_Models( _models_stack[_num_levels - 1] );
+					Backtrack_True();
+				}
+				else if ( Is_Current_Level_Decision() ) {
+					cached_result = Component_Cache_Map( Current_Component() );
+					if ( cached_result != -1 ) {  // no backjump
+						Recycle_Models( _models_stack[_num_levels - 1] );
+						Backtrack_Known( cached_result );
+					}
+					else _state_stack[_num_levels - 1]++;
+				}
+				else _state_stack[_num_levels - 1] = 0;
+				break;
+			case 1:
+				if ( Try_Shift_To_Implicite_BCP( timeout - stop_watch.Get_Elapsed_Seconds() ) ) break;
+				_state_stack[_num_levels - 1]++;
+				if ( Try_Kernelization() == lbool::unknown ) break;
+				var = Pick_Good_Var_Component( Current_Component() );
+				Extend_New_Level();
+				Pick_Models( _models_stack[_num_levels - 2], Literal( var, false ), _models_stack[_num_levels - 1] );
+				Assign( Literal( var, false ) );
+				break;
+			case 2:
+				assert( _rsl_stack[_num_rsl_stack - 1] != 0 );
+				_state_stack[_num_levels - 1]++;
+				Extend_New_Level();
+				Move_Models( _models_stack[_num_levels - 2], _models_stack[_num_levels - 1] );
+				Assign( ~_dec_stack[_num_dec_stack] );
+				break;
+			case 3:
+				assert( _models_stack[_num_levels - 1].empty() );
+				Calculate_Decision();
+				Leave_Kernelization();
+				Backtrack_Decision_Imp();
+				break;
+			}
+		}
+		else { // decomposition
+			assert( _active_comps[_num_levels - 1] == _comp_offsets[_num_levels - 1] + _state_stack[_num_levels - 1] / 3 );
+			if ( Is_Current_Level_Active() ) {  // not all components have been processed
+				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
+				case 0:
+					cached_result = Component_Cache_Map( Current_Component() );
+					if ( cached_result != -1 ) {  // no backjump
+						Iterate_Known( cached_result );
+						_state_stack[_num_levels - 1] += 2;
+					}
+					else {
+						if ( Try_Kernelization() == lbool::unknown ) break;
+						var = Pick_Good_Var_Component( Current_Component() );
+						Extend_New_Level();
+						Inherit_Models( _models_stack[_num_levels - 2], Literal( var, false ), _models_stack[_num_levels - 1] );
+						Assign( Literal( var, false ) );
+					}
+					break;
+				case 1:
+					assert( _rsl_stack[_num_rsl_stack - 1] != 0 );
+					Extend_New_Level();
+					Inherit_Models( _models_stack[_num_levels - 2], ~_dec_stack[_num_dec_stack], _models_stack[_num_levels - 1] );
+					Assign( ~_dec_stack[_num_dec_stack] );
+					break;
+				case 2:
+					Calculate_Decision();
+					Leave_Kernelization();
+					Iterate_Decision_Next();
+					break;
+				}
+			}
+			else {  // all components are already processed
+				Recycle_Models( _models_stack[_num_levels - 1] );
+				Backtrack_Decomposition();
+			}
+		}
+	}
+	if ( _num_levels != 1 ) Terminate_Counting();
+}
+
+bool KCounter::Try_Shift_To_Implicite_BCP( double timeout )
+{
+	if ( !running_options.mixed_imp_computing ) return false;
+	Component & comp = Current_Component();
+	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
+	assert( running_options.imp_strategy == SAT_Imp_Computing );
+	if ( Try_Final_Kernelization() == lbool::unknown ) return true;
+	running_options.imp_strategy = Partial_Implicit_BCP;
+	if ( !running_options.static_heur && running_options.mixed_var_ordering ) {
+		Heuristic old_heur = running_options.var_ordering_heur;
+		Chain old_order;
+		_var_order.Swap( old_order );
+		Compute_Second_Var_Order_Automatical( comp );
+		Recycle_Models( _models_stack[_num_levels - 1] );
+		Count_With_Implicite_BCP( timeout );
+		_var_order.Swap( old_order );
+		running_options.var_ordering_heur = old_heur;
+	}
+	else {
+		Recycle_Models( _models_stack[_num_levels - 1] );
+		Count_With_Implicite_BCP( timeout );
+	}
+	if ( false && comp.Vars_Size() > running_options.trivial_variable_bound / 1 ) system( "./pause" );  // ToRemove
+	running_options.imp_strategy = SAT_Imp_Computing;
+	if ( _num_rsl_stack > 0 ) Leave_Final_Kernelization();
+	return true;
+}
+
+BigInt KCounter::Backtrack_Failure()
+{
+	assert( _num_rsl_stack == 0 );
+	Backtrack();
+	return -1;
+}
+
 void KCounter::Verify_Result_Component( Component & comp, BigInt count )
 {
 	CNF_Formula * cnf = Output_Renamed_Clauses_In_Component( comp );
@@ -1290,31 +1644,31 @@ void KCounter::Display_Statistics( unsigned option )
 {
 	switch ( option ) {
 		case 0:
-			cout << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
-			cout << "time SAT: " << statistics.time_solve << endl;
-			cout << "Total time cost: " << statistics.time_count << endl;
-			cout << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
-			cout << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
+			cout << running_options.display_prefix << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
+			cout << running_options.display_prefix << "time SAT: " << statistics.time_solve << endl;
+			cout << running_options.display_prefix << "Total time cost: " << statistics.time_count << endl;
+			cout << running_options.display_prefix << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
+			cout << running_options.display_prefix << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
 			break;
 		case 1:
-			cout << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
-			cout << "time compute minfill: " << statistics.time_minfill << endl;
-			if ( running_options.imp_strategy == SAT_Imp_Computing ) cout << "time SAT: " << statistics.time_solve << endl;
-			cout << "time IBCP: " << statistics.time_ibcp << endl;
-			cout << "time dynamic decomposition: " << statistics.time_dynamic_decompose << " (" << statistics.time_dynamic_decompose_sort << " sorting)" << endl;
-			cout << "time cnf cache: " << statistics.time_gen_cnf_cache << endl;
-			cout << "time kernelize: " << statistics.time_kernelize
+			cout << running_options.display_prefix << "time preprocess: " << Preprocessor::statistics.time_preprocess << endl;
+			cout << running_options.display_prefix << "time compute tree decomposition: " << statistics.time_tree_decomposition << endl;
+			if ( running_options.imp_strategy == SAT_Imp_Computing ) cout << running_options.display_prefix << "time SAT: " << statistics.time_solve << endl;
+			cout << running_options.display_prefix << "time IBCP: " << statistics.time_ibcp << endl;
+			cout << running_options.display_prefix << "time dynamic decomposition: " << statistics.time_dynamic_decompose << " (" << statistics.time_dynamic_decompose_sort << " sorting)" << endl;
+			cout << running_options.display_prefix << "time cnf cache: " << statistics.time_gen_cnf_cache << endl;
+			cout << running_options.display_prefix << "time kernelize: " << statistics.time_kernelize
 				<< " (block lits: " << statistics.time_kernelize_block_lits
 				<< "; vivi: " << statistics.time_kernelize_vivification
 				<< "; equ: " << statistics.time_kernelize_lit_equ << ")";
 			cout << " (max kdepth: " << statistics.max_non_trivial_kdepth << "/" << statistics.max_kdepth
 				<< "; #kernelizations: " << statistics.num_non_trivial_kernelizations << "/" << statistics.num_kernelizations << ")" << endl;
-			cout << "Total time cost: " << statistics.time_count << endl;
-			cout << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
-			cout << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
+			cout << running_options.display_prefix << "Total time cost: " << statistics.time_count << endl;
+			cout << running_options.display_prefix << "number of (binary) learnt clauses: " << statistics.num_binary_learnt << "/" << statistics.num_learnt << endl;
+			cout << running_options.display_prefix << "number of (useful) sat calls: " << statistics.num_unsat_solve << "/" << statistics.num_solve << endl;
 			break;
 		case 10:  // sharpSAT
-			cout << "Total time cost: " << statistics.time_count << endl;
+			cout << running_options.display_prefix << "Total time cost: " << statistics.time_count << endl;
 			break;
 		default:
 			cerr << "ERROR[KCounter]: this display mode is not existing!" << endl;
@@ -1329,11 +1683,11 @@ void KCounter::Display_Memory_Status( ostream & out )
 	for ( i = 0; i < _long_clauses.size(); i++ ) {
 		mem += _long_clauses[i].Size() * sizeof(unsigned) + sizeof(unsigned *) + sizeof(unsigned);
 	}
-	out << "#clauses: " << Num_Clauses() << " (" << mem / (1.0 * 1024 * 1024) << " M)" << endl;
-	out << "#components: " << _component_cache.Size() << " (" << _component_cache.Memory_Show() / (1.0 * 1024 * 1024) << " M)" << endl;
-	if ( DEBUG_OFF ) out << "    Where the duplicate rate is " << _component_cache.Duplicate_Rate() << " and the useless ratio is " << _component_cache.Useless_Rate() << endl;
-	out << "#models: " << _model_pool->Size() << "/" << _model_pool->Capacity() << " (" << _model_pool->Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
-	out << "Total memory: " << Memory() / (1.0 * 1024 * 1024) << "M" << endl;
+	out << running_options.display_prefix << "#clauses: " << Num_Clauses() << " (" << mem / (1.0 * 1024 * 1024) << " M)" << endl;
+	out << running_options.display_prefix << "#components: " << _component_cache.Size() << " (" << _component_cache.Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
+	if ( DEBUG_OFF ) out << running_options.display_prefix << "    Where the duplicate rate is " << _component_cache.Duplicate_Rate() << " and the useless ratio is " << _component_cache.Useless_Rate() << endl;
+	out << running_options.display_prefix << "#models: " << _model_pool->Size() << "/" << _model_pool->Capacity() << " (" << _model_pool->Memory() / (1.0 * 1024 * 1024) << " M)" << endl;
+	out << running_options.display_prefix << "Total memory: " << Memory() / (1.0 * 1024 * 1024) << "M" << endl;
 }
 
 bool KCounter::Is_Memory_Exhausted()

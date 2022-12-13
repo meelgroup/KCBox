@@ -84,14 +84,23 @@ public:
 	bool operator == ( const Chain & other );
 	bool Subchain( Chain & other ) const;  /// *this is a subchain of other
 	void Swap( Chain & other ) { _elems.swap( other._elems );  _rank.swap( other._rank ); }
-	void Display( ostream & out ) const
+	void Display( ostream & out, const char separator = ',' ) const
 	{
 		if ( _elems.empty() ) {
 			out << "empty chain" << endl;
 			return;
 		}
 		out << _elems[0];
-		for ( unsigned i = 1; i < _elems.size(); i++ ) out << ", " << _elems[i];
+		if ( BLANK_CHAR_GENERAL( separator ) ) {
+			for ( unsigned i = 1; i < _elems.size(); i++ ) {
+				out << separator << _elems[i];
+			}
+		}
+		else {
+			for ( unsigned i = 1; i < _elems.size(); i++ ) {
+				out << separator << ' ' << _elems[i];
+			}
+		}
 		out << endl;
 	}
 	void Display_Top( ostream & out, unsigned top ) const
@@ -118,7 +127,7 @@ struct Neighbour
 	Neighbour * next;
 	unsigned infor;
 	Neighbour( unsigned v, Neighbour * n ): vertex(v), next(n), infor( UNSIGNED_UNDEF ) {}
-	Neighbour() {}
+	Neighbour() : infor( UNSIGNED_UNDEF ) {}
 };
 
 struct Vertex
@@ -158,6 +167,7 @@ public:
 	unsigned Max_Vertex() const { return max_vertex; }
 	inline bool Is_Vertex_Isolated( unsigned v ) { return vertices[v].adjacency->next->vertex > max_vertex; }
 	inline Vertex & Vertices( unsigned i ) { return vertices[i]; }
+	inline vector<Neighbour *> Neighbours( unsigned v );
 	inline void Add_Vertex();
 	inline void Add_Edge_Naive( unsigned u, unsigned v );
 	inline void Add_Edge_Naive_No_Check( unsigned u, unsigned v );
@@ -186,6 +196,7 @@ public:
 	void Strongly_Connected_Components( vector<vector<unsigned>> & components );  /// Tarjan's strongly connected components algorithm
 	void Strongly_Connected_Component( unsigned v, vector<unsigned> & component );  /// Tarjan's strongly connected components algorithm
 	void Display( ostream & fout );
+	void Display_PACE( ostream & fout );
 	void Display_Degree( ostream & fout );
 	void Display_Fill_Size( ostream & fout );
 protected:
@@ -196,6 +207,19 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Free_Auxiliary_Memory();
 };
+
+inline vector<Neighbour *> Greedy_Graph::Neighbours( unsigned v )
+{
+	assert( 0 <= v && v <= max_vertex );
+	assert( vertices[v].degree != UNSIGNED_UNDEF );
+	vector<Neighbour *> neighbours;
+	Neighbour * p = vertices[v].adjacency->next;
+	while ( p->vertex <= max_vertex ) {
+		neighbours.push_back( p );
+		p = p->next;
+	}
+	return neighbours;
+}
 
 inline void Greedy_Graph::Add_Vertex()
 {
@@ -569,11 +593,14 @@ public:
 	Simple_TreeD( Greedy_Graph & graph );  // using min-fill to generate tree decomposition from graph
 	Simple_TreeD( Greedy_Graph & graph, unsigned bound );  /// using min-fill to generate tree decomposition from graph, and if the treewidth exceeds bound, then terminate
 	Simple_TreeD( Greedy_Graph & graph, unsigned bound, bool opt );  /// using min-fill to generate tree decomposition from graph, and if the treewidth exceeds bound, then terminate
+	Simple_TreeD( istream & in );
 	~Simple_TreeD();
 	Chain Transform_Chain( double * weight );
 	void Compute_DTree_Scores( double * scores );
 	unsigned Width();
 	void Display( ostream & out );
+	void Verify();
+	void Verify( Greedy_Graph & graph );
 protected:
 	unsigned _max_vertex;
 	vector<Simple_TreeD_Cluster> _clusters;
@@ -583,21 +610,26 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Free_Auxiliary_Memory();
     void Generate_Clusters( Greedy_Graph & graph );
-	void Minimize();
     void Generate_Singleton_Cluster();
-protected:
 	void Add_First_Cluster( Simple_TreeD_Cluster & cluster );
 	void Add_Cluster( Simple_TreeD_Cluster & cluster, unsigned neighbour );
 	/* NOTE:
 	* The variables of the last cluster subsumes the ones of itr
 	*/
 	void Minimize( vector<Simple_TreeD_Cluster>::iterator itr, Simple_TreeD_Cluster & cluster );
+	void Add_Cluster_Neighbour( unsigned cluster, unsigned neighbour );
+	void Minimize();
+	void Merge_Cluster_Neighbour( unsigned cluster, unsigned neighbour );
+	void Add_Cluster_Neighbours( unsigned cluster, TreeD_Cluster_Adjacency * adj );
+	void Remove_Leaf( unsigned leaf );
+protected:
 //	bool Lit_LT( unsigned l1, unsigned l2, unsigned * var_rank ) { return var_rank[LIT_VAR(l1)] < var_rank[LIT_VAR(l2)]; }
 	void Compute_All_Separators();
 	unsigned Compute_Root_Lowest_Weighted_Depth_Reserved(); //reserve infor of clusters
 	void Compute_Fixed_Root_Weight_Reserved( unsigned root ); //reserve infor of clusters
 	TreeD_Cluster_Adjacency * Search_First_Seen_Neighbour( TreeD_Cluster_Adjacency * head );
 	TreeD_Cluster_Adjacency * Pick_Preferred_Neighbour( TreeD_Cluster_Adjacency * head, Chain & chain );
+	void DFS_With_Vertex_Appearance( Simple_TreeD_Cluster & source, unsigned vertex );
 public:
 	static void Debug()
 	{

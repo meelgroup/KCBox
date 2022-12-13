@@ -16,6 +16,8 @@ protected:
 	Chain _var_order;  // used for minfill
 	double * _var_scores;  // used for VSADS, DLCS
 	double * _lit_scores;  // used for DLCP
+	vector<Variable> _projected_vars;
+	vector<bool> _var_projected;  // used for projected mc and compilation
 	vector<Model *> * _models_stack;
 	vector<Variable> * _binary_var_membership_lists;  /// variable membership
 	vector<unsigned> * _ternary_var_membership_lists;  /// <clauseID, first var, second var, third var>
@@ -56,8 +58,9 @@ protected:  /// Var Heuristic
 	void Var_Weight_For_Tree_Decomposition( double * var_weight );
 	void Var_Weight_For_Tree_Decomposition_With_Sorting( double * var_weight );
 	void Var_Weight_For_Tree_Decomposition_Without_Sorting( double * var_weight );
-	void Generate_Var_Order_Min_Fill( Simple_TreeD & treed );
-	void Generate_Var_Order_Min_Fill( Simple_TreeD & treed, double * var_weight );
+	void Compute_Var_Order_Flow_Cutter();
+	void Generate_Var_Order_From_TreeD( Simple_TreeD & treed );
+	void Generate_Var_Order_From_TreeD( Simple_TreeD & treed, double * var_weight );
 	void Compute_Var_Order_Lexicographic();
 	void Compute_Var_Order_Single_Cluster();
 	void Propagate_Var_Order_Weight( Variable var, double * var_weight );
@@ -73,6 +76,7 @@ protected:  /// Var Heuristic
 	double Var_Score_VSADS_Without_Sorting( unsigned var );
 	Variable Pick_Good_Var_DLCS_Component( Component & comp );
 	Variable Pick_Good_Var_DLCP_Component( Component & comp );
+	Variable Pick_Good_Projected_Var_Linearly_Component( Component & comp );
 	void Rename_Clauses_Fixed_Ordering();
 	unsigned Compute_Var_Order_Min_Fill_Bound_Component( Component & comp, unsigned bound );
 	Greedy_Graph * Create_Weighted_Primal_Graph_Component( Component & comp, double * var_weight );
@@ -108,7 +112,13 @@ protected:  /// compute implied literals by calling SAT solver
 	unsigned Analyze_Conflict_Naive( Literal uip );
 	void Add_Extra_Binary_Clause_Naive( Literal lit1, Literal lit2 );
 	void Add_Model_Component( vector<int8_t> & minisat_model, Component & comp, vector<Model *> & models );
+	unsigned Num_Projected_Vars_Assigned( unsigned start );
 	void Reset_Extra_Binary_Clauses();
+protected:  /// compute projected implied literals by calling SAT solver
+	void Get_All_Projected_Imp_Component( Component & comp, vector<Model *> & models );
+	Literal Pick_Projected_Imp_Component_Heuristic( Component & comp, vector<unsigned>::const_iterator & start );
+	Reason Imply_Projected_Lit_Out_Reason_Component( Component & comp, Literal lit, vector<Model *> & models );
+	Reason Search_Solution_Projected_Component( Component & comp, unsigned conf_limit );
 protected:  /// manage components
 	void Generate_Init_Component( Component & comp );  // not decompose the initial clauses
 	Component & Current_Component() { return _comp_stack[_active_comps[_num_levels - 1]]; }
@@ -119,6 +129,7 @@ protected:  /// manage components
 	bool Is_Current_Level_Decision() const { return _num_comp_stack == _comp_offsets[_num_levels - 1] + 1; }
 	bool Is_Current_Level_Decomposition() const { return _num_comp_stack > _comp_offsets[_num_levels - 1] + 1; }
 	bool Is_Current_Level_Active() const { return _active_comps[_num_levels - 1] < _num_comp_stack; }
+	bool Is_Level_Decision( unsigned level ) const { _comp_offsets[_num_levels] = _num_comp_stack;  return _comp_offsets[level + 1] == _comp_offsets[level] + 1; }
 	unsigned Dynamic_Decompose_Component( Component & source, Component smaller_comps[] );
 	unsigned Dynamic_Decompose_Component_With_Sorting( Component & source, Component smaller_comps[] );
 	void Add_Var_Neighbors_In_Binary_Clauses( Variable var, Component & target );
@@ -132,6 +143,7 @@ protected:  /// manage components
 	CNF_Formula * Output_Original_Clauses_In_Component( Component & comp );
 	CNF_Formula * Output_Original_And_Learnt_Clauses_In_Component( Component & comp );
 	CNF_Formula * Output_Renamed_Clauses_In_Component( Component & comp );
+	void Output_Renamed_Clauses_In_Component( Component & comp, vector<Clause> & clauses );
 	void Output_Renamed_Clauses_In_Component( Component & comp, vector<vector<int>> & eclauses );
 public:
 	void Input_Models( vector<Model *> & source );  // clone, the input location is model_stack[0], Inprocessor::max_var still isn't known
@@ -143,6 +155,8 @@ protected:  /// process models
 	void Inherit_Models( vector<Model *> & source, Literal lit, vector<Model *> & target );  // Copy and Pick
 	void Copy_Models( vector<Model *> & source, vector<Model *> & target );
 	void Recycle_Models( vector<Model *> & models );
+	void Swap_Models( vector<Model *> & source, vector<Model *> & target ) { source.swap( target ); }
+	void Raise_Models( vector<Model *> & source, unsigned target_level );
 	void Display_Models( vector<Model *> & source, ostream & fout );
 protected:
 	BigInt Count_Verified_Models_sharpSAT( CNF_Formula & cnf );
@@ -151,6 +165,7 @@ protected:
 	BigFloat Count_Verified_Models_ADDMC( CNF_Formula & cnf, double weights[] );
 	void Gather_Learnts_Infor();
 	void Verify_Model_Component( Model * model, Component & comp );
+	void Verify_Models_Component( vector<Model *> models, Component & comp );
 	void Verify_Membership_Lists();
 	CNF_Formula * Output_Old_Clauses();
 	void Display_Heuristic_Values( ostream & fout );

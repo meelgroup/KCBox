@@ -252,17 +252,13 @@ bool CNF_Formula::Read_Known_Result( char line[] )
 
 unsigned CNF_Formula::Read_Clause( char line[], Literal lits[] )
 {
-    int elit;
     unsigned len = 0;
     char * p = line;
     while ( BLANK_CHAR_GENERAL( *p ) ) p++;
     while ( *p != '\0' ) {
-        elit = 0;
-        sscanf( p, "%d", &elit);
-        if ( elit == 0 ) break;
-        lits[len++] = InternLit( elit );
-        if( *p == '-' ) p++;
-        while ( DIGIT_CHAR( *p ) ) p++;
+		Literal lit = Read_Lit( p );
+        if ( lit == Literal::undef ) break;
+        lits[len++] = lit;
         while ( BLANK_CHAR( *p ) ) p++;
     }
     if ( *p == '\0' ) {
@@ -274,6 +270,19 @@ unsigned CNF_Formula::Read_Clause( char line[], Literal lits[] )
         exit( 1 );
     }
     return len;
+}
+
+Literal CNF_Formula::Read_Lit( char * & p )
+{
+	int elit;
+	if ( sscanf( p, "%d", &elit) != 1 ) {
+        cerr << "ERROR[CNF_Formula]: invalid literal!" << endl;
+        exit( 1 );
+	}
+	if ( elit == 0 ) return Literal::undef;
+	if( *p == '-' ) p++;
+	while ( DIGIT_CHAR( *p ) ) p++;
+	return InternLit( elit );
 }
 
 void CNF_Formula::Read_Independent_Support( char line[] )
@@ -526,7 +535,7 @@ void WCNF_Formula::Read_MC_Competition_Format( istream & fin )
 		exit( 1 );
 	}
 	unsigned num;
-	if ( sscanf( line, "p wcnf %d %u", &num, &num_cl ) != 2 ) {
+	if ( sscanf( line, "p cnf %d %u", &num, &num_cl ) != 2 ) {
 		cerr << "ERROR[WCNF_Formula]: wrong cnf-file format!" << endl;
 		exit( 1 );
 	}
@@ -579,27 +588,42 @@ bool WCNF_Formula::Get_Line_MC_Competition( istream & fin, char line[] )
 {
 	while ( !fin.eof() ) {
         fin.getline( line, MAX_LINE );
-        if ( line[0] == 'c' ) {
-            Read_Independent_Support( line );
-            continue;
+        if ( line[0] != 'c' ) {
+			char * p = line + 1;
+			while ( BLANK_CHAR_GENERAL( *p ) ) p++;
+			if ( *p == '\0' ) continue;
+			else return true;
         }
-		if ( line[0] == 'w' ) {
-			Read_Weight( line );
-			continue;
+		char * p = line + 1;
+		while ( BLANK_CHAR( *p ) ) p++;
+        if ( Read_String_Change( p, "t" ) ) {
+			if ( !Read_String_Change( p, "wmc" ) ) {
+				cerr << "ERROR[WCNF_Formula]: invalid type!" << endl;
+				exit( 1 );
+			}
+        }
+        else if ( Read_String_Change( p, "p" ) ) {
+			if ( !Read_String_Change( p, "weight" ) ) {
+				cerr << "ERROR[WCNF_Formula]: invalid weight!" << endl;
+				exit( 1 );
+			}
+			Read_Literal_Weight( line );
 		}
-		char * p = line;
-		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
-		if ( *p == '\0' ) continue;
-		return true;
 	}
 	return false;
 }
 
-void WCNF_Formula::Read_Weight( char line[] )
+void WCNF_Formula::Read_Literal_Weight( char * p )
 {
-	int elit;
+	while ( BLANK_CHAR( *p ) ) p++;
+	Literal lit = Read_Lit( p );
+	if ( lit == Literal::undef ) {
+		cerr << "ERROR[WCNF_Formula]: wrong literal!" << endl;
+		exit( 1 );
+	}
+	while ( BLANK_CHAR( *p ) ) p++;
 	float w;
-	if ( sscanf( line, "w %d %f", &elit, &w ) != 2 ) {
+	if ( sscanf( p, "%f", &w ) != 1 ) {
 		cerr << "ERROR[WCNF_Formula]: wrong weight!" << endl;
 		exit( 1 );
 	}
@@ -607,11 +631,23 @@ void WCNF_Formula::Read_Weight( char line[] )
 		cerr << "ERROR[WCNF_Formula]: wrong weight!" << endl;
 		exit( 1 );
 	}
-	for ( unsigned i = _weights.size() / 2; i <= InternLit( elit ).Var(); i++ ) {
+	while ( DIGIT_CHAR( *p ) || *p == '.' || *p == '-' || *p == '+' ) p++;
+	while ( BLANK_CHAR( *p ) ) p++;
+	if ( *p != '0' ) {
+		cerr << "ERROR[WCNF_Formula]: invalid weight-end!" << endl;
+		exit( 1 );
+	}
+	while ( BLANK_CHAR( *p ) ) p++;
+	if ( *p != '\0' ) {
+		cerr << "ERROR[WCNF_Formula]: invalid weight-end!" << endl;
+		exit( 1 );
+	}
+	for ( unsigned i = _weights.size() / 2; i <= lit.Var(); i++ ) {
 		_weights.push_back( 1 );
 		_weights.push_back( 1 );
 	}
-	_weights[InternLit( elit )] = w;
+	_weights[lit] = w;
+	_weights[~lit] = 1 - w;
 }
 
 void WCNF_Formula::Read_MiniC2D_Format( istream & fin )

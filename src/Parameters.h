@@ -27,35 +27,44 @@ struct Preprocessor_Parameters: public Tool_Parameters
 
 struct Counter_Parameters: public Tool_Parameters
 {
+	BoolOption competition;
 	BoolOption weighted;
 	BoolOption exact;
 	BoolOption static_heur;
-	IntOption heur;
+	StringOption heur;
 	FloatOption memo;
 	IntOption kdepth;
 	IntOption format;
 	Counter_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
+		competition( "--competition", "working for mc competition", false ),
 		weighted( "--weighted", "weighted model counting", false ),
 		exact( "--exact", "exact or probabilistic exact", true ),
 		static_heur( "--static", "focusing on static heuristic", false ),
-		heur( "--heur", "heuristic strategy (0: auto, 1: minfill, 2: LinearLRW, 3: Dminfill, 4: VSADS, 5: DLCS, 6: DLCP)", 0, 0, 6 ),
+		heur( "--heur", "heuristic strategy (auto, minfill, LinearLRW, VSADS, DLCS, DLCP, dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		kdepth( "--kdepth", "maximum kernelization depth", 128 ),
 		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 )
 	{
-//		Add_Option( &weighted );
-//		Add_Option( &exact );
-//		Add_Option( &static_heur );
+		Add_Option( &competition );
+		Add_Option( &weighted );
+		Add_Option( &exact );
+		Add_Option( &static_heur );
 		Add_Option( &heur );
 		Add_Option( &memo );
 		Add_Option( &kdepth );
-//		Add_Option( &format );
+		Add_Option( &format );
 	}
 	bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
-		if ( static_heur ) {
-			if ( heur > 1 ) return false;
+		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
+			strcmp( heur, "LinearLRW") != 0 && strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCS") != 0 && \
+			strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
+			return false;
+		}
+		if ( static_heur && strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
+			strcmp( heur, "LinearLRW") != 0 ) {
+			return false;
 		}
 		if ( !weighted ) {
 			if ( format.Exists() ) return false;
@@ -66,30 +75,101 @@ struct Counter_Parameters: public Tool_Parameters
 
 struct Compiler_Parameters: public Tool_Parameters
 {
-	IntOption lang;
+	StringOption lang;
 	StringOption out_file;
+	StringOption heur;
 	FloatOption memo;
 	BoolOption CT;
+	IntOption US;
 	IntOption kdepth;
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
-		lang( "--lang", "KC languages ROBDD (0), and OBDD[AND] (1)", 1 ),
-//		lang( "--lang", "KC languages ROBDD (0), OBDD[AND] (1), R2-D2 (2), and CCDD (3)", 1 ),
+		lang( "--lang", "KC language ROBDD or OBDD[AND]", "OBDD[AND]" ),
 		out_file( "--out", "the output file with compilation", nullptr ),
+		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
-		CT( "--CT", "performing model counting query", false ),
-		kdepth( "--kdepth", "maximum kernelization depth (not applicable for BDD and OBDD[AND])", 2 )
+		CT( "--CT", "performing model counting", false ),
+		US( "--US", "performing uniform sampling", 1 ),
+		kdepth( "--kdepth", "maximum kernelization depth (not applicable for BDD and OBDD[AND])", 128 )
 	{
 		Add_Option( &lang );
 		Add_Option( &out_file );
+		Add_Option( &heur );
 		Add_Option( &memo );
 		Add_Option( &CT );
-//		Add_Option( &kdepth );
+		Add_Option( &US );
+		Add_Option( &kdepth );
 	}
 	bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
-		if ( lang == 0 || lang == 1 ) {
+		if ( strcmp( lang, "ROBDD") == 0 || strcmp( lang, "OBDD[AND]") == 0 ) {
 			if ( kdepth.Exists() ) return false;
+		}
+		if ( strcmp( lang, "CCDD") != 0 ) {
+			if ( US.Exists() ) return false;
+		}
+		if ( strcmp( lang, "ROBDD") != 0 && strcmp( lang, "OBDD[AND]") != 0 && \
+			strcmp( lang, "R2-D2") != 0 && strcmp( lang, "CCDD") != 0 ) {
+			return false;
+		}
+		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
+			strcmp( heur, "FlowCutter") != 0 && strcmp( heur, "LinearLRW") != 0 && \
+			strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
+			return false;
+		}
+		return true;
+	}
+};
+
+struct Approx_Counter_Parameters: public Tool_Parameters
+{
+	BoolOption weighted;
+	StringOption heur;
+	FloatOption time;
+	FloatOption memo;
+	IntOption kdepth;
+	IntOption micro;
+	IntOption seed;
+	IntOption format;
+	BoolOption lower;
+	FloatOption confidence;
+	Approx_Counter_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
+		weighted( "--weighted", "weighted model counting", false ),
+		heur( "--heur", "heuristic strategy (auto, minfill, LinearLRW, VSADS, DLCS, DLCP, dynamic_minfill)", "auto" ),
+		time( "--time", "timeout in seconds", 3600 ),
+		memo( "--memo", "the available memory in GB", 4 ),
+		kdepth( "--kdepth", "maximum kernelization depth", 128 ),
+		micro( "--micro", "number of microcompilations", 1024 * 1024 * 1024 ),
+		seed( "--seed", "random seed", 0 ),
+		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 ),
+		lower( "--lower", "computing lower bound", false ),
+		confidence( "--confidence", "the confidence of lower bound", 0.99 )
+	{
+		Add_Option( &weighted );
+		Add_Option( &heur );
+		Add_Option( &time );
+		Add_Option( &memo );
+		Add_Option( &kdepth );
+		Add_Option( &micro );
+		Add_Option( &seed );
+		Add_Option( &format );
+		Add_Option( &lower );
+		Add_Option( &confidence );
+	}
+	bool Parse_Parameters( int & i, int argc, const char *argv[] )
+	{
+		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
+		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
+			strcmp( heur, "LinearLRW") != 0 && strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCS") != 0 && \
+			strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
+			return false;
+		}
+		if ( !weighted ) {
+			if ( format.Exists() ) return false;
+		}
+		if ( confidence.Exists() ) {
+			if ( !lower ) return false;
+			if ( confidence <= 0 || confidence >= 1 ) return false;
 		}
 		return true;
 	}
@@ -99,30 +179,47 @@ enum Heuristic
 {
 	AutomaticalHeur = 0,
 	minfill,
+	FlowCutter,
 	LinearLRW,  // Linear Largest Related Weight
 	FixedLinearOrder,
 	LexicographicOrder,
-	Dminfill,  // Dynamic minfill
 	VSIDS,  // Variable State Independent Decaying Sum
 	VSADS,  // Variable State Aware Decaying Sum
 	DLCS,  // Dynamic Largest Combined Sum
 	DLCP,  // Dynamic Largest Combined Production
+	dynamic_minfill,  // dynamic minfill: minfill + DLCP
 	MostBalanced,
 	IndependentSupport
 };
 
-extern inline bool Is_Linear_Ordering( Heuristic heur )
+extern inline Heuristic Parse_Heuristic( const char * heur )
 {
-	if ( heur == AutomaticalHeur || \
-		heur == LexicographicOrder || heur == minfill || heur == LinearLRW || \
-		heur == FixedLinearOrder ) return true;
-	else return false;
+	if ( strcmp( heur, "auto" ) == 0 ) return AutomaticalHeur;
+	else if ( strcmp( heur, "minfill" ) == 0 ) return minfill;
+	else if ( strcmp( heur, "FlowCutter" ) == 0 ) return FlowCutter;
+	else if ( strcmp( heur, "LinearLRW" ) == 0 ) return LinearLRW;
+	else if ( strcmp( heur, "VSADS" ) == 0 ) return VSADS;
+	else if ( strcmp( heur, "DLCS" ) == 0 ) return DLCS;
+	else if ( strcmp( heur, "DLCP" ) == 0 ) return DLCP;
+	else if ( strcmp( heur, "dynamic_minfill" ) == 0 ) return dynamic_minfill;
+	else {
+		cerr << "ERROR: wrong heuristic!" << endl;
+		exit( 0 );
+	}
 }
 
-extern inline lbool Is_Ordering_minfill( Heuristic heur )
+extern inline lbool Is_Linear_Ordering( Heuristic heur )
 {
 	if ( heur == AutomaticalHeur ) return lbool::unknown;
-	else if ( heur == minfill || heur == Dminfill ) return lbool(true);
+	else if ( heur == LexicographicOrder || heur == minfill || heur == FlowCutter || \
+		heur == LinearLRW || heur == FixedLinearOrder ) return lbool(true);
+	else return lbool(false);
+}
+
+extern inline lbool Is_TreeD_Based_Ordering( Heuristic heur )
+{
+	if ( heur == AutomaticalHeur ) return lbool::unknown;
+	else if ( heur == minfill || heur == dynamic_minfill || heur == FlowCutter ) return lbool(true);
 	else return lbool(false);
 }
 
@@ -164,6 +261,7 @@ enum Profiling_Level
 
 struct Running_Options
 {
+	const char * display_prefix;
 /// parameters of solver
 	Variable variable_bound;  // used for oracle mode
 	double sat_heur_decay_factor;
@@ -183,6 +281,7 @@ struct Running_Options
 	bool recognize_backbone_external;
 	bool block_clauses;
 	bool block_lits;
+	bool block_lits_external;
 	bool detect_lit_equivalence_first;
 	bool detect_lit_equivalence;
 	Literal_Equivalence_Detecting_Strategy lit_equivalence_detecting_strategy;
@@ -210,7 +309,11 @@ struct Running_Options
 	Profiling_Level profiling_ext_inprocessing;
 /// parameters of compiler
 	float max_memory;  /// in G bytes
-	unsigned trivial_variable_bound;  /// NOTE: it is trivial for the problems whose maximum variable exceeds variable_bound or whose long clauses are more than 2 * variable_bound
+	float mem_load_factor;
+	unsigned trivial_variable_bound;  /// NOTE: it might be trivial for the problems whose maximum variable exceeds variable_bound or whose long clauses are more than 2 * variable_bound
+	unsigned trivial_clause_bound;
+	float trivial_density_bound;
+	float trivial_length_bound;
 	unsigned treewidth_bound;  /// NOTE: when the minfill treewidth is greater than treewidth_bound, we will terminate the construction of Simple_TreeD
 	bool activate_easy_compiler;
 	bool compute_duplicate_rate;
@@ -223,11 +326,20 @@ struct Running_Options
 	bool static_heur;
 	bool display_counting_process;
 	Profiling_Level profile_counting;
+	/// parameters of partial kc
+	bool estimate_marginal_probability;
+	bool adaptive_sampling;
+	float simply_counting_time;
+	float sampling_time;
+	unsigned sampling_count;
+	unsigned sampling_display_interval;
+	Profiling_Level profile_partial_kc;
 /// parameters of oracle
 	Profiling_Level profile_oracle;
 	size_t oracle_memory_limit;
 	Running_Options()
 	{
+		display_prefix = "";
 		variable_bound = Variable::undef;  /// NOTE: only Preprocessor and its inherited class can open this mode
 		/// solver
 		sat_heur_decay_factor = 0.99;
@@ -247,6 +359,7 @@ struct Running_Options
 		recognize_backbone_external = false;  /// whether using Backbone_Recognizer or not
 		block_clauses = true;
 		block_lits = true;
+		block_lits_external = true;
 		detect_lit_equivalence_first = false;
 		lit_equivalence_detecting_strategy = Literal_Equivalence_Detection_BCP;
 		detect_lit_equivalence = true;
@@ -273,7 +386,11 @@ struct Running_Options
 		profiling_ext_inprocessing = Profiling_Detail;
 		/// compiler
 		max_memory = 4;  // 4 GB
+		mem_load_factor = 0.5;
 		trivial_variable_bound = 1024;
+		trivial_clause_bound = trivial_variable_bound * 2;
+		trivial_density_bound = 3;
+		trivial_length_bound = 0.5;
 		treewidth_bound = BOUNDED_TREEWIDTH;
 		activate_easy_compiler = true;
 		erase_useless_cacheable_component = true;
@@ -284,73 +401,94 @@ struct Running_Options
 		static_heur = false;
 		display_counting_process = true;
 		profile_counting = Profiling_Abstract;
+		/// partial kc
+		estimate_marginal_probability = true;
+		adaptive_sampling = false;
+		simply_counting_time = 240;
+		sampling_time = 3600;
+		sampling_count = UNSIGNED_UNDEF;
+		sampling_display_interval = 1;
+		profile_partial_kc = Profiling_Abstract;
 		/// oracle
 		profile_oracle = Profiling_Abstract;
 		oracle_memory_limit = 100 * 1024 * 1024;  // 100M
 	}
 	void Display( ostream & out )
 	{
-		out << "variable_bound = " << variable_bound << endl;  /// NOTE: only Preprocessor and its inherited class can open this mode
+		out << display_prefix << "variable_bound = " << variable_bound << endl;  /// NOTE: only Preprocessor and its inherited class can open this mode
 		/// solver
-		out << "sat_heur_decay_factor = " << sat_heur_decay_factor << endl;
-		out << "sat_heur_cumulative_inc = " << sat_heur_cumulative_inc << endl;
-		out << "sat_heur_bound = " << sat_heur_bound << endl;
-		out << "sat_restart_activate = " << sat_restart_activate << endl;
-		out << "sat_restart_trigger_init = " << sat_restart_trigger_init << endl;
-		out << "sat_restart_trigger_inc = " << sat_restart_trigger_inc << endl;
-		out << "sat_restart_max = " << sat_restart_max << endl;
-		out << "sat_employ_external_solver = " << sat_employ_external_solver << endl;
-		out << "sat_employ_external_solver_always = " << sat_employ_external_solver_always << endl;
-		out << "sat_heur_lits = " << sat_heur_lits << endl;
-		out << "display_solving_process = " << display_solving_process << endl;
-		out << "profile_solving = " << profile_solving << endl;
+		out << display_prefix << "sat_heur_decay_factor = " << sat_heur_decay_factor << endl;
+		out << display_prefix << "sat_heur_cumulative_inc = " << sat_heur_cumulative_inc << endl;
+		out << display_prefix << "sat_heur_bound = " << sat_heur_bound << endl;
+		out << display_prefix << "sat_restart_activate = " << sat_restart_activate << endl;
+		out << display_prefix << "sat_restart_trigger_init = " << sat_restart_trigger_init << endl;
+		out << display_prefix << "sat_restart_trigger_inc = " << sat_restart_trigger_inc << endl;
+		out << display_prefix << "sat_restart_max = " << sat_restart_max << endl;
+		out << display_prefix << "sat_employ_external_solver = " << sat_employ_external_solver << endl;
+		out << display_prefix << "sat_employ_external_solver_always = " << sat_employ_external_solver_always << endl;
+		out << display_prefix << "sat_heur_lits = " << sat_heur_lits << endl;
+		out << display_prefix << "display_solving_process = " << display_solving_process << endl;
+		out << display_prefix << "profile_solving = " << profile_solving << endl;
 		/// preprocessor
-		out << "recognize_backbone = " << recognize_backbone << endl;
-		out << "recognize_backbone_external = " << recognize_backbone_external << endl;  /// whether using Backbone_Recognizer or not
-		out << "block_clauses = " << block_clauses << endl;
-		out << "block_lits = " << block_lits << endl;
-		out << "detect_lit_equivalence_first = " << detect_lit_equivalence_first << endl;
-		out << "lit_equivalence_detecting_strategy = " << lit_equivalence_detecting_strategy << endl;
-		out << "detect_lit_equivalence = " << detect_lit_equivalence << endl;
-		out << "detect_binary_learnts_resolution = " << detect_binary_learnts_resolution << endl;
-		out << "detect_binary_learnts_bcp = " << detect_binary_learnts_bcp << endl;
-		out << "detect_AND_gates = " << detect_AND_gates << endl;
-		out << "keep_binary_learnts = " << keep_binary_learnts << endl;
-		out << "recover_exterior = " << recover_exterior << endl;
-		out << "display_preprocessing_process = " << display_preprocessing_process << endl;
-		out << "profile_preprocessing = " << profile_preprocessing << endl;
+		out << display_prefix << "recognize_backbone = " << recognize_backbone << endl;
+		out << display_prefix << "recognize_backbone_external = " << recognize_backbone_external << endl;  /// whether using Backbone_Recognizer or not
+		out << display_prefix << "block_clauses = " << block_clauses << endl;
+		out << display_prefix << "block_lits = " << block_lits << endl;
+		out << display_prefix << "block_lits_external = " << block_lits_external << endl;
+		out << display_prefix << "detect_lit_equivalence_first = " << detect_lit_equivalence_first << endl;
+		out << display_prefix << "lit_equivalence_detecting_strategy = " << lit_equivalence_detecting_strategy << endl;
+		out << display_prefix << "detect_lit_equivalence = " << detect_lit_equivalence << endl;
+		out << display_prefix << "detect_binary_learnts_resolution = " << detect_binary_learnts_resolution << endl;
+		out << display_prefix << "detect_binary_learnts_bcp = " << detect_binary_learnts_bcp << endl;
+		out << display_prefix << "detect_AND_gates = " << detect_AND_gates << endl;
+		out << display_prefix << "keep_binary_learnts = " << keep_binary_learnts << endl;
+		out << display_prefix << "recover_exterior = " << recover_exterior << endl;
+		out << display_prefix << "display_preprocessing_process = " << display_preprocessing_process << endl;
+		out << display_prefix << "profile_preprocessing = " << profile_preprocessing << endl;
 		/// inprocessor
-		out << "var_ordering_heur = " << var_ordering_heur << endl;
-		out << "mixed_var_ordering = " << mixed_var_ordering << endl;
+		out << display_prefix << "var_ordering_heur = " << var_ordering_heur << endl;
+		out << display_prefix << "mixed_var_ordering = " << mixed_var_ordering << endl;
 		out.setf(std::ios_base::boolalpha);
-		out << "phase_selecting = " << phase_selecting << endl;
+		out << display_prefix << "phase_selecting = " << phase_selecting << endl;
 		out.unsetf(std::ios_base::boolalpha);
-		out << "imp_strategy = " << imp_strategy << endl;  // Automatical_Imp_Computing, Partial_Implicit_BCP, Full_Implicit_BCP, SAT_Imp_Computing
-		out << "mixed_imp_computing = " << mixed_imp_computing << endl;
-		out << "decompose_strategy = " << decompose_strategy << endl;
-		out << "display_inprocessing_process = " << display_inprocessing_process << endl;
-		out << "profiling_inprocessing = " << profiling_inprocessing << endl;
+		out << display_prefix << "imp_strategy = " << imp_strategy << endl;  // Automatical_Imp_Computing, Partial_Implicit_BCP, Full_Implicit_BCP, SAT_Imp_Computing
+		out << display_prefix << "mixed_imp_computing = " << mixed_imp_computing << endl;
+		out << display_prefix << "decompose_strategy = " << decompose_strategy << endl;
+		out << display_prefix << "display_inprocessing_process = " << display_inprocessing_process << endl;
+		out << display_prefix << "profiling_inprocessing = " << profiling_inprocessing << endl;
 		/// extensive inprocessor
-		out << "max_kdepth = " << max_kdepth << endl;
-		out << "kernelizing_step = " << kernelizing_step << endl;
-		out << "display_kernelizing_process = " << display_kernelizing_process << endl;
-		out << "profiling_ext_inprocessing = " << profiling_ext_inprocessing << endl;
+		out << display_prefix << "max_kdepth = " << max_kdepth << endl;
+		out << display_prefix << "kernelizing_step = " << kernelizing_step << endl;
+		out << display_prefix << "display_kernelizing_process = " << display_kernelizing_process << endl;
+		out << display_prefix << "profiling_ext_inprocessing = " << profiling_ext_inprocessing << endl;
 		/// compiler
-		out << "max_memory = " << max_memory << endl;  // 4 GB
-		out << "trivial_variable_bound = " << trivial_variable_bound << endl;
-		out << "treewidth_bound = " << treewidth_bound << endl;
-		out << "activate_easy_compiler = " << activate_easy_compiler << endl;
-		out << "erase_useless_cacheable_component = " << erase_useless_cacheable_component << endl;
-		out << "removing_redundant_nodes_trigger = " << removing_redundant_nodes_trigger << endl;
-		out << "display_compiling_process = " << display_compiling_process << endl;
-		out << "profile_compiling = " << profile_compiling << endl;
+		out << display_prefix << "max_memory = " << max_memory << " GB" << endl;  // 4 GB
+		out << display_prefix << "mem_load_factor = " << mem_load_factor << endl;
+		out << display_prefix << "trivial_variable_bound = " << trivial_variable_bound << endl;
+		out << display_prefix << "trivial_clause_bound = " << trivial_clause_bound << endl;
+		out << display_prefix << "trivial_density_bound = " << trivial_density_bound << endl;
+		out << display_prefix << "trivial_length_bound = " << trivial_length_bound << endl;
+		out << display_prefix << "treewidth_bound = " << treewidth_bound << endl;
+		out << display_prefix << "activate_easy_compiler = " << activate_easy_compiler << endl;
+		out << display_prefix << "erase_useless_cacheable_component = " << erase_useless_cacheable_component << endl;
+		out << display_prefix << "removing_redundant_nodes_trigger = " << removing_redundant_nodes_trigger << endl;
+		out << display_prefix << "display_compiling_process = " << display_compiling_process << endl;
+		out << display_prefix << "profile_compiling = " << profile_compiling << endl;
 		/// counter
-		out << "static_heur = " << static_heur << endl;
-		out << "display_counting_process = " << display_counting_process << endl;
-		out << "profile_counting = " << profile_counting << endl;
+		out << display_prefix << "static_heur = " << static_heur << endl;
+		out << display_prefix << "display_counting_process = " << display_counting_process << endl;
+		out << display_prefix << "profile_counting = " << profile_counting << endl;
+		/// partial kc
+		out << display_prefix << "estimate_marginal_probability = " << estimate_marginal_probability << endl;
+		out << display_prefix << "adaptive_sampling = " << adaptive_sampling << endl;
+		out << display_prefix << "simply_counting_time = " << simply_counting_time << endl;
+		out << display_prefix << "sampling_time = " << sampling_time << endl;
+		out << display_prefix << "sampling_count = " << sampling_count << endl;
+		out << display_prefix << "sample_display_interval = " << sampling_display_interval << endl;
+		out << display_prefix << "profile_partial_kc = " << profile_partial_kc << endl;
 		/// oracle
-		out << "profile_oracle = " << profile_oracle << endl;
-		out << "oracle_memory_limit = " << oracle_memory_limit << endl;  // 100M
+		out << display_prefix << "profile_oracle = " << profile_oracle << endl;
+		out << display_prefix << "oracle_memory_limit = " << oracle_memory_limit << endl;  // 100M
 	}
 };
 
@@ -363,6 +501,8 @@ struct Debug_Options
 	/// preprocessor
 	bool verify_AND_gates;
 	bool verify_processed_clauses;
+	/// extensive inprocessor
+	bool verify_kernelization;
 	/// compiler
 	bool verify_compilation;
 	bool verify_component_compilation;
@@ -378,6 +518,8 @@ struct Debug_Options
 		/// preprocessor
 		verify_AND_gates = false;
 		verify_processed_clauses = false;
+		/// extensive inprocessor
+		verify_kernelization = false;
 		/// compiler
 		verify_compilation = false;
 		verify_component_compilation = false;
@@ -427,13 +569,13 @@ struct Statistics
 		Init_Preprocessor_Single();
 	}
 	/// inprocess
-	double time_minfill;
+	double time_tree_decomposition;
 	double time_ibcp;
 	double time_dynamic_decompose;
 	double time_dynamic_decompose_sort;
 	void Init_Inprocessor_Single()
 	{
-		time_minfill = 0;
+		time_tree_decomposition = 0;
 		time_ibcp = 0;
 		time_dynamic_decompose = 0;
 		time_dynamic_decompose_sort = 0;
@@ -480,7 +622,7 @@ struct Statistics
 	}
 	void Init_Compiler()
 	{
-		Init_Inprocessor();
+		Init_Extensive_Inprocessor();
 		Init_Compiler_Single();
 	}
 	double time_count;
@@ -491,10 +633,23 @@ struct Statistics
 	}
 	void Init_Counter()
 	{
-		Init_Inprocessor();
+		Init_Extensive_Inprocessor();
 		Init_Counter_Single();
 	}
-	/// oracle
+	/// partial kc
+	double time_simply_counting;
+	double time_estimate_marginal_probability;
+	void Init_Partial_KC_Single()
+	{
+		Init_Compiler_Single();
+		time_simply_counting = 0;
+		time_estimate_marginal_probability = 0;
+	}
+	void Init_Partial_KC()
+	{
+		Init_Extensive_Inprocessor();
+		Init_Partial_KC_Single();
+	}
 };
 
 

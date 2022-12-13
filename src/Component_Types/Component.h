@@ -42,7 +42,8 @@ public:
 	void Sort_ClauseIDs( QSorter & sorter ) { sorter.Sort( _clauseIDs ); }
 	bool Trivial( const unsigned bound ) { return _varIDs.size() - 1 <= bound && _clauseIDs.size() <= 2 * bound; }
 	void Swap( Component & other ) { _varIDs.swap( other._varIDs ); _clauseIDs.swap( other._clauseIDs ); swap( caching_loc, other.caching_loc ); }
-	void Swap_Clause_IDs( vector<unsigned> & clause_IDs ) { _clauseIDs.swap( clause_IDs ); }
+	void Swap_VarIDs( Component & other ) { _varIDs.swap( other._varIDs ); }
+	void Swap_ClauseIDs( vector<unsigned> & clause_IDs ) { _clauseIDs.swap( clause_IDs ); }
 	bool operator == ( Component & other )
 	{
 		if ( _varIDs.size() != other._varIDs.size() || _clauseIDs.size() != other._clauseIDs.size() ) return false;
@@ -195,6 +196,8 @@ public:
 				var |= ( _bits[begin / UNSIGNED_SIZE + 1] << ( UNSIGNED_SIZE - begin % UNSIGNED_SIZE ) ) & _infor._vcode_mask; // NOTE: a == ( a >> UNSIGNED_SIZE )
 			comp.Add_Var( Variable( var + Variable::start ) );
 		}
+		comp.Add_Var( Variable::undef );  /// NOTE: prevent comp.Vars() from reallocating memory when push_back mar_var + 1 later
+		comp.Dec_Var();  /// pop Variable::undef
 		for ( i = 0; i < _num_cl; i++, begin += _infor._ccode_size ) {
 			cl = ( _bits[begin / UNSIGNED_SIZE] >> ( begin % UNSIGNED_SIZE ) ) & _infor._ccode_mask;
 			if ( _infor._ccode_size > UNSIGNED_SIZE - begin % UNSIGNED_SIZE )
@@ -217,6 +220,8 @@ public:
 				var |= ( _bits[begin / UNSIGNED_SIZE + 1] << ( UNSIGNED_SIZE - begin % UNSIGNED_SIZE ) ) & _infor._vcode_mask; // NOTE: a == ( a >> UNSIGNED_SIZE )
 			comp.Add_Var( Variable( var + Variable::start ) );
 		}
+		comp.Add_Var( Variable::undef );  /// NOTE: prevent comp.Vars() from reallocating memory when push_back mar_var + 1 later
+		comp.Dec_Var();  /// pop Variable::undef
 		comp.ClauseIDs_Resize( _num_cl );  // when we decide whether comp is trivial, we will use the size of comp.clauses
 	}
 	void operator = ( Cacheable_Component & other )  // NOTE: used in hash
@@ -351,8 +356,8 @@ public:
 		return pos;
 	}
 	bool Hit_Successful() { return _pool.Hit_Successful(); }
-	void Read_Component( unsigned loc, Component & comp ) { _pool[loc].Read_Component( comp ); }
-	void Read_Component_Vars( unsigned loc, Component & comp ) { _pool[loc].Read_Rough_Component( comp ); }
+	void Read_Component( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Component( comp ); }
+	void Read_Component_Vars( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Rough_Component( comp ); }
 	void Erase( unsigned loc )
 	{
 		_hash_memory -= _pool[loc].Memory() - sizeof(Cacheable_Component<T>);

@@ -90,6 +90,22 @@ void Preprocessor::Reset()
 	}
 }
 
+void Preprocessor::operator = ( Preprocessor & another )
+{
+	Allocate_and_Init_Auxiliary_Memory( another._max_var );
+	Solver::operator=( another );
+	_and_gates = another._and_gates;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		Literal lit( i, false );
+		_lit_equivalences[lit] = another._lit_equivalences[lit];
+		_long_lit_membership_lists[lit] = another._long_lit_membership_lists[lit];
+		lit = Literal( i, true );
+		_lit_equivalences[lit] = another._lit_equivalences[lit];
+		_long_lit_membership_lists[lit] = another._long_lit_membership_lists[lit];
+	}
+	_fixed_num_vars = another._fixed_num_vars;
+}
+
 void Preprocessor::Open_Oracle_Mode( Variable var_bound )
 {
 	Allocate_and_Init_Auxiliary_Memory( var_bound );
@@ -106,8 +122,8 @@ bool Preprocessor::Preprocess( CNF_Formula & cnf, vector<Model *> & models )
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( running_options.display_preprocessing_process ) {
-		cout << "Number of original variables: " << cnf.Num_Vars() << endl;
-		cout << "Number of original clauses: " << cnf.Num_Clauses() << endl;
+		cout << running_options.display_prefix << "Number of original variables: " << cnf.Num_Vars() << endl;
+		cout << running_options.display_prefix << "Number of original clauses: " << cnf.Num_Clauses() << endl;
 	}
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) begin_watch.Start();
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
@@ -119,7 +135,7 @@ bool Preprocessor::Preprocess( CNF_Formula & cnf, vector<Model *> & models )
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) statistics.time_preprocess += begin_watch.Get_Elapsed_Seconds();
 	if ( !sat ) {
 		if ( running_options.display_preprocessing_process ) {
-			cout << "An unsatisfiable formula" << endl;
+			cout << "s UNSATISFIABLE" << endl;
 		}
 		if ( debug_options.verify_processed_clauses ) {
 			Verify_Satisfiability( cnf, false );
@@ -127,6 +143,7 @@ bool Preprocessor::Preprocess( CNF_Formula & cnf, vector<Model *> & models )
 	}
 	else {
 		if ( running_options.display_preprocessing_process ) {
+			cout << "s SATISFIABLE" << endl;
 			Display_Statistics( cout );
 		}
 		if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
@@ -187,6 +204,7 @@ bool Preprocessor::Preprocess( vector<Model *> & models )
 	do {
 		Eliminate_Redundancy();
 	} while ( Replace_Equivalent_Lit() );
+	if ( running_options.block_lits_external && !Large_Scale_Problem() ) Block_Lits_External( models );
 	Block_Binary_Clauses();
 	if ( running_options.recover_exterior ) Transform_Exterior_Into_Clauses();
 	return true;
@@ -571,8 +589,7 @@ void Preprocessor::Get_All_Imp_Init( vector<Model *> & models )
 			}
 			else if ( running_options.sat_heur_lits ==  Heuristic_Literal_Heap ) {
 				running_options.sat_heur_cumulative_inc = 1;
-				_heur_num_lits = 2 * NumVars( _max_var );
-				_heur_lits_heap.Build( _heur_sorted_lits, _heur_num_lits );
+				_heur_lits_heap.Build( _heur_sorted_lits, 2 * NumVars( _max_var ) );
 			}
 		}
 	}
@@ -932,12 +949,12 @@ void Preprocessor::Add_Old_Binary_Clause( Literal lit1, Literal lit2 )
 	if ( itr != _binary_clauses[lit1].end() - 1 ) {
 		_binary_clauses[lit1].pop_back();
 		if ( itr - begin >= _old_num_binary_clauses[lit1] ) {  // learnt to original
-            Swap_Two_Elements_Vector( _binary_clauses[lit1], _old_num_binary_clauses[lit1], itr - begin );
-            _old_num_binary_clauses[lit1]++;
-            begin = _binary_clauses[lit2].begin();
+			Swap_Two_Elements_Vector( _binary_clauses[lit1], _old_num_binary_clauses[lit1], itr - begin );
+			_old_num_binary_clauses[lit1]++;
+			begin = _binary_clauses[lit2].begin();
 			for ( itr = begin; *itr != lit1; itr++ ) {}
-            Swap_Two_Elements_Vector( _binary_clauses[lit2], _old_num_binary_clauses[lit2], itr - begin );
-            _old_num_binary_clauses[lit2]++;
+			Swap_Two_Elements_Vector( _binary_clauses[lit2], _old_num_binary_clauses[lit2], itr - begin );
+			_old_num_binary_clauses[lit2]++;
 		}
 	}
 	else {
@@ -979,8 +996,7 @@ void Preprocessor::Simplify_Lit_Equivalences_By_Unary()
 void Preprocessor::Eliminate_Redundancy()
 {
 	if ( !running_options.block_clauses && !running_options.block_lits ) return;
-	unsigned i;
-	for ( i = Variable::start; i <= _max_var; i++ ) {
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		Store_Binary_Learnts( i + i );
 		Store_Binary_Learnts( i + i + 1);
 	}
@@ -988,12 +1004,12 @@ void Preprocessor::Eliminate_Redundancy()
 	Generate_Long_Watched_Lists();
 	Block_Lits();
 	Vivification();
-	for ( i = Variable::start; i <= _max_var; i++ ) {
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		Recover_Binary_Learnts( i + i );
 		Recover_Binary_Learnts( i + i + 1 );
 	}
 	_old_num_long_clauses = _long_clauses.size();
-	for ( i = 0; i < _long_learnts.size(); i++ ) {  // only need to recover _long_watched_lists for _long_learnts
+	for ( unsigned i = 0; i < _long_learnts.size(); i++ ) {  // only need to recover _long_watched_lists for _long_learnts
 		Block_Lits_In_Extra_Clause( _long_learnts[i] );
 		if ( _long_learnts[i].Size() == 2 ) {  // become binary learnt clause
 			Add_Binary_Clause_Naive( _long_learnts[i][0], _long_learnts[i][1] );
@@ -1366,6 +1382,24 @@ void Preprocessor::Block_Lits_In_Extra_Clause( Clause & clause )  // NOTE: all u
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_block_lits += begin_watch.Get_Elapsed_Seconds();
 }
 
+void Preprocessor::Block_Lits_In_Extra_Clause( Big_Clause & clause )  // NOTE: all unary clauses has been computed
+{
+	if ( !running_options.block_lits ) return;
+	StopWatch begin_watch;
+	unsigned i;
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) begin_watch.Start();
+	for ( i = 0; i < clause.Size(); ) {
+		Literal lit = clause[i];
+		clause[i] = ~lit;
+		if ( Imply_Long_Clause_BCP( clause ) ) {
+			clause.Erase_Lit( i );
+			if ( clause.Size() == 2 ) break;
+		}
+		else clause[i++] = lit;
+	}
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_block_lits += begin_watch.Get_Elapsed_Seconds();
+}
+
 bool Preprocessor::Replace_Equivalent_Lit()
 {
 	StopWatch begin_watch;
@@ -1426,8 +1460,8 @@ bool Preprocessor::Detect_Lit_Equivalence()
 	case Literal_Equivalence_Detection_Tarjan:
 		return Detect_Lit_Equivalence_Tarjan();
 	case Literal_Equivalence_Detection_BCP:
-        return Detect_Lit_Equivalence_BCP();
-        break;
+		return Detect_Lit_Equivalence_BCP();
+		break;
 	case Literal_Equivalence_Detection_IBCP:
 		return Detect_Lit_Equivalence_IBCP();
 		break;
@@ -1511,7 +1545,7 @@ void Preprocessor::Detect_Binary_Learnts_BCP()
 
 void Preprocessor::Cluster_Equivalent_Lits()
 {
-	_fixed_num_vars = _unary_clauses.size();
+	_fixed_num_vars = _unary_clauses.size() + _and_gates.size();
 	_equivalent_lit_cluster_size = 0;
 	vector<Literal> singleton( 1 );
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {  /// after the first calling of Detect_Lit_Equivalence, the first if-statement in this loop needs ti be used
@@ -1882,11 +1916,11 @@ bool Preprocessor::Detect_Lit_Equivalence_IBCP()
 			bool imp = false;
 			if ( _lit_seen[~lit] ) imp = true;  // phi and (i+i) |= not lit
 			else {
-                Assign( lit );
-                if ( BCP( tmp_num_d_stack ) != Reason::undef ) imp = true;  // phi and (i+i) |= not lit, if phi and (i+i) and lit is unsatisfiable
-                Un_BCP( tmp_num_d_stack );
+				Assign( lit );
+				if ( BCP( tmp_num_d_stack ) != Reason::undef ) imp = true;  // phi and (i+i) |= not lit, if phi and (i+i) and lit is unsatisfiable
+				Un_BCP( tmp_num_d_stack );
 			}
-            if ( imp ) Record_Equivalent_Lit_Pair( Literal( i, true ), lit );
+			if ( imp ) Record_Equivalent_Lit_Pair( Literal( i, true ), lit );
 		}
 		Un_BCP( old_num_d_stack );
 		for ( unsigned j = 0; j < neg_implied_literals.size(); j++ ) {
@@ -1919,31 +1953,31 @@ bool Preprocessor::Detect_Lit_Equivalence_IBCP()
 void Preprocessor::Implied_Literals_Approx( Literal lit, vector<Literal> & imp_lits )
 {
 	unsigned i, old_num_d_stack = _num_dec_stack;
-    Assign( lit );
-    BCP( old_num_d_stack );
-    imp_lits.resize( _num_dec_stack - old_num_d_stack - 1 );
-    for ( i = old_num_d_stack + 1; i < _num_dec_stack; i++ ) {
-        imp_lits[i - old_num_d_stack - 1] = _dec_stack[i];
-    }
-    Un_BCP( old_num_d_stack );
+	Assign( lit );
+	BCP( old_num_d_stack );
+	imp_lits.resize( _num_dec_stack - old_num_d_stack - 1 );
+	for ( i = old_num_d_stack + 1; i < _num_dec_stack; i++ ) {
+		imp_lits[i - old_num_d_stack - 1] = _dec_stack[i];
+	}
+	Un_BCP( old_num_d_stack );
 }
 
 void Preprocessor::Record_Equivalent_Lit_Pair( Literal lit, Literal lit2 )
 {
-    if ( _lit_equivalences[lit] < _lit_equivalences[lit2] ) {  /// NOTE: merge two trees based on union-find sets
-    	Literal equ = _lit_equivalences[lit2];
-        _lit_equivalences[equ] = _lit_equivalences[lit];  /// NOTE: _lit_equivalences[lit2] might change after this line, and thus cannot use _lit_equivalences[_lit_equivalences[lit2]]
-        _lit_equivalences[~equ] = ~_lit_equivalences[lit];
-        _lit_equivalences[lit2] = _lit_equivalences[lit];
-        _lit_equivalences[~lit2] = ~_lit_equivalences[lit];
-    }
-    else {
-    	Literal equ = _lit_equivalences[lit];
-        _lit_equivalences[equ] = _lit_equivalences[lit2];
-        _lit_equivalences[~equ] = ~_lit_equivalences[lit2];
-        _lit_equivalences[lit] = _lit_equivalences[lit2];
-        _lit_equivalences[~lit] = ~_lit_equivalences[lit2];
-    }
+	if ( _lit_equivalences[lit] < _lit_equivalences[lit2] ) {  /// NOTE: merge two trees based on union-find sets
+		Literal equ = _lit_equivalences[lit2];
+		_lit_equivalences[equ] = _lit_equivalences[lit];  /// NOTE: _lit_equivalences[lit2] might change after this line, and thus cannot use _lit_equivalences[_lit_equivalences[lit2]]
+		_lit_equivalences[~equ] = ~_lit_equivalences[lit];
+		_lit_equivalences[lit2] = _lit_equivalences[lit];
+		_lit_equivalences[~lit2] = ~_lit_equivalences[lit];
+	}
+	else {
+		Literal equ = _lit_equivalences[lit];
+		_lit_equivalences[equ] = _lit_equivalences[lit2];
+		_lit_equivalences[~equ] = ~_lit_equivalences[lit2];
+		_lit_equivalences[lit] = _lit_equivalences[lit2];
+		_lit_equivalences[~lit] = ~_lit_equivalences[lit2];
+	}
 }
 
 void Preprocessor::Block_Binary_Clauses()  // NOTE: all unary clauses has been computed
@@ -1989,6 +2023,132 @@ void Preprocessor::Block_Binary_Clauses()  // NOTE: all unary clauses has been c
 		_long_watched_lists[_long_learnts[i][1]].push_back( i + _old_num_long_clauses );
 	}
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_block_clauses += begin_watch.Get_Elapsed_Seconds();
+}
+
+bool Preprocessor::Block_Lits_External( vector<Model *> & models )
+{
+	StopWatch watch;
+	if ( _old_num_long_clauses == 0 ) return false;
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) watch.Start();
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_external_solve++;
+	bool * var_filled = new bool [_max_var + 1];
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		var_filled[i] = true;
+	}
+	vector<vector<int>> simplified;
+	vector<vector<int>> others;
+	Prepare_Ext_Clauses_Without_Omitted_Vars( simplified, others, var_filled );  // var_filled is assigned in this function
+	_minisat_extra_output.return_model = !Hyperscale_Problem();
+	_minisat_extra_output.return_units = false;
+	_minisat_extra_output.return_learnt_max_len = 8;
+	bool found = Minisat::Ext_Block_Literals( simplified, others, _minisat_extra_output );
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		_long_clauses[i].Free();
+	}
+	unsigned num_long = 0;
+	for ( vector<int> & clause: simplified ) {
+		if ( clause.size() == 2 ) {
+			Add_Old_Binary_Clause( InternLit( clause[0] ), InternLit( clause[1] ) );
+			continue;
+		}
+		vector<Literal> lits( clause.size() );
+		for ( unsigned i = 0; i < clause.size(); i++ ) {
+			lits[i] = InternLit( clause[i] );
+		}
+		_long_clauses[num_long++] = Clause( lits );
+	}
+	_long_clauses.erase( _long_clauses.begin() + num_long, _long_clauses.begin() + _old_num_long_clauses );
+	_fixed_num_long_clauses = _old_num_long_clauses = num_long;
+	Generate_Long_Watched_Lists();
+	for ( unsigned i = 0; i < _minisat_extra_output.short_learnts[0].size(); i += 2 ) {
+		Literal lit0 = InternLit( _minisat_extra_output.short_learnts[0][i] );
+		Literal lit1 = InternLit( _minisat_extra_output.short_learnts[0][i+1] );
+		Add_Binary_Clause_Naive( lit0, lit1 );
+	}
+	Big_Clause learnt( _max_var );
+	for ( unsigned i = 3; i <= _minisat_extra_output.return_learnt_max_len; i++ ) {
+		vector<int> & elits = _minisat_extra_output.short_learnts[i-2];
+		for ( vector<int>::const_iterator begin = elits.cbegin(); begin < elits.cend(); begin += i ) {
+			learnt.Resize( i );
+			for ( unsigned j = 0; j < i; j++ ) {
+				learnt[j] = InternLit( *(begin + j) );
+			}
+			Block_Lits_In_Extra_Clause( learnt );
+			if ( learnt.Size() == 2 ) Add_Binary_Clause_Naive( learnt[0], learnt[1] );
+			else {
+				_long_clauses.push_back( learnt );
+				_long_watched_lists[learnt[0]].push_back( _long_clauses.size() - 1 );
+				_long_watched_lists[learnt[1]].push_back( _long_clauses.size() - 1 );
+			}
+		}
+	}
+	for ( unsigned i = 0; i < _minisat_extra_output.models.size(); i++ ) {
+		Add_Model( _minisat_extra_output.models[i], models );
+	}
+	_minisat_extra_output.models.clear();
+	Init_Heur_Decaying_Sum();
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_unsat_solve++;
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_external_solve += watch.Get_Elapsed_Seconds();
+	delete [] var_filled;
+	return found;
+}
+
+void Preprocessor::Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>> & simplified, vector<vector<int>> & others, bool * var_filled )  // mark the omitted variable in var_omitted
+{
+	vector<int> ext_clause(1);
+	for ( unsigned i = 0; i < _num_dec_stack; i++ ) {
+		ext_clause[0] = ExtLit( _dec_stack[i] );
+		others.push_back( ext_clause );
+		var_filled[_dec_stack[i].Var()] = false;
+	}
+	ext_clause.resize(2);
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( Var_Decided( i ) ) continue;
+		Literal lit = Literal( i, false );
+		ext_clause[0] = ExtLit( lit );
+		for ( unsigned j = 0; j < _binary_clauses[lit].size(); j++ ) {
+			Literal lit2 = _binary_clauses[lit][j];
+			if ( lit > lit2 || Lit_Decided( lit2 ) ) continue;
+			ext_clause[1] = ExtLit( lit2 );
+			others.push_back( ext_clause );
+			var_filled[lit.Var()] = false;
+			var_filled[lit2.Var()] = false;
+		}
+		lit = Literal( i, true );
+		ext_clause[0] = ExtLit( lit );
+		for ( unsigned j = 0; j < _binary_clauses[lit].size(); j++ ) {
+			Literal lit2 = _binary_clauses[lit][j];
+			if ( lit > lit2 || Lit_Decided( lit2 ) ) continue;
+			ext_clause[1] = ExtLit( lit2 );
+			others.push_back( ext_clause );
+			var_filled[lit.Var()] = false;
+			var_filled[lit2.Var()] = false;
+		}
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		ext_clause.clear();
+		unsigned j;
+		for ( j = 0; j < _long_clauses[i].Size(); j++ ) {
+			Literal lit = _long_clauses[i][j];
+			if ( Lit_SAT( lit ) ) break;
+			if ( Lit_UNSAT( lit ) ) continue;
+			ext_clause.push_back( ExtLit( lit ) );
+		}
+		if ( j == _long_clauses[i].Size() ) {
+			simplified.push_back( ext_clause );
+			for ( unsigned k = 0; k < ext_clause.size(); k++ ) {
+				int evar = abs( ext_clause[k] );
+				var_filled[InternVar( evar )] = false;
+			}
+		}
+	}
+	ext_clause.resize(1);
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( var_filled[i] ) {
+			ext_clause[0] = ExtVar( i );
+			others.push_back( ext_clause );
+		}
+	}
 }
 
 bool Preprocessor::Non_Unary_Clauses_Empty()
@@ -2204,15 +2364,17 @@ void Preprocessor::Verify_Equivalent_Lit_Clusters()
 void Preprocessor::Display_Statistics( ostream & out )
 {
 	unsigned num_omitted_vars = Num_Omitted_Vars();
-	out << "Number of unsimplifiable variables: " << NumVars( _max_var ) - _unary_clauses.size() - Lit_Equivalency_Size() - num_omitted_vars
+	out << running_options.display_prefix << "Number of unsimplifiable variables: " << NumVars( _max_var ) - _unary_clauses.size() - Lit_Equivalency_Size() - num_omitted_vars
 		<< " (" << _unary_clauses.size() << " unit, " << Lit_Equivalency_Size() << " equ, " << num_omitted_vars << " omit)" << endl;
-	out << "Number of unsimplifiable non-unary clauses: " << Old_Num_Clauses() - _unary_clauses.size() << endl;
-	out << "Preprocessing Time: " << statistics.time_preprocess << endl;
+	out << running_options.display_prefix << "Number of unsimplifiable non-unary clauses: " << Old_Num_Clauses() - _unary_clauses.size() << endl;
+	if ( running_options.profile_preprocessing >= Profiling_Abstract ) {
+		out << running_options.display_prefix << "Preprocessing Time: " << statistics.time_preprocess << endl;
+	}
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) {
-		out << "	Time of SAT: " << statistics.time_solve << endl;
-		if ( running_options.block_clauses ) out << "	Time of blocking clauses: " << statistics.time_block_clauses << endl;
-		if ( running_options.block_lits ) out << "	Time of blocking literals: " << statistics.time_block_lits << endl;
-		if ( running_options.detect_lit_equivalence ) out << "	Time of replacing literal equivalency: " << statistics.time_replace_lit_equivalences << endl;
+		out << running_options.display_prefix << "    Time of SAT: " << statistics.time_solve << endl;
+		if ( running_options.block_clauses ) out << running_options.display_prefix << "    Time of blocking clauses: " << statistics.time_block_clauses << endl;
+		if ( running_options.block_lits ) out << running_options.display_prefix << "    Time of blocking literals: " << statistics.time_block_lits << endl;
+		if ( running_options.detect_lit_equivalence ) out << running_options.display_prefix << "    Time of replacing literal equivalency: " << statistics.time_replace_lit_equivalences << endl;
 	}
 }
 
@@ -2293,8 +2455,8 @@ bool Preprocessor::Preprocess( unsigned num_vars, vector<Clause> & clauses )
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( running_options.display_preprocessing_process ) {
-		cout << "Number of original variables: " << num_vars << endl;
-		cout << "Number of original clauses: " << clauses.size() << endl;
+		cout << running_options.display_prefix << "Number of original variables: " << num_vars << endl;
+		cout << running_options.display_prefix << "Number of original clauses: " << clauses.size() << endl;
 	}
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) begin_watch.Start();
 	Allocate_and_Init_Auxiliary_Memory( Variable( Variable::start + num_vars - 1 ) );
@@ -2308,11 +2470,12 @@ bool Preprocessor::Preprocess( unsigned num_vars, vector<Clause> & clauses )
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) statistics.time_preprocess += begin_watch.Get_Elapsed_Seconds();
 	if ( !sat ) {
 		if ( running_options.display_preprocessing_process ) {
-			cout << "An unsatisfiable formula" << endl;
+			cout << "s UNSATISFIABLE" << endl;
 		}
 	}
 	else {
 		if ( running_options.display_preprocessing_process ) {
+			cout << "s SATISFIABLE" << endl;
 			Display_Statistics( cout );
 		}
 	}
@@ -2332,8 +2495,8 @@ bool Preprocessor::Preprocess_Sharp( CNF_Formula & cnf, vector<Model *> & models
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( running_options.display_preprocessing_process ) {
-		cout << "Number of original variables: " << cnf.Num_Vars() << endl;
-		cout << "Number of original clauses: " << cnf.Num_Clauses() << endl;
+		cout << running_options.display_prefix << "Number of original variables: " << cnf.Num_Vars() << endl;
+		cout << running_options.display_prefix << "Number of original clauses: " << cnf.Num_Clauses() << endl;
 	}
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) begin_watch.Start();
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
@@ -2345,7 +2508,7 @@ bool Preprocessor::Preprocess_Sharp( CNF_Formula & cnf, vector<Model *> & models
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) statistics.time_preprocess += begin_watch.Get_Elapsed_Seconds();
 	if ( !sat ) {
 		if ( running_options.display_preprocessing_process ) {
-			cout << "An unsatisfiable formula" << endl;
+			cout << "s UNSATISFIABLE" << endl;
 		}
 		if ( debug_options.verify_processed_clauses ) {
 			Verify_Satisfiability( cnf, false );
@@ -2353,10 +2516,12 @@ bool Preprocessor::Preprocess_Sharp( CNF_Formula & cnf, vector<Model *> & models
 	}
 	else {
 		if ( running_options.display_preprocessing_process ) {
+			cout << "s SATISFIABLE" << endl;
 			Display_Statistics_Sharp( cout );
 		}
 		if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
 		if ( debug_options.verify_processed_clauses ) Verify_Processed_Clauses( cnf );
+		if ( _fixed_num_vars >= 32 && !Hyperscale_Problem() ) Shrink_Max_Var();
 	}
 	return sat;
 }
@@ -2440,8 +2605,8 @@ bool Preprocessor::Replace_AND_Gates()
 	Generate_Long_Watched_Lists();
 	Generate_Lit_Membership_Lists();
 	bool happened = false;
-	CNF_Formula * cnf = Output_Processed_Clauses();  // ToRemove
-	cerr << *cnf << endl;  // ToRemove
+	CNF_Formula * cnf = nullptr;
+	if ( DEBUG_OFF ) cnf = Output_Processed_Clauses();
 	for ( Variable i = _max_var; i > Variable::start; i-- ) {
 		if ( Var_Decided( i ) || _lit_equivalences[i + i] != i + i ) continue;
 		bool found = false;
@@ -2450,30 +2615,33 @@ bool Preprocessor::Replace_AND_Gates()
 		if ( !found ) continue;
 		Literal output = _and_gates.back().Output();
 		if ( _and_gates.back().Is_Lit_Equivalence() ) {
-			cerr << "replace " << _and_gates.back() << endl;
-//			system( "./pause" );
+			if ( DEBUG_OFF ) cout << "replace " << _and_gates.back() << endl;
 			Replace_Single_Lit_Equivalence( _and_gates.back().Inputs( 0 ), output );
 			happened = true;
 			_and_gates.pop_back();
-			Verify_Binary_Clauses();  // ToRemove
-			Verify_Watched_Lists();  // ToRemove
-			Verify_Long_Lit_Membership_Lists();  // ToRemove
+			_fixed_num_vars++;
+			if ( DEBUG_OFF ) {
+				Verify_Binary_Clauses();
+				Verify_Watched_Lists();
+				Verify_Long_Lit_Membership_Lists();
+			}
 		}
 		else if ( Gain_Of_Gate_Substitution( _and_gates.back() ) >= -1 ) {
-			cerr << "replace " << _and_gates.back() << endl;
-//			system( "./pause" );
+			if ( DEBUG_OFF ) cout << "replace " << _and_gates.back() << endl;
 			Gate_Substitution_Binary_Clause( _and_gates.back() );
 			Gate_Substitution_Long_Clause( _and_gates.back() );
 			Gate_Substitution_Binary_Learnt( _and_gates.back() );
 			happened = true;
 			_fixed_num_vars++;
-			Verify_Binary_Clauses();  // ToRemove
-			Verify_Watched_Lists();  // ToRemove
-			Verify_Long_Lit_Membership_Lists();  // ToRemove
+			if ( DEBUG_OFF ) {
+				Verify_Binary_Clauses();
+				Verify_Watched_Lists();
+				Verify_Long_Lit_Membership_Lists();
+			}
 		}
 		else _and_gates.pop_back();
 		_old_num_long_clauses = _long_clauses.size();
-		Verify_Processed_Clauses( *cnf );  // ToRemove
+		if ( DEBUG_OFF ) Verify_Processed_Clauses( *cnf );
 	}
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		Literal lit( i, false );
@@ -2481,7 +2649,7 @@ bool Preprocessor::Replace_AND_Gates()
 		lit = Literal( i, true );
 		_long_lit_membership_lists[lit].clear();
 	}
-	delete cnf;  // ToRemove
+	delete cnf;
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_replace_gates += watch.Get_Elapsed_Seconds();
 	return happened;
 }
@@ -2695,7 +2863,7 @@ void Preprocessor::Replace_Single_Lit_Equivalence_Long_Clauses( Literal lit1, Li
 		for ( i++; i < clause.Size(); i++ ) {
 			_big_clause[i] = clause[i];
 		}
-        _big_clause.Resize( clause.Size() );
+		_big_clause.Resize( clause.Size() );
 		unsigned size = Add_Old_Clause_Binary_Learnt( _big_clause );
 		if ( size >= 3 ) {
 			Add_To_Lit_Membership_Lists( _long_clauses.size() - 1 );
@@ -2734,8 +2902,9 @@ void Preprocessor::Remove_From_Lit_Membership_Lists( unsigned clauseID )
 		for ( j = 0; clauseID != _long_lit_membership_lists[lit][j]; j++ ) {}
 		Simply_Erase_Vector_Element( _long_lit_membership_lists[lit], j );
 	}
-	Clause & replaced = _long_clauses.back();
 	unsigned replacedID = _long_clauses.size() - 1;
+	if ( clauseID == replacedID ) return;
+	Clause & replaced = _long_clauses[replacedID];
 	lit = replaced[0];
 	for ( j = 0; replacedID != _long_lit_membership_lists[lit][j]; j++ ) {}
 	_long_lit_membership_lists[lit][j] = clauseID;
@@ -2763,8 +2932,8 @@ int Preprocessor::Gain_Of_Gate_Substitution( AND_Gate & gate )
 		_big_clause[i] = ~gate.Inputs(i);
 	}
 	for ( unsigned i = 0; i < _old_num_binary_clauses[~output]; i++ ) {
-        _big_clause.Resize( 1 + gate.Inputs_Size() );
-        _big_clause.Last_Lit() = _binary_clauses[~output][i];
+		_big_clause.Resize( 1 + gate.Inputs_Size() );
+		_big_clause.Last_Lit() = _binary_clauses[~output][i];
 		Simplify_Clause( _big_clause );
 		gain -= ( _big_clause.Size() >= 3 );
 	}
@@ -2794,21 +2963,21 @@ int Preprocessor::Gain_Of_Gate_Substitution( AND_Gate & gate )
 	}
 	for ( unsigned k = 0; k < _long_lit_membership_lists[~output].size(); k++ ) {
 		Clause & clause = _long_clauses[_long_lit_membership_lists[~output][k]];
-        _big_clause.Resize( clause.Size() - 1 + gate.Inputs_Size() );
+		_big_clause.Resize( clause.Size() - 1 + gate.Inputs_Size() );
 		unsigned i;
-        for ( i = 0; clause[i] != ~output; i++ ) {
+		for ( i = 0; clause[i] != ~output; i++ ) {
 			_big_clause[i] = clause[i];
-        }
-        for ( i++; i < clause.Size(); i++ ) {
+		}
+		for ( i++; i < clause.Size(); i++ ) {
 			_big_clause[i-1] = clause[i];
-        }
-        _big_clause[i-1] = ~gate.Inputs( 0 );
-        _big_clause[i] = ~gate.Inputs( 1 );
-        for ( unsigned j = 2; j < gate.Inputs_Size(); j++ ) {
-            _big_clause[i-1+j] = ~gate.Inputs( j );
-        }
-        Simplify_Clause( _big_clause );
-        gain -= ( _big_clause.Size() >= 3 );
+		}
+		_big_clause[i-1] = ~gate.Inputs( 0 );
+		_big_clause[i] = ~gate.Inputs( 1 );
+		for ( unsigned j = 2; j < gate.Inputs_Size(); j++ ) {
+			_big_clause[i-1+j] = ~gate.Inputs( j );
+		}
+		Simplify_Clause( _big_clause );
+		gain -= ( _big_clause.Size() >= 3 );
 	}
 	return gain;
 }
@@ -2885,7 +3054,7 @@ void Preprocessor::Gate_Substitution_Long_Clause( AND_Gate & gate )  // ToDo: im
 		for ( i = 2; i < gate.Inputs_Size(); i++ ) {
 			_big_clause.Resize( csize );
 			_big_clause.Last_Lit() = gate.Inputs( i );
-			unsigned size = Add_Old_Clause_Binary_Learnt( _big_clause );
+			size = Add_Old_Clause_Binary_Learnt( _big_clause );
 			if ( size >= 3 ) Add_To_Lit_Membership_Lists( _long_clauses.size() - 1 );
 		}
 		Remove_From_Lit_Membership_Lists( cid );
@@ -2895,23 +3064,23 @@ void Preprocessor::Gate_Substitution_Long_Clause( AND_Gate & gate )  // ToDo: im
 	while ( !_long_lit_membership_lists[~output].empty() ) {
 		unsigned cid = _long_lit_membership_lists[~output][0];
 		Clause & clause = _long_clauses[cid];
-        _big_clause.Resize( clause.Size() - 1 + gate.Inputs_Size() );
+		_big_clause.Resize( clause.Size() - 1 + gate.Inputs_Size() );
 		unsigned i;
-        for ( i = 0; clause[i] != ~output; i++ ) {
+		for ( i = 0; clause[i] != ~output; i++ ) {
 			_big_clause[i] = clause[i];
-        }
-        for ( i++; i < clause.Size(); i++ ) {
+		}
+		for ( i++; i < clause.Size(); i++ ) {
 			_big_clause[i-1] = clause[i];
-        }
-        _big_clause[i-1] = ~gate.Inputs( 0 );
-        _big_clause[i] = ~gate.Inputs( 1 );
-        for ( unsigned j = 2; j < gate.Inputs_Size(); j++ ) {
-            _big_clause[i-1+j] = ~gate.Inputs( j );
-        }
-        unsigned size = Add_Old_Clause_Binary_Learnt( _big_clause );
+		}
+		_big_clause[i-1] = ~gate.Inputs( 0 );
+		_big_clause[i] = ~gate.Inputs( 1 );
+		for ( unsigned j = 2; j < gate.Inputs_Size(); j++ ) {
+			_big_clause[i-1+j] = ~gate.Inputs( j );
+		}
+		unsigned size = Add_Old_Clause_Binary_Learnt( _big_clause );
 		if ( size >= 3 ) Add_To_Lit_Membership_Lists( _long_clauses.size() - 1 );
-        Remove_From_Lit_Membership_Lists( cid );
-        Remove_Old_Long_Clause_No_Learnt( cid );
+		Remove_From_Lit_Membership_Lists( cid );
+		Remove_Old_Long_Clause_No_Learnt( cid );
 	}
 	_long_lit_membership_lists[~output].clear();
 }
@@ -2954,11 +3123,11 @@ void Preprocessor::Gate_Substitution_Binary_Learnt( AND_Gate & gate )
 		unsigned i;
 		for ( i = 0; _binary_clauses[lit][i] != output; i++ ) {}
 		Simply_Erase_Vector_Element( _binary_clauses[lit], i );
-        if ( gate.Inputs( 0 ).Var() != lit.Var() ) Add_Binary_Clause_Naive( gate.Inputs( 0 ), lit );
-        if ( gate.Inputs( 1 ).Var() != lit.Var() ) Add_Binary_Clause_Naive( gate.Inputs( 0 ), lit );
-        for ( i = 2; i < gate.Inputs_Size(); i++ ) {
-            if ( gate.Inputs( i ).Var() != lit.Var() ) Add_Binary_Clause_Naive( gate.Inputs( i ), lit );
-        }
+		if ( gate.Inputs( 0 ).Var() != lit.Var() ) Add_Binary_Clause_Naive( gate.Inputs( 0 ), lit );
+		if ( gate.Inputs( 1 ).Var() != lit.Var() ) Add_Binary_Clause_Naive( gate.Inputs( 0 ), lit );
+		for ( i = 2; i < gate.Inputs_Size(); i++ ) {
+			if ( gate.Inputs( i ).Var() != lit.Var() ) Add_Binary_Clause_Naive( gate.Inputs( i ), lit );
+		}
 	}
 	while ( _old_num_binary_clauses[~output] < _binary_clauses[~output].size() ) {
 		Literal lit = _binary_clauses[~output][_old_num_binary_clauses[~output]];
@@ -2966,14 +3135,14 @@ void Preprocessor::Gate_Substitution_Binary_Learnt( AND_Gate & gate )
 		unsigned i;
 		for ( i = 0; _binary_clauses[lit][i] != ~output; i++ ) {}
 		Simply_Erase_Vector_Element( _binary_clauses[lit], i );
-        _big_clause.Resize( 1 + gate.Inputs_Size() );
-        _big_clause[0] = lit;
-        _big_clause[1] = ~gate.Inputs( 0 );
-        _big_clause[2] = ~gate.Inputs( 1 );
-        for ( i = 2; i < gate.Inputs_Size(); i++ ) {
-            _big_clause[i+1] = ~gate.Inputs( i );
-        }
-        Add_Only_Old_Binary_Clause( _big_clause );
+		_big_clause.Resize( 1 + gate.Inputs_Size() );
+		_big_clause[0] = lit;
+		_big_clause[1] = ~gate.Inputs( 0 );
+		_big_clause[2] = ~gate.Inputs( 1 );
+		for ( i = 2; i < gate.Inputs_Size(); i++ ) {
+			_big_clause[i+1] = ~gate.Inputs( i );
+		}
+		Add_Only_Old_Binary_Clause( _big_clause );
 	}
 }
 
@@ -2992,67 +3161,218 @@ void Preprocessor::Add_Only_Old_Binary_Clause( Big_Clause & clause )
 	}
 	_lit_seen[clause[0]] = false;
 	for ( unsigned j = 1; j < new_size; j++ ) _lit_seen[clause[j]] = false;
-	if ( new_size == 2 ) {
+	if ( i == clause.Size() && new_size == 2 ) {
 		Add_Old_Binary_Clause( clause[0], clause[1] );
 	}
+}
+
+void Preprocessor::Shrink_Max_Var()
+{
+	Check_Var_Appearances();
+	unsigned num_removed = 0, num_omitted = 0;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( !_var_seen[i] ) {
+			num_omitted += ( Var_Undecided( i ) && _lit_equivalences[i + i] == i + i );
+			num_removed++;
+			_lit_equivalences[i + i] = Literal( i, false );
+			_lit_equivalences[i + i + 1] = Literal( i, true );
+			_var_map[i] = Variable::undef;
+		}
+		else {
+			_var_seen[i] = false;  // was assigned in Check_Omitted_Vars
+			_var_map[i] = i - num_removed;
+		}
+	}
+	num_omitted -= _and_gates.size();
+	_and_gates.clear();
+	Un_BCP( 0 );
+	_unary_clauses.clear();
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( _var_map[i] == Variable::undef ) continue;
+		Literal lit = Literal( i, false );
+		for ( unsigned j = 0; j < _binary_clauses[lit].size(); j++ ) {
+			Literal lit2 = _binary_clauses[lit][j];
+			_binary_clauses[lit][j] = Literal( _var_map[lit2.Var()], lit2.Sign() );
+		}
+		Literal lit_map = Literal( _var_map[i], false );
+		_binary_clauses[lit_map] = _binary_clauses[lit];
+		_old_num_binary_clauses[lit_map] = _old_num_binary_clauses[lit];
+		_long_watched_lists[lit_map] = _long_watched_lists[lit];
+		_heur_decaying_sum[lit_map] = _heur_decaying_sum[lit];
+		lit = Literal( i, true );
+		for ( unsigned j = 0; j < _binary_clauses[lit].size(); j++ ) {
+			Literal lit2 = _binary_clauses[lit][j];
+			_binary_clauses[lit][j] = Literal( _var_map[lit2.Var()], lit2.Sign() );
+		}
+		lit_map = Literal( _var_map[i], true );
+		_binary_clauses[lit_map] = _binary_clauses[lit];
+		_old_num_binary_clauses[lit_map] = _old_num_binary_clauses[lit];
+		_long_watched_lists[lit_map] = _long_watched_lists[lit];
+		_heur_decaying_sum[lit_map] = _heur_decaying_sum[lit];
+	}
+	for ( Variable i = Variable( _max_var - num_removed + 1 ); i <= _max_var; i++ ) {
+		Literal lit = Literal( i, false );
+		_binary_clauses[lit].clear();
+		_old_num_binary_clauses[lit] = 0;
+		_long_watched_lists[lit].clear();
+		lit = Literal( i, true );
+		_binary_clauses[lit].clear();
+		_old_num_binary_clauses[lit] = 0;
+		_long_watched_lists[lit].clear();
+	}
+	for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
+		Literal lit = _long_clauses[i][0];
+		_long_clauses[i][0] = Literal( _var_map[lit.Var()], lit.Sign() );
+		lit = _long_clauses[i][1];
+		_long_clauses[i][1] = Literal( _var_map[lit.Var()], lit.Sign() );
+		lit = _long_clauses[i][2];
+		_long_clauses[i][2] = Literal( _var_map[lit.Var()], lit.Sign() );
+		for ( unsigned j = 3; j < _long_clauses[i].Size(); j++ ) {
+			lit = _long_clauses[i][j];
+			_long_clauses[i][j] = Literal( _var_map[lit.Var()], lit.Sign() );
+		}
+	}
+	_max_var = Variable( _max_var - num_removed + num_omitted );
+	_fixed_num_vars = 0;
+	_model_pool->Shrink_Max_Var( _max_var, _var_map );
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		_heur_sorted_lits[i + i - Literal::start] = Literal( i, false );
+		_heur_sorted_lits[i + i + 1 - Literal::start] = Literal( i, true );
+	}
+	_heur_lit_sentinel = Literal( _max_var.Next(), false );
+	_heur_sorted_lits[2 * _max_var + 2 - Literal::start] = _heur_lit_sentinel;  // NOTE: this line guarantee the correctness of "Branch"
+	_heur_sorted_lits[2 * _max_var + 3 - Literal::start] = ~_heur_lit_sentinel;
+	_heur_decaying_sum[_heur_lit_sentinel] = -1;  /// NOTE: to speed up Branch and Branch_Component by using only one comparison in for-loop
+	_heur_decaying_sum[~_heur_lit_sentinel] = -2;  /// NOTE: return 2 * _max_var + 2 exactly when all variables are assigned
+	switch( running_options.sat_heur_lits ) {
+	case Heuristic_Literal_Unsorted_List:
+		break;
+	case Heuristic_Literal_Sorted_List:
+		Quick_Sort_Weight_Reverse( _heur_sorted_lits, 2 * NumVars( _max_var ), _heur_decaying_sum );
+		break;
+	case Heuristic_Literal_Heap:
+		_heur_lits_heap.Build( _heur_sorted_lits, 2 * NumVars( _max_var ) );
+		break;
+	}
+}
+
+bool Preprocessor::Generate_Models_External( vector<Model *> & models )
+{
+	StopWatch watch;
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) watch.Start();
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_external_solve++;
+	bool * var_filled = new bool [_max_var + 1];
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		var_filled[i] = true;
+	}
+	vector<vector<int>> clauses;
+	Prepare_Ext_Clauses_Without_Omitted_Vars( clauses, var_filled );  // var_filled is assigned in this function
+	_minisat_extra_output.return_model = true;
+	_minisat_extra_output.return_units = true;
+	_minisat_extra_output.return_learnt_max_len = 8;
+	vector<int8_t> emodel( _max_var + 1 );
+	for ( unsigned i = 0; i < models.size(); i++ ) {
+		for ( Variable j = Variable::start; j <= _max_var; j++ ) {
+			emodel[ExtVar( j )] = (*models[i])[j];
+		}
+		_minisat_extra_output.models.push_back( emodel );
+	}
+	unsigned minisat_extra_output_old_num_models = _minisat_extra_output.models.size();
+	bool sat = Minisat::Ext_Backbone( clauses, _minisat_extra_output );
+	if ( sat ) {
+		for ( unsigned i = 0; i < _minisat_extra_output.units.size(); i++ ) {
+			Literal lit = InternLit( _minisat_extra_output.units[i] );
+			if ( !var_filled[lit.Var()] && Lit_Undecided( lit ) ) {
+				Assign( lit );
+				BCP( _num_dec_stack - 1 );
+			}
+		}
+		for ( unsigned i = 0; i < _minisat_extra_output.short_learnts[0].size(); i += 2 ) {
+			Add_Binary_Clause_Naive( InternLit( _minisat_extra_output.short_learnts[0][i] ), InternLit( _minisat_extra_output.short_learnts[0][i+1] ) );
+		}
+		for ( unsigned i = 3; i <= _minisat_extra_output.return_learnt_max_len; i++ ) {
+			vector<int> & elits = _minisat_extra_output.short_learnts[i-2];
+			for ( vector<int>::const_iterator begin = elits.cbegin(); begin < elits.cend(); begin += i ) {
+				vector<Literal> lits( i );
+				for ( unsigned j = 0; j < i; j++ ) {
+					lits[j] = InternLit( *(begin + j) );
+				}
+				_long_clauses.push_back( lits );
+			}
+		}
+		for ( unsigned i = minisat_extra_output_old_num_models; i < _minisat_extra_output.models.size(); i++ ) {
+			Add_Model( _minisat_extra_output.models[i], models );
+		}
+		_minisat_extra_output.models.clear();
+	}
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_unsat_solve++;
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_external_solve += watch.Get_Elapsed_Seconds();
+	delete [] var_filled;
+	return sat;
 }
 
 void Preprocessor::Display_Statistics_Sharp( ostream & out )
 {
 	unsigned omitted = Num_Omitted_Vars();
 	unsigned unsimplifiable = NumVars( _max_var ) - _unary_clauses.size() - Lit_Equivalency_Size() - _and_gates.size() - omitted;
-	out << "Number of unsimplifiable variables: " << unsimplifiable
-		<< " (" << _unary_clauses.size() << " unit, " << Lit_Equivalency_Size() << " equ, "
-		<< _and_gates.size() << " AND, " << omitted << " omit)" << endl;
-	out << "Number of unsimplifiable non-unary clauses: " << Old_Num_Clauses() - _unary_clauses.size() << endl;
-	out << "Preprocessing Time: " << statistics.time_preprocess << endl;
+	out << running_options.display_prefix << "Number of unsimplifiable variables: " << unsimplifiable
+		<< " (" << _unary_clauses.size() << " unit, " << Lit_Equivalency_Size() << " equ, ";
+	if ( running_options.detect_AND_gates ) out << _and_gates.size() << " AND, ";
+	out << omitted << " omit)" << endl;
+	out << running_options.display_prefix << "Number of unsimplifiable non-unary clauses: " << Old_Num_Clauses() - _unary_clauses.size() << endl;
+	if ( running_options.profile_preprocessing >= Profiling_Abstract ) {
+		out << running_options.display_prefix << "Preprocessing Time: " << statistics.time_preprocess << endl;
+	}
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) {
-		out << "	Time of SAT: " << statistics.time_solve << endl;
-		if ( running_options.block_clauses ) out << "	Time of blocking clauses: " << statistics.time_block_clauses << endl;
-		if ( running_options.block_lits ) out << "	Time of blocking literals: " << statistics.time_block_lits << endl;
-		if ( running_options.detect_lit_equivalence ) out << "	Time of replacing literal equivalency: " << statistics.time_replace_lit_equivalences << endl;
-		if ( running_options.detect_AND_gates ) out << "	Time of replacing gates: " << statistics.time_replace_gates << endl;
+		out << running_options.display_prefix << "    Time of SAT: " << statistics.time_solve << endl;
+		if ( running_options.block_clauses ) out << running_options.display_prefix << "    Time of blocking clauses: " << statistics.time_block_clauses << endl;
+		if ( running_options.block_lits ) out << running_options.display_prefix << "    Time of blocking literals: " << statistics.time_block_lits << endl;
+		if ( running_options.detect_lit_equivalence ) out << running_options.display_prefix << "    Time of replacing literal equivalency: " << statistics.time_replace_lit_equivalences << endl;
+		if ( running_options.detect_AND_gates ) out << running_options.display_prefix << "    Time of replacing gates: " << statistics.time_replace_gates << endl;
 	}
 }
 
 void Preprocessor::Verify_AND_Gate( AND_Gate & gate )
 {
 	assert( gate.Inputs_Size() > 0 );
-    Literal output = gate.Output();
+	Literal output = gate.Output();
 	if ( gate.Is_Lit_Equivalence() ) {
 		assert( Imply_Binary_Clause_BCP( ~output, gate.Inputs( 0 ) ) );
 		assert( Imply_Binary_Clause_BCP( output, ~gate.Inputs( 0 ) ) );
 		return;
 	}
-    Big_Clause clause( _max_var );
-    clause.Resize( gate.Inputs_Size() );
-    for ( unsigned i = 0; i < gate.Inputs_Size(); i++ ) {
-        if ( !Imply_Binary_Clause_BCP( ~output, gate.Inputs( i ) ) ) {
+	Big_Clause clause( _max_var );
+	clause.Resize( gate.Inputs_Size() );
+	for ( unsigned i = 0; i < gate.Inputs_Size(); i++ ) {
+		if ( !Imply_Binary_Clause_BCP( ~output, gate.Inputs( i ) ) ) {
 			cerr << gate << endl;
 			cerr << "The following clause is not implied: " << ExtLit( ~output ) << " " << ExtLit( gate.Inputs( i ) ) << " 0" << endl;
 			assert( false );
-        }
-        clause[i] = ~gate.Inputs( i );
-    }
-    clause.Add_Lit( output );
-    assert( Imply_Long_Clause_BCP( clause ) );
+		}
+		clause[i] = ~gate.Inputs( i );
+	}
+	clause.Add_Lit( output );
+	assert( Imply_Long_Clause_BCP( clause ) );
 }
 
 void Preprocessor::Verify_Watched_Lists()
 {
 	for ( Literal l = Literal::start; l <= _max_var + _max_var + 1; l++ ) {
-        for ( unsigned j = 0; j < _long_watched_lists[l].size(); j++ ) {
+		for ( unsigned j = 0; j < _long_watched_lists[l].size(); j++ ) {
 			assert( _long_watched_lists[l][j] < _long_clauses.size() );
-        }
+		}
 	}
-    for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
+	for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
 		for ( Literal l = Literal::start; l <= _max_var + _max_var + 1; l++ ) {
 			unsigned num = 0;
 			for ( unsigned j = 0; j < _long_watched_lists[l].size(); j++ ) {
 				num += ( _long_watched_lists[l][j] == i );
 			}
 			bool check = ( l == _long_clauses[i][0] || l == _long_clauses[i][1] );
-			assert( num == check );
+			if ( num != check ) {
+				cerr << "ERROR[Preprocessor]: Clause " << i << " = " << _long_clauses[i] << " appears " << num << " times" << endl;
+				assert( num == check );
+			}
 		}
 	}
 }
@@ -3067,7 +3387,7 @@ void Preprocessor::Verify_Long_Lit_Membership_Lists()
 			}
 		}
 	}
-    for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
+	for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
 		for ( Literal l = Literal::start; l <= _max_var + _max_var + 1; l++ ) {
 			unsigned num = 0;
 			for ( unsigned j = 0; j < _long_lit_membership_lists[l].size(); j++ ) {
@@ -3091,8 +3411,8 @@ bool Preprocessor::Preprocess_Sharp( WCNF_Formula & cnf, vector<Model *> & model
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( running_options.display_preprocessing_process ) {
-		cout << "Number of original variables: " << cnf.Num_Vars() << endl;
-		cout << "Number of original clauses: " << cnf.Num_Clauses() << endl;
+		cout << running_options.display_prefix << "Number of original variables: " << cnf.Num_Vars() << endl;
+		cout << running_options.display_prefix << "Number of original clauses: " << cnf.Num_Clauses() << endl;
 	}
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) begin_watch.Start();
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
@@ -3104,7 +3424,7 @@ bool Preprocessor::Preprocess_Sharp( WCNF_Formula & cnf, vector<Model *> & model
 	if ( running_options.profile_preprocessing >= Profiling_Abstract ) statistics.time_preprocess += begin_watch.Get_Elapsed_Seconds();
 	if ( !sat ) {
 		if ( running_options.display_preprocessing_process ) {
-			cout << "An unsatisfiable formula" << endl;
+			cout << "s UNSATISFIABLE" << endl;
 		}
 		if ( debug_options.verify_processed_clauses ) {
 			Verify_Satisfiability( cnf, false );
@@ -3112,6 +3432,7 @@ bool Preprocessor::Preprocess_Sharp( WCNF_Formula & cnf, vector<Model *> & model
 	}
 	else {
 		if ( running_options.display_preprocessing_process ) {
+			cout << "s SATISFIABLE" << endl;
 			Display_Statistics_Sharp( cout );
 		}
 		if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
@@ -3215,6 +3536,7 @@ bool Preprocessor::Replace_AND_Gates( const vector<float> & weights )
 			Replace_Single_Lit_Equivalence( _and_gates.back().Inputs( 0 ), output );
 			happened = true;
 			_and_gates.pop_back();
+			_fixed_num_vars++;
 			if ( DEBUG_OFF ) {
 				Verify_Binary_Clauses();  // ToRemove
 				Verify_Watched_Lists();  // ToRemove
@@ -3316,8 +3638,8 @@ CNF_Formula * Preprocessor::Output_Processed_Clauses()
 		Literal output = gate.Output();
 		_big_clause.Resize( gate.Inputs_Size() + 1 );
 		for ( unsigned j = 0; j < gate.Inputs_Size(); j++ ) {
-            cnf->Add_Binary_Clause( ~output, gate.Inputs( j ) );
-            _big_clause[j] = ~gate.Inputs( j );
+			cnf->Add_Binary_Clause( ~output, gate.Inputs( j ) );
+			_big_clause[j] = ~gate.Inputs( j );
 		}
 		_big_clause[gate.Inputs_Size()] = output;
 		cnf->Add_Clause( _big_clause );
@@ -3330,14 +3652,13 @@ CNF_Formula * Preprocessor::Output_Processed_Clauses()
 
 void Preprocessor::Output_Processed_Ext_Clauses( vector<vector<int>> & eclauses )
 {
-	unsigned i;
 	_big_clause.Resize( 1 );
-	for ( i = 0; i < _unary_clauses.size(); i++ ) {
+	for ( unsigned i = 0; i < _unary_clauses.size(); i++ ) {
 		_big_clause[0] = _unary_clauses[i];
 		eclauses.push_back( ExtLits( _big_clause ) );
 	}
 	for ( Literal lit = Literal::start; lit <= 2 * _max_var + 1;  ) {
-		for ( i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
 			if ( lit > _binary_clauses[lit][i] ) continue;
 			eclauses.push_back( ExtLits( lit, _binary_clauses[lit][i] ) );
 		}
@@ -3346,7 +3667,7 @@ void Preprocessor::Output_Processed_Ext_Clauses( vector<vector<int>> & eclauses 
 			eclauses.push_back( ExtLits( lit, ~_lit_equivalences[lit] ) );
 		}
 		lit++;
-		for ( i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
 			if ( lit > _binary_clauses[lit][i] ) continue;
 			eclauses.push_back( ExtLits( lit, _binary_clauses[lit][i] ) );
 		}
@@ -3357,13 +3678,13 @@ void Preprocessor::Output_Processed_Ext_Clauses( vector<vector<int>> & eclauses 
 		Literal output = gate.Output();
 		_big_clause.Resize( gate.Inputs_Size() + 1 );
 		for ( unsigned j = 0; j < gate.Inputs_Size(); j++ ) {
-            eclauses.push_back( ExtLits( ~output, gate.Inputs( j ) ) );
-            _big_clause[j] = ~gate.Inputs( j );
+			eclauses.push_back( ExtLits( ~output, gate.Inputs( j ) ) );
+			_big_clause[j] = ~gate.Inputs( j );
 		}
 		_big_clause[gate.Inputs_Size()] = output;
 		eclauses.push_back( ExtLits( _big_clause ) );
 	}
-	for ( i = 0; i < _old_num_long_clauses; i++ ) {
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
 		eclauses.push_back( ExtLits( _long_clauses[i] ) );
 	}
 }

@@ -94,6 +94,13 @@ public:
 		_hash_memory = _pool.Memory();
 	}
 	unsigned Size() const { return _pool.Size(); }
+	unsigned Capacity() const { return _pool.Capacity(); }
+	unsigned Empty() const { return _pool.Empty(); }
+	void Shrink_To_Fit()
+	{
+		_pool.Shrink_To_Fit();
+		_hash_memory = _pool.Memory();
+	}
 	unsigned Memory() const { return _hash_memory; }
 	unsigned Memory_Show()
 	{
@@ -164,8 +171,9 @@ public:
 		return pos;
 	}
 	bool Hit_Successful() { return _pool.Hit_Successful(); }
-	void Read_Component( unsigned loc, Component & comp ) { _pool[loc].Read_Component( comp ); }
-	void Read_Component_Vars( unsigned loc, Component & comp ) { _pool[loc].Read_Rough_Component( comp ); }
+	void Read_Component( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Component( comp ); }
+	void Read_Component_Vars( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Rough_Component( comp ); }
+	const SortedSet<Literal> Read_Clause( SetID id ) { return _other_clauses.Elements( id + 1 ); }
 	void Erase( unsigned loc )
 	{
 		if ( loc == _pool.Size() - 1 ) {

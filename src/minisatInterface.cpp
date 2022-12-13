@@ -210,6 +210,24 @@ extern int8_t Ext_Solve( vector<vector<int>>& clauses, Extra_Output & output )
     }
 }
 
+static void Add_Model( vector<vector<int8_t>> & extmodels )
+{
+    assert( solver != NULL && solver->okay() );
+    vector<int8_t> emodel( solver->nVars() + 1 );
+    for ( size_t i = 0; i < solver->nVars(); i++ ) {
+        if ( solver->model[i] == l_Undef ) {
+            emodel[i+1] = -1;
+        }
+        else if ( solver->model[i] == l_False ) {
+             emodel[i+1] = 0;
+        }
+        else {
+            emodel[i+1] = 1;
+        }
+    }
+    extmodels.push_back( emodel );
+}
+
 static void Add_Marked_Model( vec<bool> & model_seen, vector<vector<int8_t>> & extmodels )
 {
     assert( solver != NULL && solver->okay() );
@@ -397,6 +415,89 @@ extern bool Ext_Backbone( vector<vector<int>>& clauses, Extra_Output & output )
             printf(ret ? "SATISFIABLE\n" : "UNSATISFIABLE\n");
         }
         return ret;
+    } catch (OutOfMemoryException&){
+        printf("===============================================================================\n");
+        printf("INDETERMINATE\n");
+        exit(0);
+    }
+}
+
+extern bool Ext_Block_Literals( vector<vector<int>>& focused, vector<vector<int>>& others, Extra_Output & output )
+{
+    try {
+        int paramc = 1;
+        char* params[1];
+        params[0] = "minisat";
+        setUsageHelp("USAGE: %s [options] [input-file] \n\n  where input may be either in plain or gzipped DIMACS.\n");
+        // printf("This is MiniSat 2.0 beta\n");
+
+#if defined(__linux__)
+        fpu_control_t oldcw, newcw;
+        _FPU_GETCW(oldcw); newcw = (oldcw & ~_FPU_EXTENDED) | _FPU_DOUBLE; _FPU_SETCW(newcw);
+        if (false) printf("WARNING: for repeatability, setting FPU to use double precision\n");
+#endif
+        // Extra options:
+        //
+        IntOption    verb   ("MAIN", "verb",   "Verbosity level (0=silent, 1=some, 2=more).", 0, IntRange(0, 2));
+        IntOption    cpu_lim("MAIN", "cpu-lim","Limit on CPU time allowed in seconds.\n", INT32_MAX, IntRange(0, INT32_MAX));
+        IntOption    mem_lim("MAIN", "mem-lim","Limit on memory usage in megabytes.\n", INT32_MAX, IntRange(0, INT32_MAX));
+        BoolOption   strictp("MAIN", "strict", "Validate DIMACS header during parsing.", false);
+
+        parseOptions(paramc, params, true);//{{{printf("here.3\n");fflush(stdin);}}}
+
+        CustomizedSolver S;
+
+        S.verbosity = verb;
+
+        solver = &S;
+        // Use signal handlers that forcibly quit until the solver will be able to respond to
+        // interrupts:
+        signal(SIGINT, SIGINT_exit);
+        signal(SIGXCPU,SIGINT_exit);
+
+        S.Add_Clauses( focused );
+        S.Add_Clauses( others );
+
+
+        // Change to signal-handlers that will only notify the solver and allow it to terminate
+        // voluntarily:
+        signal(SIGINT, SIGINT_interrupt);
+        signal(SIGXCPU,SIGINT_interrupt);
+
+        if (!solver->simplify()){
+            focused.clear();
+            others.clear();
+            return true;
+        }
+        bool found = false;
+		for ( vector<int> & clause: focused ) {
+			if ( clause.size() <= 2 ) continue;
+			vec<Lit> lits;
+			for ( int lit: clause) {
+				lits.push( ~LitExt2Intern( lit ) );
+			}
+			for (int i = 0; i < clause.size(); i++) {
+				lits[i] = ~lits[i];
+				if ( !S.solve( lits ) ) {
+					found = true;
+					clause[i] = clause.back();
+					clause.pop_back();
+					lits[i] = lits.last();
+					lits.pop();
+					if ( clause.size() == 2 ) break;
+					else i--;
+				}
+				else {
+					if ( output.return_model ) Add_Model( output.models );
+					lits[i] = ~lits[i];
+				}
+			}
+		}
+		if ( output.return_learnt_max_len >= 2 ) {
+			output.short_learnts.resize( output.return_learnt_max_len - 1 );
+			S.Short_Learnt_Clauses( output.short_learnts );
+        }
+        return found;
     } catch (OutOfMemoryException&){
         printf("===============================================================================\n");
         printf("INDETERMINATE\n");
