@@ -210,6 +210,8 @@ if (STATICCOMPILE)
     SET(CMAKE_EXE_LINKER_FLAGS "-static")
 endif()
 
+SET(TOOLNAME "KCBox" CACHE STRING "please input PreLite, Panini, ExactMC, or PartialKC if you do not want KCBox")
+
 if (NOT WIN32)
     if(NOT ENABLE_TESTING AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux" AND NOT COVERAGE)
         #add_cxx_flag_if_supported("-fvisibility=hidden")
@@ -297,13 +299,16 @@ include_directories(
 )
 include_directories(${Boost_INCLUDE_DIRS})
 
-add_executable(KCBox
+add_executable(${TOOLNAME}
 	src/Compilers/Integrated_Compiler.cpp
+	src/Compilers/Partial_Compiler.cpp
 	src/Component_Types/Incremental_Component_BigInt.cpp
 	src/Counters/KCounter.cpp
 	src/KC_Languages/DAG.cpp
 	src/KC_Languages/OBDD.cpp
 	src/KC_Languages/OBDD[AND].cpp
+	src/KC_Languages/CDD.cpp
+	src/Weighted_Languages/Partial_CCDD.cpp
 	src/Primitive_Types/Assignment.cpp
 	src/Primitive_Types/CNF_Formula.cpp
 	src/Primitive_Types/Lit_Equivalency.cpp
@@ -321,7 +326,7 @@ add_executable(KCBox
 	src/Solver_Krom.cpp
 )
 
-target_link_libraries(KCBox
+target_link_libraries(${TOOLNAME}
     ${GMP_LIB}
     ${GMPXX_LIB}
     minisat-lib-static

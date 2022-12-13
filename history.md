@@ -5,3 +5,5 @@
 * 2019-2020: PreLite was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
 
 * 2020-2021: ExactMC was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
+
+* 2019, 2022: PartialKC was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 

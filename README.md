@@ -1,7 +1,7 @@
 # KCBox
 
 KCBox is a long-term project that aims at developping an open-source toolbox for knowledge compilation (KC) and KC-related reasoning tasks. 
-So far, we have released three tools: PreLite, Panini, and ExactMC.
+So far, we have released four tools: PreLite, Panini, ExactMC, and PartialKC.
 
 <!-- ####################################################################### -->
 
@@ -26,6 +26,10 @@ Panini is an efficient compiler. So far, it suppots the compilation from CNF for
 
 ExactMC is a scalable exact model counter. It performs counting wrt a KC language called constrained conjunction \& decision diagrams that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
 
+## PartialKC Description
+
+PartialKC is an anytime model counter with fast convergence performance. The main idea is to perform partial knowledge compilation wrt a KC language called partial constrained conjunction \& decision diagrams. This tool also takes in a CNF formula in DIMACS format, and outputs an estimate of its true model count. If you use this tool, please cite our paper "Fast Converging Anytime Model Counting"
+
 <!-- ####################################################################### -->
 
 ## Installation
@@ -44,7 +48,7 @@ sudo apt-get install libgmp-dev
 mkdir build && cd build
 cp ../scripts/build.sh .
 chmod u+x build.sh
-./build.sh
+./build.sh  ## if you want to build a single tool, please use "./build.sh toolname" instead
 ```
 
 <!-- ####################################################################### -->
