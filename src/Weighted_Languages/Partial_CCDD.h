@@ -2,7 +2,7 @@
 #define _Partial_CCDD_h_
 
 #include "../Search_Graph.h"
-#include "../KC_Languages/CDD.h"
+#include "../KC_Languages/CCDD.h"
 
 namespace KCBox {
 
@@ -189,6 +189,8 @@ public:
 	Partial_CCDD_Manager( const Partial_CCDD_Manager & other );
 	~Partial_CCDD_Manager();
 	void Clear( Model_Pool * pool );
+	CDD Complete_Lower_Bound( CDD root, CCDD_Manager & manager );
+	CDD Complete_Upper_Bound( CDD root, CCDD_Manager & manager );
 	BigFloat Weight( CDD root );
 	size_t Memory();
 	void Open_Counting_Mode() { assert( _nodes.Size() == _num_fixed_nodes );  _counting_mode = true; }

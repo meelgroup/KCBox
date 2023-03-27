@@ -301,13 +301,21 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(${TOOLNAME}
 	src/Compilers/Integrated_Compiler.cpp
+	src/Compilers/CDD_Compiler.cpp
+	src/Compilers/R2D2_Compiler.cpp
+	src/Compilers/RCDD_Compiler.cpp
+	src/Compilers/CCDD_Compiler.cpp
 	src/Compilers/Partial_Compiler.cpp
 	src/Component_Types/Incremental_Component_BigInt.cpp
 	src/Counters/KCounter.cpp
+	src/Counters/WCounter.cpp
 	src/KC_Languages/DAG.cpp
 	src/KC_Languages/OBDD.cpp
 	src/KC_Languages/OBDD[AND].cpp
 	src/KC_Languages/CDD.cpp
+	src/KC_Languages/RCDD.cpp
+	src/KC_Languages/RRCDD.cpp
+	src/KC_Languages/CCDD.cpp
 	src/Weighted_Languages/Partial_CCDD.cpp
 	src/Primitive_Types/Assignment.cpp
 	src/Primitive_Types/CNF_Formula.cpp

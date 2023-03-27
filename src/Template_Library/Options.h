@@ -112,7 +112,7 @@ protected:
 public:
 	FloatOption( const char * name, const char * description, const float value ):
 		Option( name, description ), _val( value ), _default( value ) {}
-	operator double () { return _val; }
+	operator float () { return _val; }
 	int Match( int & i, int argc, const char * argv[] )
 	{
 		if ( Matched( argv[i] ) ) {
@@ -162,6 +162,7 @@ class Tool_Parameters
 protected:
 	const char * _tool_name;
 	vector<Option *> _options;
+	vector<float> _versions;
 public:
 	Tool_Parameters( const char * tool ): _tool_name( tool ) {}
 	const char * Tool_Name() { return _tool_name; }
@@ -176,12 +177,22 @@ public:
 		}
 		return nullptr;
 	}
-	bool Parse_Parameters( int & i, int argc, const char *argv[] )
+	void Add_Version( const float version )
+	{
+		assert( _versions.empty() || _versions.back() < version );
+		_versions.push_back( version );
+	}
+	virtual bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		int stat;
 		while ( i < argc ) {
 			if ( strcmp( argv[i], "--help" ) == 0 ) {
 				Helper( cerr );
+				exit( 1 );
+			}
+			if ( strcmp( argv[i], "--version" ) == 0 ) {
+				if ( _versions.empty() ) cout << "ERROR: no version " << endl;
+				else cout << "version " << _versions.back() << endl;
 				exit( 1 );
 			}
 			unsigned j = 0;
@@ -197,7 +208,7 @@ public:
 		}
 		return true;
 	}
-	void Helper( ostream & out )
+	virtual void Helper( ostream & out )
 	{
 		out << "The usage of " << _tool_name << ": " << endl;
 		for ( unsigned i = 0; i < _options.size(); i++ ) {

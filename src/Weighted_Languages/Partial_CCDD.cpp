@@ -281,6 +281,93 @@ void Partial_CCDD_Manager::Verify_Node( NodeID n )
 	}
 }
 
+CDD Partial_CCDD_Manager::Complete_Lower_Bound( CDD root, CCDD_Manager & manager )
+{
+	assert( _max_var == manager.Max_Var() );
+	if ( root < _num_fixed_nodes ) return root;
+	_node_stack[0] = root;
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	_nodes[NodeID::bot].infor.mark = NodeID::bot;
+	_nodes[NodeID::top].infor.mark = NodeID::top;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.mark = i;
+	}
+	Rough_CDD_Node rnode( _max_var );
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		Partial_CDD_Node & topn = _nodes[top];
+		if ( topn.infor.mark == UNSIGNED_UNDEF ) num_node_stack--;
+		else if ( topn.sym == SEARCH_UNKNOWN ) {
+			topn.infor.mark = NodeID::bot;
+			_visited_nodes.push_back( top );
+			num_node_stack--;
+		}
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				Decision_Node bnode( topn.sym, _nodes[topn.ch[0]].infor.mark, _nodes[topn.ch[1]].infor.mark );
+				topn.infor.mark = manager.Add_Decision_Node( bnode );
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				for ( unsigned i = topn.ch_size - 1; i != UNSIGNED_UNDEF; i-- ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				rnode.sym = CDD_SYMBOL_DECOMPOSE;
+				rnode.ch_size = topn.imp_size + topn.ch_size;
+				for ( unsigned i = 0; i < topn.ch_size; i++ ) {
+					rnode.ch[i] = NodeID::literal( topn.imp[i] );
+				}
+				for ( unsigned i = 0; i < topn.ch_size; i++ ) {
+					rnode.ch[topn.imp_size + i] = _nodes[topn.ch[i]].infor.mark;
+				}
+                topn.infor.mark = manager.Add_Decomposition_Node( rnode );
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				rnode.sym = CDD_SYMBOL_KERNELIZE;
+				rnode.ch_size = manager.Add_Equivalence_Nodes( topn.imp, topn.imp_size, rnode.ch );
+				topn.infor.mark = manager.Add_Kernelization_Node( rnode );
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+	}
+	NodeID result = _nodes[root].infor.mark;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.mark = UNSIGNED_UNDEF;
+	}
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.mark = UNSIGNED_UNDEF;
+	}
+	_visited_nodes.clear();
+	return result;
+}
+
 unsigned Partial_CCDD_Manager::Num_Nodes( CDD root )
 {
 	if ( root < _num_fixed_nodes ) return 1;

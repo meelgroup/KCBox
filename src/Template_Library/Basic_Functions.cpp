@@ -540,7 +540,7 @@ extern bool String_Fuzzy_Match( char * str1, char * str2 )
 	while ( true ) {
 		while ( BLANK_CHAR(*str1) ) str1++;
 		while ( BLANK_CHAR(*str2) ) str2++;
- 		while ( *str1 != '\0' && *str2 != '\0' && !BLANK_CHAR(*str1) && !BLANK_CHAR(*str2) && *str1 == *str2 ) {
+		while ( *str1 != '\0' && *str2 != '\0' && !BLANK_CHAR(*str1) && !BLANK_CHAR(*str2) && *str1 == *str2 ) {
 			str1++, str2++;
 		}
 		if ( *str1 == '\0' ) {
@@ -548,10 +548,25 @@ extern bool String_Fuzzy_Match( char * str1, char * str2 )
             return *str2 == '\0';
 		}
 		if ( *str2 == '\0' ) {
-            while ( BLANK_CHAR(*str1) ) str1++;
-            return *str1 == '\0';
+			while ( BLANK_CHAR(*str1) ) str1++;
+			return *str1 == '\0';
 		}
 		if ( !BLANK_CHAR(*str1) || !BLANK_CHAR(*str2) ) return false;
+	}
+}
+
+extern bool String_Fuzzy_Match_Prefix_Change( char * & str, const char * prefix )
+{
+	while ( true ) {
+		while ( BLANK_CHAR(*str) ) str++;
+		while ( BLANK_CHAR(*prefix) ) prefix++;
+		while ( *prefix != '\0' && !BLANK_CHAR(*str) && !BLANK_CHAR(*prefix) && *str == *prefix ) {
+			str++, prefix++;
+		}
+		if ( *prefix == '\0' ) {
+			return *str == '\0' || BLANK_CHAR(*str);
+		}
+		if ( !BLANK_CHAR(*str) && !BLANK_CHAR(*prefix) && *str != *prefix ) return false;
 	}
 }
 

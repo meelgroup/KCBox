@@ -44,57 +44,57 @@ extern void Read_Ext_Clauses( istream & fin, vector<vector<int>> & clauses )
 
 void Clause::Sort( const unsigned * var_rank )
 {
-    unsigned i, j, begin;
-    for ( i = begin = _size - 1; i > 0; i-- ) { // validate the following insertion_sort
-        if ( var_rank[_lits[i].Var()] < var_rank[_lits[i-1].Var()] ) {
-            begin = i;
-            Literal tmp = _lits[i-1];
-            _lits[i-1] = _lits[i];
-            _lits[i] = tmp;
-        }
-    }
-    for ( i = begin + 1; i < _size; i++ ) {
-        Literal tmp = _lits[i];
-        for ( j = i - 1; var_rank[_lits[j].Var()] > var_rank[tmp.Var()]; j-- ) {
-            _lits[j+1] = _lits[j];
-        }
-        _lits[j+1] = tmp;
-    }
+	unsigned i, j, begin;
+	for ( i = begin = _size - 1; i > 0; i-- ) { // validate the following insertion_sort
+		if ( var_rank[_lits[i].Var()] < var_rank[_lits[i-1].Var()] ) {
+			begin = i;
+			Literal tmp = _lits[i-1];
+			_lits[i-1] = _lits[i];
+			_lits[i] = tmp;
+		}
+	}
+	for ( i = begin + 1; i < _size; i++ ) {
+		Literal tmp = _lits[i];
+		for ( j = i - 1; var_rank[_lits[j].Var()] > var_rank[tmp.Var()]; j-- ) {
+			_lits[j+1] = _lits[j];
+		}
+		_lits[j+1] = tmp;
+	}
 }
 
 extern vector<int> ExtLits( Literal lit )
 {
-    vector<int> eclause( 1 );
-    eclause[0] = ExtLit( lit );
-    return eclause;
+	vector<int> eclause( 1 );
+	eclause[0] = ExtLit( lit );
+	return eclause;
 }
 
 extern vector<int> ExtLits( Literal lit1, Literal lit2 )
 {
-    vector<int> eclause( 2 );
-    eclause[0] = ExtLit( lit1 );
-    eclause[1] = ExtLit( lit2 );
-    return eclause;
+	vector<int> eclause( 2 );
+	eclause[0] = ExtLit( lit1 );
+	eclause[1] = ExtLit( lit2 );
+	return eclause;
 }
 
 extern vector<int> ExtLits( Big_Clause & bclause )
 {
-    size_t i;
-    vector<int> eclause( bclause.Size() );
-    for ( i = 0; i < bclause.Size(); i++ ) { // validate the following insertion_sort
-        eclause[i] = ExtLit( bclause[i] );
-    }
-    return eclause;
+	size_t i;
+	vector<int> eclause( bclause.Size() );
+	for ( i = 0; i < bclause.Size(); i++ ) { // validate the following insertion_sort
+		eclause[i] = ExtLit( bclause[i] );
+	}
+	return eclause;
 }
 
 extern vector<int> ExtLits( Clause & clause )
 {
-    size_t i;
-    vector<int> eclause( clause.Size() );
-    for ( i = 0; i < clause.Size(); i++ ) { // validate the following insertion_sort
-        eclause[i] = ExtLit( clause[i] );
-    }
-    return eclause;
+	size_t i;
+	vector<int> eclause( clause.Size() );
+	for ( i = 0; i < clause.Size(); i++ ) { // validate the following insertion_sort
+		eclause[i] = ExtLit( clause[i] );
+	}
+	return eclause;
 }
 
 extern Clause Clause_Random( Variable max_var, unsigned max_len, unsigned min_len )
@@ -115,44 +115,44 @@ extern Clause Clause_Random( Variable max_var, unsigned max_len, unsigned min_le
 
 extern ostream & operator << ( ostream & out, Clause & clause )
 {
-    for ( unsigned i = 0; i < clause.Size(); i++ ) {
-        out << ExtLit( clause[i] ) << ' ';
-    }
-    out << '0';
-    return out;
+	for ( unsigned i = 0; i < clause.Size(); i++ ) {
+		out << ExtLit( clause[i] ) << ' ';
+	}
+	out << '0';
+	return out;
 }
 
 extern void Display_Clauses( ostream & out, unsigned num_vars, vector<Clause> & clauses )
 {
-    out << "p cnf " << num_vars << ' ' << clauses.size() << endl;
-    for ( unsigned i = 0; i < clauses.size(); i++ ) {
-        out << clauses[i] << endl;
-    }
+	out << "p cnf " << num_vars << ' ' << clauses.size() << endl;
+	for ( unsigned i = 0; i < clauses.size(); i++ ) {
+		out << clauses[i] << endl;
+	}
 }
 
 extern void Display_Ext_Clause( ostream & out, vector<int> & eclause  )
 {
-    unsigned i;
-    for ( i = 0; i < eclause.size(); i++ ) {
-        out << eclause[i] << ' ';
-    }
-    out << '0' << endl;
+	unsigned i;
+	for ( i = 0; i < eclause.size(); i++ ) {
+		out << eclause[i] << ' ';
+	}
+	out << '0' << endl;
 }
 
 extern void Display_Ext_Clauses( ostream & out, vector<vector<int>> & eclauses )
 {
-    for ( unsigned i = 0; i < eclauses.size(); i++ ) {
-        for ( unsigned j = 0; j < eclauses[i].size(); j++ ) {
-            out << eclauses[i][j] << ' ';
-        }
-        out << '0' << endl;
-    }
+	for ( unsigned i = 0; i < eclauses.size(); i++ ) {
+		for ( unsigned j = 0; j < eclauses[i].size(); j++ ) {
+			out << eclauses[i][j] << ' ';
+		}
+		out << '0' << endl;
+	}
 }
 
 extern void Display_Ext_Clauses( ostream & out, unsigned num_vars, vector<vector<int>> & eclauses )
 {
-    out << "p cnf " << num_vars << ' ' << eclauses.size() << endl;
-    Display_Ext_Clauses( out, eclauses );
+	out << "p cnf " << num_vars << ' ' << eclauses.size() << endl;
+	Display_Ext_Clauses( out, eclauses );
 }
 
 CNF_Formula::CNF_Formula( istream & fin )
@@ -165,9 +165,9 @@ CNF_Formula::CNF_Formula( istream & fin )
 	bool extra_header = false, extra_clause = false;
 	char line[MAX_LINE];
 	if ( !Get_Line( fin, line ) ) {
-        cerr << "Warning[CNF_Formula]: no header!" << endl;
-        _max_var = Variable::undef;
-        _known_count = 0;
+		cerr << "Warning[CNF_Formula]: no header!" << endl;
+		_max_var = Variable::undef;
+		_known_count = 0;
 		return;
 	}
 	if ( Read_Known_Result( line ) ) {
@@ -176,7 +176,7 @@ CNF_Formula::CNF_Formula( istream & fin )
 			cerr << "ERROR[CNF_Formula]: wrong cnf-file format!" << endl;
 			exit( 1 );
 		}
-        _max_var = Variable::undef;
+		_max_var = Variable::undef;
 		return;
 	}
 	unsigned num_vars;
@@ -188,18 +188,18 @@ CNF_Formula::CNF_Formula( istream & fin )
 	Literal * lits = new Literal [_max_var + 1];
 	for( i = 0; i < num_cl; i++ ) {
 		if ( !Get_Line( fin, line ) ) {
-            cerr << "Warning[CNF_Formula]: not enough clauses!" << endl;
-            break;
+			cerr << "Warning[CNF_Formula]: not enough clauses!" << endl;
+			break;
 		}
 		if ( line[0] == 'p' ) {
 			if ( !extra_header ) {
-                cerr << "Warning[CNF_Formula]: extra header!" << endl;
-                extra_header = true;
+				cerr << "Warning[CNF_Formula]: extra header!" << endl;
+				extra_header = true;
 			}
 			i--;
 			continue;
 		}
-        char * p = line;
+		char * p = line;
 		unsigned len = Read_Clause( p, lits );
 		_clauses.push_back( Clause( lits, len ) );
 	}
@@ -208,8 +208,8 @@ CNF_Formula::CNF_Formula( istream & fin )
 		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
 		if ( DIGIT_CHAR( *p ) || *p == '-' ) {
 			if ( !extra_clause ) {
-                cerr << "Warning[CNF_Formula]: extra clauses beyond stated!" << endl;
-                extra_clause = true;
+				cerr << "Warning[CNF_Formula]: extra clauses beyond stated!" << endl;
+				extra_clause = true;
 			}
 			unsigned len = Read_Clause( p, lits );
 			_clauses.push_back( Clause( lits, len ) );
@@ -225,11 +225,11 @@ CNF_Formula::CNF_Formula( istream & fin )
 bool CNF_Formula::Get_Line( istream & fin, char line[] )
 {
 	while ( !fin.eof() ) {
-        fin.getline( line, MAX_LINE );
-        if ( line[0] == 'c' ) {
-            Read_Independent_Support( line );
-            continue;
-        }
+		fin.getline( line, MAX_LINE );
+		if ( line[0] == 'c' ) {
+			Read_Independent_Support( line );
+			continue;
+		}
 		char * p = line;
 		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
 		if ( *p == '\0' ) continue;
@@ -240,44 +240,44 @@ bool CNF_Formula::Get_Line( istream & fin, char line[] )
 
 bool CNF_Formula::Read_Known_Result( char line[] )
 {
-    char * p = line;
-    while ( BLANK_CHAR( *p ) ) p++;
+	char * p = line;
+	while ( BLANK_CHAR( *p ) ) p++;
 	if ( p[0] == 's' ) {
 		p++;
-        sscanf( p, _known_count );
-        return true;
+		sscanf( p, _known_count );
+		return true;
 	}
 	else return false;
 }
 
 unsigned CNF_Formula::Read_Clause( char line[], Literal lits[] )
 {
-    unsigned len = 0;
-    char * p = line;
-    while ( BLANK_CHAR_GENERAL( *p ) ) p++;
-    while ( *p != '\0' ) {
+	unsigned len = 0;
+	char * p = line;
+	while ( BLANK_CHAR_GENERAL( *p ) ) p++;
+	while ( *p != '\0' ) {
 		Literal lit = Read_Lit( p );
-        if ( lit == Literal::undef ) break;
-        lits[len++] = lit;
-        while ( BLANK_CHAR( *p ) ) p++;
-    }
-    if ( *p == '\0' ) {
-        cerr << "ERROR[CNF_Formula]: invalid clause without a zero end!" << endl;
-        exit( 1 );
-    }
-    else if ( len == 0 ) {
-        cerr << "ERROR[CNF_Formula]: empty clause!" << endl;
-        exit( 1 );
-    }
-    return len;
+		if ( lit == Literal::undef ) break;
+		lits[len++] = lit;
+		while ( BLANK_CHAR( *p ) ) p++;
+	}
+	if ( *p == '\0' ) {
+		cerr << "ERROR[CNF_Formula]: invalid clause without a zero end!" << endl;
+		exit( 1 );
+	}
+	else if ( len == 0 ) {
+		cerr << "ERROR[CNF_Formula]: empty clause!" << endl;
+		exit( 1 );
+	}
+	return len;
 }
 
 Literal CNF_Formula::Read_Lit( char * & p )
 {
 	int elit;
 	if ( sscanf( p, "%d", &elit) != 1 ) {
-        cerr << "ERROR[CNF_Formula]: invalid literal!" << endl;
-        exit( 1 );
+		cerr << "ERROR[CNF_Formula]: invalid literal!" << endl;
+		exit( 1 );
 	}
 	if ( elit == 0 ) return Literal::undef;
 	if( *p == '-' ) p++;
@@ -287,23 +287,23 @@ Literal CNF_Formula::Read_Lit( char * & p )
 
 void CNF_Formula::Read_Independent_Support( char line[] )
 {
-    assert( line[0] == 'c' );
-    char * p = line + 1;
-    if ( !Read_String_Change( p, "ind" ) ) return;
-    while ( *p == ' ' || *p == '\t' ) p++;
-    unsigned old_size = _independent_support.size();
-    int tmp = _max_var + 1;
-    while ( 1 ) {
-        if ( sscanf( p, "%d", &tmp) != 1 ) {
-            cerr << "ERROR[CNF_Formula]: invalid independent support!" << endl;
-            exit( 0 );
-        }
-        if ( tmp == 0 ) break;
-        _independent_support.push_back( tmp );
-        while ( '0' <= *p && *p <= '9' ) p++;
-        while ( *p == ' ' || *p == '\t' ) p++;
-    }
-    if ( tmp != 0 ) _independent_support.resize( old_size );
+	assert( line[0] == 'c' );
+	char * p = line + 1;
+	if ( !Read_String_Change( p, "ind" ) ) return;
+	while ( *p == ' ' || *p == '\t' ) p++;
+	unsigned old_size = _independent_support.size();
+	int tmp = _max_var + 1;
+	while ( 1 ) {
+		if ( sscanf( p, "%d", &tmp) != 1 ) {
+			cerr << "ERROR[CNF_Formula]: invalid independent support!" << endl;
+			exit( 0 );
+		}
+		if ( tmp == 0 ) break;
+		_independent_support.push_back( tmp );
+		while ( '0' <= *p && *p <= '9' ) p++;
+		while ( *p == ' ' || *p == '\t' ) p++;
+	}
+	if ( tmp != 0 ) _independent_support.resize( old_size );
 }
 
 CNF_Formula::CNF_Formula( Random_Generator & rand_gen, unsigned num_var, unsigned num_cl, unsigned min_len, unsigned max_len ) :
@@ -315,13 +315,13 @@ _max_var( Variable::start + num_var - 1 )
 	Big_Clause lits( _max_var );
 	for ( i = 0; i < num_cl; i++ ) {
 		len = rand_gen.Generate_Int( min_len, max_len );
-        lits.Resize( len );
+		lits.Resize( len );
 		while ( true ) {
 			for ( j = 0; j < len; ) {
 				Literal lit( rand_gen.Generate_Int( Literal::start, 2 * _max_var + 1 ) );
 				if ( !lit_seen[lit] && !lit_seen[~lit] ) {
 					lit_seen[lit] = true;
-				    lits[j++] = lit;
+					lits[j++] = lit;
 				}
 			}
 			vector<Clause>::iterator itr = _clauses.begin();
@@ -361,14 +361,14 @@ _clauses( clauses )
 CNF_Formula::CNF_Formula( vector<vector<int>> & extclauses ) :
 _max_var( Variable::start )
 {
-    unsigned i;
+	unsigned i;
 	vector<vector<int>>::iterator itr =  extclauses.begin(), end = extclauses.end();
-    vector<Literal> lits;
+	vector<Literal> lits;
 	for ( ; itr < end; itr++ ) {
-	    lits.resize( itr->size() );
+		lits.resize( itr->size() );
 		for ( i = 0; i < itr->size(); i++ ) {
-		    lits[i] = InternLit( (*itr)[i] );
-            if ( _max_var < lits[i].Var() ) _max_var = lits[i].Var();
+			lits[i] = InternLit( (*itr)[i] );
+			if ( _max_var < lits[i].Var() ) _max_var = lits[i].Var();
 		}
 		_clauses.push_back( Clause( lits ) );
 	}
@@ -408,7 +408,7 @@ void CNF_Formula::Divide_Into_Two_Halves( CNF_Formula * & first, CNF_Formula * &
 
 void CNF_Formula::Sort_Clauses()
 {
-    QSorter sorter;
+	QSorter sorter;
 	vector<Clause>::iterator itr = _clauses.begin(), end = _clauses.end();
 	for ( ; itr < end; itr++ ) {
 		itr->Sort( sorter );
@@ -459,7 +459,7 @@ Greedy_Graph * CNF_Formula::Create_Primal_Graph_Opt()
 		vector<unsigned>::iterator itr = membership_lists[i].begin();
 		vector<unsigned>::iterator end = membership_lists[i].end();
 		for ( ; itr < end; itr++ ) {
-            Clause & clause = _clauses[*itr];
+			Clause & clause = _clauses[*itr];
 			for ( j = 0; clause[j].Var() != i; j++ ) {
 				vertices[size] = clause[j].Var();
 				size += !var_seen[clause[j].Var()];
@@ -472,7 +472,7 @@ Greedy_Graph * CNF_Formula::Create_Primal_Graph_Opt()
 			}
 		}
 		for ( j = 0; j < size; j++ ) {
-            edges[i].push_back( vertices[j] );
+			edges[i].push_back( vertices[j] );
 			var_seen[vertices[j]] = false;
 		}
 	}
@@ -531,7 +531,7 @@ void WCNF_Formula::Read_MC_Competition_Format( istream & fin )
 	bool extra_header = false, extra_clause = false;
 	char line[MAX_LINE];
 	if ( !Get_Line_MC_Competition( fin, line ) ) {
-        cerr << "ERROR[WCNF_Formula]: no header!" << endl;
+		cerr << "ERROR[WCNF_Formula]: no header!" << endl;
 		exit( 1 );
 	}
 	unsigned num;
@@ -549,18 +549,18 @@ void WCNF_Formula::Read_MC_Competition_Format( istream & fin )
 	Literal * lits = new Literal [_max_var + 1];
 	for( unsigned i = 0; i < num_cl; i++ ) {
 		if ( !Get_Line_MC_Competition( fin, line ) ) {
-            cerr << "Warning[WCNF_Formula]: not enough clauses!" << endl;
-            break;
+			cerr << "Warning[WCNF_Formula]: not enough clauses!" << endl;
+			break;
 		}
 		if ( line[0] == 'p' ) {
 			if ( !extra_header ) {
-                cerr << "Warning[WCNF_Formula]: extra header!" << endl;
-                extra_header = true;
+				cerr << "Warning[WCNF_Formula]: extra header!" << endl;
+				extra_header = true;
 			}
 			i--;
 			continue;
 		}
-        char * p = line;
+		char * p = line;
 		unsigned len = Read_Clause( p, lits );
 		_clauses.push_back( Clause( lits, len ) );
 	}
@@ -569,8 +569,8 @@ void WCNF_Formula::Read_MC_Competition_Format( istream & fin )
 		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
 		if ( DIGIT_CHAR( *p ) || *p == '-' ) {
 			if ( !extra_clause ) {
-                cerr << "Warning[WCNF_Formula]: extra clauses beyond stated!" << endl;
-                extra_clause = true;
+				cerr << "Warning[WCNF_Formula]: extra clauses beyond stated!" << endl;
+				extra_clause = true;
 			}
 			unsigned len = Read_Clause( p, lits );
 			_clauses.push_back( Clause( lits, len ) );
@@ -587,27 +587,27 @@ void WCNF_Formula::Read_MC_Competition_Format( istream & fin )
 bool WCNF_Formula::Get_Line_MC_Competition( istream & fin, char line[] )
 {
 	while ( !fin.eof() ) {
-        fin.getline( line, MAX_LINE );
-        if ( line[0] != 'c' ) {
-			char * p = line + 1;
+		fin.getline( line, MAX_LINE );
+		if ( line[0] != 'c' ) {
+			char * p = line;
 			while ( BLANK_CHAR_GENERAL( *p ) ) p++;
 			if ( *p == '\0' ) continue;
 			else return true;
-        }
+		}
 		char * p = line + 1;
 		while ( BLANK_CHAR( *p ) ) p++;
-        if ( Read_String_Change( p, "t" ) ) {
+		if ( Read_String_Change( p, "t" ) ) {
 			if ( !Read_String_Change( p, "wmc" ) ) {
 				cerr << "ERROR[WCNF_Formula]: invalid type!" << endl;
 				exit( 1 );
 			}
-        }
-        else if ( Read_String_Change( p, "p" ) ) {
+		}
+		else if ( Read_String_Change( p, "p" ) ) {
 			if ( !Read_String_Change( p, "weight" ) ) {
 				cerr << "ERROR[WCNF_Formula]: invalid weight!" << endl;
 				exit( 1 );
 			}
-			Read_Literal_Weight( line );
+			Read_Literal_Weight( p );
 		}
 	}
 	return false;
@@ -622,8 +622,8 @@ void WCNF_Formula::Read_Literal_Weight( char * p )
 		exit( 1 );
 	}
 	while ( BLANK_CHAR( *p ) ) p++;
-	float w;
-	if ( sscanf( p, "%f", &w ) != 1 ) {
+	double w;
+	if ( sscanf( p, "%lf", &w ) != 1 ) {
 		cerr << "ERROR[WCNF_Formula]: wrong weight!" << endl;
 		exit( 1 );
 	}
@@ -632,11 +632,17 @@ void WCNF_Formula::Read_Literal_Weight( char * p )
 		exit( 1 );
 	}
 	while ( DIGIT_CHAR( *p ) || *p == '.' || *p == '-' || *p == '+' ) p++;
+	if ( *p == 'e' || *p == 'E' ) {
+		p++;
+		if ( *p == '-' || *p == '+' ) p++;
+		while ( DIGIT_CHAR( *p ) ) p++;
+	}
 	while ( BLANK_CHAR( *p ) ) p++;
 	if ( *p != '0' ) {
 		cerr << "ERROR[WCNF_Formula]: invalid weight-end!" << endl;
 		exit( 1 );
 	}
+	p++;
 	while ( BLANK_CHAR( *p ) ) p++;
 	if ( *p != '\0' ) {
 		cerr << "ERROR[WCNF_Formula]: invalid weight-end!" << endl;
@@ -668,7 +674,7 @@ void WCNF_Formula::Read_MiniC2D_Format( istream & fin )
 	for( unsigned i = 0; i < num_cl; i++ ) {
 		if ( !Get_Line_MiniC2D( fin, line ) ) {
 			cerr << "Warning[WCNF_Formula]: not enough clauses!" << endl;
-            break;
+			break;
 		}
 		if ( line[0] == 'p' ) {
 			if ( !extra_header ) {
@@ -678,7 +684,7 @@ void WCNF_Formula::Read_MiniC2D_Format( istream & fin )
 			i--;
 			continue;
 		}
-        char * p = line;
+		char * p = line;
 		unsigned len = Read_Clause( p, lits );
 		_clauses.push_back( Clause( lits, len ) );
 	}
@@ -687,8 +693,8 @@ void WCNF_Formula::Read_MiniC2D_Format( istream & fin )
 		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
 		if ( DIGIT_CHAR( *p ) || *p == '-' ) {
 			if ( !extra_clause ) {
-                cerr << "Warning[WCNF_Formula]: extra clauses beyond stated!" << endl;
-                extra_clause = true;
+				cerr << "Warning[WCNF_Formula]: extra clauses beyond stated!" << endl;
+				extra_clause = true;
 			}
 			unsigned len = Read_Clause( p, lits );
 			_clauses.push_back( Clause( lits, len ) );
@@ -705,8 +711,8 @@ void WCNF_Formula::Read_MiniC2D_Format( istream & fin )
 bool WCNF_Formula::Get_Line_MiniC2D( istream & fin, char line[] )
 {
 	while ( !fin.eof() ) {
-        fin.getline( line, MAX_LINE );
-        if ( line[0] == 'c' ) {
+		fin.getline( line, MAX_LINE );
+		if ( line[0] == 'c' ) {
 			char * p = line + 1;
 			if ( !Read_String_Change( p, "weights") ) continue;
 			if ( !_weights.empty() ) {
@@ -718,7 +724,7 @@ bool WCNF_Formula::Get_Line_MiniC2D( istream & fin, char line[] )
 				_weights[i + Literal::start] = Read_Float_Change( p );
 			}
 			continue;
-        }
+		}
 		char * p = line;
 		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
 		if ( *p == '\0' ) continue;
@@ -795,10 +801,11 @@ ostream & operator << ( ostream & out, WCNF_Formula & cnf )
 		cerr << "ERROR[CNF_Formula]: Invalid formula!"<< endl;
 		return out;
 	}
-	out << "p wcnf " << cnf.Num_Vars() << ' ' << cnf._clauses.size() << endl;
+	out << "c t wmc" << endl;
+	out << "p cnf " << cnf.Num_Vars() << ' ' << cnf._clauses.size() << endl;
 	for ( Literal l = Literal::start; l <= 2 * cnf.Max_Var() + 1; l++ ) {
 		if ( cnf._weights[l] != 1 ) {
-			out << "w " << ExtLit( l ) << ' ' << cnf._weights[l] << " 0" << endl;
+			out << "c p weight " << ExtLit( l ) << ' ' << cnf._weights[l] << " 0" << endl;
 		}
 	}
 	for ( unsigned i = 0; i < cnf._clauses.size(); i++ ) {

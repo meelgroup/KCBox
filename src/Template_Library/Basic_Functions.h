@@ -1127,6 +1127,8 @@ extern double Read_Double_Change( char * & source );
 
 extern bool String_Fuzzy_Match( char * str1, char * str2 );
 
+extern bool String_Fuzzy_Match_Prefix_Change( char * & str, const char * prefix );
+
 extern inline bool Separate_Suffix( char file_name[], char file_suffix[] )
 {
 	unsigned len = strlen( file_name );

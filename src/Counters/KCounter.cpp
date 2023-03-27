@@ -85,6 +85,7 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, Heuristic heur )
 		return 0;
 	}
 	if ( Non_Unary_Clauses_Empty() ) {
+		Recycle_Models( _models_stack[0] );
 		BigInt count = Backtrack_Init();
 		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_counting_process ) {
@@ -208,7 +209,20 @@ void KCounter::Choose_Running_Options( Heuristic heur )
 void KCounter::Compute_Var_Order_Automatical()
 {
 	const unsigned upper_bound = 128;
-	unsigned treewidth_bound = _unsimplifiable_num_vars / 7;
+	unsigned treewidth_bound;
+	if ( _unsimplifiable_num_vars <= 32 ) treewidth_bound = _unsimplifiable_num_vars / 4;
+	else {
+		treewidth_bound = 32 / 4;
+		if ( _unsimplifiable_num_vars <= 64 ) treewidth_bound += ( _unsimplifiable_num_vars - 32 ) / 5;
+		else {
+			treewidth_bound += ( 64 - 32 ) / 5;
+			if ( _unsimplifiable_num_vars <= 128 ) treewidth_bound += ( _unsimplifiable_num_vars - 64 ) / 6;
+			else {
+				treewidth_bound += ( 128 - 64 ) / 6;
+				treewidth_bound += ( _unsimplifiable_num_vars - 128 ) / 7;
+			}
+		}
+	}
 	if ( treewidth_bound > upper_bound ) treewidth_bound = upper_bound;
 	Compute_Var_Order_Min_Fill_Heuristic_Bound( treewidth_bound );
 	if ( running_options.treewidth <= treewidth_bound ) {
@@ -1230,6 +1244,91 @@ void KCounter::Iterate_Decision_Next()
 	_active_comps[_num_levels - 1]++;
 }
 
+BigInt KCounter::Count_Models( CNF_Formula & cnf, vector<Model *> & models )
+{
+	StopWatch begin_watch, tmp_watch;
+	if ( !running_options.display_counting_process ) {
+		running_options.display_preprocessing_process = false;
+		running_options.display_kernelizing_process = false;
+	}
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Counting models..." << endl;
+	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
+	if ( running_options.profile_counting >= Profiling_Abstract ) begin_watch.Start();
+	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
+	running_options.detect_lit_equivalence = ( running_options.max_kdepth > 0 );
+	_models_stack[0] = models;
+	models.clear();
+	bool cnf_sat = Preprocess_Sharp( cnf, _models_stack[0] );
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Preprocess done." << endl;
+	if ( !cnf_sat ) {
+		_num_levels--;
+		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
+		if ( running_options.display_counting_process ) {
+			cout << running_options.display_prefix << "Done." << endl;
+			if ( running_options.profile_counting >= Profiling_Abstract ) {
+//				Display_Statistics( 0 );
+			}
+		}
+		Reset();
+		return 0;
+	}
+	if ( Non_Unary_Clauses_Empty() ) {
+		Recycle_Models( _models_stack[0] );
+		BigInt count = Backtrack_Init();
+		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
+		if ( running_options.display_counting_process ) {
+			cout << running_options.display_prefix << "Done." << endl;
+			if ( running_options.profile_counting >= Profiling_Abstract ) {
+				Display_Statistics( 0 );
+			}
+		}
+		Reset();
+		return count;
+	}
+	Store_Lit_Equivalences( _call_stack[0] );
+	_fixed_num_vars -= _and_gates.size();
+	Gather_Infor_For_Counting();
+	if ( !running_options.static_heur ) Choose_Running_Options( AutomaticalHeur );
+	else Choose_Running_Options_Static( AutomaticalHeur );
+	if ( running_options.display_counting_process && running_options.profile_counting != Profiling_Close ) running_options.Display( cout );  // ToRemove
+	Set_Current_Level_Kernelized( true );
+	Create_Init_Level();
+	if ( running_options.imp_strategy != SAT_Imp_Computing ) {  // ToModify
+		Recycle_Models( _models_stack[0] );
+		if ( Large_Scale_Problem() ) _model_pool->Free_Unallocated_Models();
+		Count_With_Implicite_BCP();
+	}
+	else {
+		if ( running_options.max_kdepth > 1 ) {
+			if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) _lit_equivalency.Reorder( _var_order );
+			Encode_Long_Clauses();
+		}
+		Count_With_SAT_Imp_Computing();
+	}
+	Set_Current_Level_Kernelized( false );
+	_fixed_num_vars += _and_gates.size();
+	Load_Lit_Equivalences( _call_stack[0] );
+	_call_stack[0].Clear_Lit_Equivalences();
+	BigInt count = Backtrack_Init();
+	if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
+	if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
+	if ( running_options.display_counting_process ) {
+		cout << running_options.display_prefix << "Done." << endl;
+		if ( running_options.profile_counting >= Profiling_Abstract ) {
+			Display_Statistics( 1 );
+			Display_Memory_Status( cout );
+		}
+	}
+	Reset();
+	if ( debug_options.verify_count ) {
+		BigInt verified_count = Count_Verified_Models_d4( cnf );
+		cerr << count << " vs " << verified_count << endl;
+		assert( count == verified_count );
+	}
+	return count;
+}
+
 BigInt KCounter::Count_Models( CNF_Formula & cnf, vector<Model *> & models, double timeout )
 {
 	StopWatch begin_watch, tmp_watch;
@@ -1260,6 +1359,7 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, vector<Model *> & models, doub
 		return 0;
 	}
 	if ( Non_Unary_Clauses_Empty() ) {
+		Recycle_Models( _models_stack[0] );
 		BigInt count = Backtrack_Init();
 		if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_count = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_counting_process ) {

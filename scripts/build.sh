@@ -2,7 +2,7 @@
 
 set -e
 
-rm -rf cmake* CMake* lib* Testing* tests* include tests compile_commands.json KCBox PreLite Panini ExactMC PartialKC
+rm -rf cmake* CMake* lib* Testing* tests* include tests compile_commands.json KCBox PreLite Panini ExactMC ExactUS PartialKC
 toolname=KCBox
 if [ $# != 0 ] ; then
 	toolname=$1

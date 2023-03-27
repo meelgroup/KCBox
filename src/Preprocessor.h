@@ -166,18 +166,20 @@ protected:
 	void Gate_Substitution_Long_Clause( AND_Gate & gate );  // gate[0] <-> gate[1] and gate[2] and ...
 	void Gate_Substitution_Binary_Learnt( AND_Gate & gate );  // gate[0] <-> gate[1] and gate[2] and ...
 	void Add_Only_Old_Binary_Clause( Big_Clause & clause );  // return the true length
-	void Shrink_Max_Var();
-	bool Generate_Models_External( vector<Model *> & models );
-	void Display_Statistics_Sharp( ostream & out );
 protected:
+	void Shrink_Max_Var();
+	void Check_Var_Appearances();
+	bool Generate_Models_External( vector<Model *> & models );
+protected:
+	void Display_Statistics_Sharp( ostream & out );
 	void Verify_AND_Gate( AND_Gate & gate );
 	void Verify_Watched_Lists();
 	void Verify_Long_Lit_Membership_Lists();
 public:
 	bool Preprocess_Sharp( WCNF_Formula & cnf, vector<Model *> & models );  /// NOTE: <models> is used to gather the models generated in the process, and the initial elements MUST be models of cnf and be allocated by model_pool
 protected:
-	bool Preprocess_Sharp( const vector<float> & weights, vector<Model *> & models );
-	bool Replace_AND_Gates( const vector<float> & weights );
+	bool Preprocess_Sharp( const vector<double> & weights, vector<Model *> & models );
+	bool Replace_AND_Gates( const vector<double> & weights );
 public:
 	void Transform_Exterior_Into_Clauses();  // transform literal equivalences and AND-gates into clauses
 	unsigned Lit_Equivalency_Size() const { return _fixed_num_vars - _unary_clauses.size() - _and_gates.size(); }
@@ -192,8 +194,10 @@ public:
 	size_t Memory();  /// not the exact memory (omit some auxiliary memory)
 	unsigned Num_Omitted_Vars();
 protected:
-	void Check_Var_Appearances();
     void Draw_Lit_Equivalency( vector<Literal> & equ_pairs );
+protected:
+	BigFloat Normalize_Weights( const vector<double> & original_weights, double * normalized_weights );
+	void Shrink_Max_Var( double * normalized_weights );
 
 //-------------------------------------------------------------
 public:

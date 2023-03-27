@@ -3256,6 +3256,22 @@ void Preprocessor::Shrink_Max_Var()
 	}
 }
 
+void Preprocessor::Check_Var_Appearances()
+{
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		_var_seen[i] = ( _old_num_binary_clauses[i + i] + _old_num_binary_clauses[i + i + 1] > 0 );
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		Clause & clause = _long_clauses[i];
+		_var_seen[clause[0].Var()] = true;
+		_var_seen[clause[1].Var()] = true;
+		_var_seen[clause[2].Var()] = true;
+		for ( unsigned j = 3; j < clause.Size(); j++ ) {
+			_var_seen[clause[j].Var()] = true;
+		}
+	}
+}
+
 bool Preprocessor::Generate_Models_External( vector<Model *> & models )
 {
 	StopWatch watch;
@@ -3441,7 +3457,7 @@ bool Preprocessor::Preprocess_Sharp( WCNF_Formula & cnf, vector<Model *> & model
 	return sat;
 }
 
-bool Preprocessor::Preprocess_Sharp( const vector<float> & weights, vector<Model *> & models )
+bool Preprocessor::Preprocess_Sharp( const vector<double> & weights, vector<Model *> & models )
 {
 	StopWatch tmp_watch;
 	assert( _num_levels == 0 );
@@ -3507,7 +3523,7 @@ bool Preprocessor::Preprocess_Sharp( const vector<float> & weights, vector<Model
 	return true;
 }
 
-bool Preprocessor::Replace_AND_Gates( const vector<float> & weights )
+bool Preprocessor::Replace_AND_Gates( const vector<double> & weights )
 {
 	if ( !running_options.detect_AND_gates ) return false;
 	StopWatch watch;
@@ -3726,22 +3742,6 @@ void Preprocessor::Output_Same_Count_Ext_Clauses( int & num_vars, vector<vector<
 	}
 }
 
-void Preprocessor::Check_Var_Appearances()
-{
-	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-		_var_seen[i] = ( _old_num_binary_clauses[i + i] + _old_num_binary_clauses[i + i + 1] > 0 );
-	}
-	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
-		Clause & clause = _long_clauses[i];
-		_var_seen[clause[0].Var()] = true;
-		_var_seen[clause[1].Var()] = true;
-		_var_seen[clause[2].Var()] = true;
-		for ( unsigned j = 3; j < clause.Size(); j++ ) {
-			_var_seen[clause[j].Var()] = true;
-		}
-	}
-}
-
 void Preprocessor::Output_Equivalent_Literal_Pairs( vector<int> & elits )
 {
 	for ( Literal lit = Literal::start; lit <= 2 * _max_var + 1; lit.Inc_Var() ) {
@@ -3834,6 +3834,141 @@ void Preprocessor::Draw_Lit_Equivalency( vector<Literal> & equ_pairs )
 			_lit_equivalences[~lit] = ~lit;
 			_fixed_num_vars--;
 		}
+	}
+}
+
+BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weights, double * normalized_weights )
+{
+	for ( Variable i = Variable::start; i <= _max_var;i++ ) {  // eliminate literal equivalences
+		Literal lit( i, false );
+		Literal lit_equ = _lit_equivalences[lit];
+		normalized_weights[lit] = original_weights[lit];
+		normalized_weights[~lit] = original_weights[~lit];
+		if ( lit == lit_equ ) continue;
+		normalized_weights[lit_equ] *= normalized_weights[lit];
+		normalized_weights[~lit_equ] *= normalized_weights[~lit];
+		normalized_weights[lit] = 0.5;
+		normalized_weights[~lit] = 0.5;
+		_lit_equivalences[lit] = lit;
+		_lit_equivalences[~lit] = lit;
+	}
+	BigFloat normalized_factor = 1;
+	for ( unsigned i = 0; i < _and_gates.size(); i++ ) {  // eliminate AND gates
+		AND_Gate & gate = _and_gates[i];
+		Literal output = gate.Output();
+		assert( normalized_weights[output] == normalized_weights[~output] );
+		normalized_factor *= normalized_weights[output];
+		normalized_weights[output] = normalized_weights[~output] = 0.5;
+	}
+	_and_gates.clear();
+	for ( Variable i = Variable::start; i <= _max_var;i++ ) {
+		if ( Var_Decided( i ) ) {  // eliminate implied literals
+			Literal lit( i, _assignment[i] );
+			normalized_factor *= normalized_weights[lit];
+			normalized_weights[lit] = 1;
+			normalized_weights[~lit] = 0;
+			continue;
+		}
+		double sum = normalized_weights[i + i] + normalized_weights[i + i + 1];
+		normalized_factor *= sum;
+		normalized_weights[i + i] /= sum;
+		normalized_weights[i + i + 1] = 1 - normalized_weights[i + i];
+	}
+	if ( running_options.display_preprocessing_process ) {
+		cout << running_options.display_prefix << "norm: " << normalized_factor << endl;
+	}
+	Shrink_Max_Var( normalized_weights );
+	return normalized_factor;
+}
+
+void Preprocessor::Shrink_Max_Var( double * normalized_weights )
+{
+	Check_Var_Appearances();
+	unsigned num_removed = 0;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( !_var_seen[i] ) {
+			assert( _lit_equivalences[i + i] = Literal( i, false ) );
+			assert( _lit_equivalences[i + i + 1] = Literal( i, true ) );
+			num_removed++;
+			_var_map[i] = Variable::undef;
+		}
+		else {
+			_var_seen[i] = false;  // was assigned in Check_Omitted_Vars
+			_var_map[i] = i - num_removed;
+		}
+	}
+	if ( num_removed < 32 ) return;
+	assert( _and_gates.empty() );
+	Un_BCP( 0 );
+	_unary_clauses.clear();
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( _var_map[i] == Variable::undef ) continue;
+		Literal lit = Literal( i, false );
+		for ( unsigned j = 0; j < _binary_clauses[lit].size(); j++ ) {
+			Literal lit2 = _binary_clauses[lit][j];
+			_binary_clauses[lit][j] = Literal( _var_map[lit2.Var()], lit2.Sign() );
+		}
+		Literal lit_map = Literal( _var_map[i], false );
+		_binary_clauses[lit_map] = _binary_clauses[lit];
+		_old_num_binary_clauses[lit_map] = _old_num_binary_clauses[lit];
+		_long_watched_lists[lit_map] = _long_watched_lists[lit];
+		_heur_decaying_sum[lit_map] = _heur_decaying_sum[lit];
+		normalized_weights[lit_map] = normalized_weights[lit];
+		lit = Literal( i, true );
+		for ( unsigned j = 0; j < _binary_clauses[lit].size(); j++ ) {
+			Literal lit2 = _binary_clauses[lit][j];
+			_binary_clauses[lit][j] = Literal( _var_map[lit2.Var()], lit2.Sign() );
+		}
+		lit_map = Literal( _var_map[i], true );
+		_binary_clauses[lit_map] = _binary_clauses[lit];
+		_old_num_binary_clauses[lit_map] = _old_num_binary_clauses[lit];
+		_long_watched_lists[lit_map] = _long_watched_lists[lit];
+		_heur_decaying_sum[lit_map] = _heur_decaying_sum[lit];
+		normalized_weights[lit_map] = normalized_weights[lit];
+	}
+	for ( Variable i = Variable( _max_var - num_removed + 1 ); i <= _max_var; i++ ) {
+		Literal lit = Literal( i, false );
+		_binary_clauses[lit].clear();
+		_old_num_binary_clauses[lit] = 0;
+		_long_watched_lists[lit].clear();
+		lit = Literal( i, true );
+		_binary_clauses[lit].clear();
+		_old_num_binary_clauses[lit] = 0;
+		_long_watched_lists[lit].clear();
+	}
+	for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
+		Literal lit = _long_clauses[i][0];
+		_long_clauses[i][0] = Literal( _var_map[lit.Var()], lit.Sign() );
+		lit = _long_clauses[i][1];
+		_long_clauses[i][1] = Literal( _var_map[lit.Var()], lit.Sign() );
+		lit = _long_clauses[i][2];
+		_long_clauses[i][2] = Literal( _var_map[lit.Var()], lit.Sign() );
+		for ( unsigned j = 3; j < _long_clauses[i].Size(); j++ ) {
+			lit = _long_clauses[i][j];
+			_long_clauses[i][j] = Literal( _var_map[lit.Var()], lit.Sign() );
+		}
+	}
+	_max_var = Variable( _max_var - num_removed );
+	_fixed_num_vars = 0;
+	_model_pool->Shrink_Max_Var( _max_var, _var_map );
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		_heur_sorted_lits[i + i - Literal::start] = Literal( i, false );
+		_heur_sorted_lits[i + i + 1 - Literal::start] = Literal( i, true );
+	}
+	_heur_lit_sentinel = Literal( _max_var.Next(), false );
+	_heur_sorted_lits[2 * _max_var + 2 - Literal::start] = _heur_lit_sentinel;  // NOTE: this line guarantee the correctness of "Branch"
+	_heur_sorted_lits[2 * _max_var + 3 - Literal::start] = ~_heur_lit_sentinel;
+	_heur_decaying_sum[_heur_lit_sentinel] = -1;  /// NOTE: to speed up Branch and Branch_Component by using only one comparison in for-loop
+	_heur_decaying_sum[~_heur_lit_sentinel] = -2;  /// NOTE: return 2 * _max_var + 2 exactly when all variables are assigned
+	switch( running_options.sat_heur_lits ) {
+	case Heuristic_Literal_Unsorted_List:
+		break;
+	case Heuristic_Literal_Sorted_List:
+		Quick_Sort_Weight_Reverse( _heur_sorted_lits, 2 * NumVars( _max_var ), _heur_decaying_sum );
+		break;
+	case Heuristic_Literal_Heap:
+		_heur_lits_heap.Build( _heur_sorted_lits, 2 * NumVars( _max_var ) );
+		break;
 	}
 }
 

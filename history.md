@@ -6,4 +6,8 @@
 
 * 2020-2021: ExactMC was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
 
-* 2019, 2022: PartialKC was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
+* 2018-2019, 2022: PartialKC was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
+
+* 2021-2022: Panini was updated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. Now it can compile CNF formulas into CCDD.
+
+* 2021-2022: ExactUS was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 

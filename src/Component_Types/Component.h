@@ -337,6 +337,8 @@ public:
 		_hash_memory = _pool.Memory();
 	}
 	unsigned Size() const { return _pool.Size(); }
+	unsigned Capacity() const { return _pool.Capacity(); }
+	unsigned Empty() const { return _pool.Empty(); }
 	unsigned Memory() const { return _hash_memory; }
 	unsigned Hit_Component( Component & comp )
 	{

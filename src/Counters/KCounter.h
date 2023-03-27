@@ -82,6 +82,7 @@ protected:
 	void Backtrack_Decision_Imp();
 	void Iterate_Decision_Next();
 public:
+	BigInt Count_Models( CNF_Formula & cnf, vector<Model *> & models );
 	BigInt Count_Models( CNF_Formula & cnf, vector<Model *> & models, double timeout );
 protected:
 	void Count_With_Implicite_BCP( double timeout );

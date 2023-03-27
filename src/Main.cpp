@@ -3,8 +3,11 @@
 #include "Template_Library/Graph_Structures.h"
 #include "Primitive_Types/CNF_Formula.h"
 #include "Compilers/Integrated_Compiler.h"
+#include "Compilers/R2D2_Compiler.h"
+#include "Compilers/CCDD_Compiler.h"
 #include "Compilers/Partial_Compiler.h"
 #include "Counters/KCounter.h"
+#include "Counters/WCounter.h"
 
 using namespace KCBox;
 
@@ -17,19 +20,29 @@ Counter_Parameters counter_parameters( "ExactMC" );
 
 Compiler_Parameters compiler_parameters( "Panini" );
 
+Sampler_Parameters sampler_parameters( "ExactUS" );
+
 Approx_Counter_Parameters approx_counter_parameters( "PartialKC" );
+
+Tool_Parameters * tools[] = {&preprocessor_parameters, \
+	&counter_parameters, \
+	&compiler_parameters, \
+	&sampler_parameters, \
+	&approx_counter_parameters};
+const int num_tools = sizeof(tools) / sizeof(Tool_Parameters *);
+
 
 struct Parameters
 {
 	char current_path[128];
-	char procedure_name[64];
+    char procedure_name[64];
 	const char * cnf_file;
 	const char * tool;
 	BoolOption quiet;
 	Parameters(): quiet( "--quiet", "no display of running information", false )
 	{
-		cnf_file = nullptr;
-		tool = nullptr;
+        cnf_file = nullptr;
+        tool = nullptr;
 	}
 } parameters;
 
@@ -52,10 +65,10 @@ void Print_Usage()
 	cout << "The usage of " << parameters.procedure_name << " tool [parameters] [--quiet] infile:" << endl;
 	cout << "    " << "infile: the cnf file in DIMACS." << endl;
 	cout << "    " << "tool: ";
-	cout << preprocessor_parameters.Tool_Name() << ", "
-		<< compiler_parameters.Tool_Name() << ", "
-		<< counter_parameters.Tool_Name() << ", or "
-		<< approx_counter_parameters.Tool_Name() << "." << endl;
+	for ( unsigned i = 0; i < num_tools - 1; i++ ) {
+		cout << tools[i]->Tool_Name() << ", ";
+	}
+	cout << "or " << tools[num_tools - 1]->Tool_Name() << "." << endl;
 	cout << "    " << "--quiet: not display running information." << endl;
 	cout << "    " << "--help: display options." << endl;
 }
@@ -78,36 +91,18 @@ void Parse_Parameters( int argc, const char *argv[] )
 		Print_Usage();
 		exit( 1 );
 	}
-	int i = 2;
-	if ( strcmp( argv[1], preprocessor_parameters.Tool_Name() ) == 0 ) {
-		parameters.tool = argv[1];
-		if ( !preprocessor_parameters.Parse_Parameters( i, argc, argv ) ) {
-			preprocessor_parameters.Helper( cout );
-			exit( 1 );
+	int i = 2, t = 0;
+	for ( ; t < num_tools; t++ ) {
+		if ( strcmp( argv[1], tools[t]->Tool_Name() ) == 0 ) {
+			parameters.tool = argv[1];
+			if ( !tools[t]->Parse_Parameters( i, argc, argv ) ) {
+				tools[t]->Helper( cout );
+				exit( 1 );
+			}
+			break;
 		}
 	}
-	else if ( strcmp( argv[1], counter_parameters.Tool_Name() ) == 0 ) {
-		parameters.tool = argv[1];
-		if ( !counter_parameters.Parse_Parameters( i, argc, argv ) ) {
-			counter_parameters.Helper( cout );
-			exit( 1 );
-		}
-	}
-	else if ( strcmp( argv[1], compiler_parameters.Tool_Name() ) == 0 ) {
-		parameters.tool = argv[1];
-		if ( !compiler_parameters.Parse_Parameters( i, argc, argv ) ) {
-			compiler_parameters.Helper( cout );
-			exit( 1 );
-		}
-	}
-	else if ( strcmp( argv[1], approx_counter_parameters.Tool_Name() ) == 0 ) {
-		parameters.tool = argv[1];
-		if ( !approx_counter_parameters.Parse_Parameters( i, argc, argv ) ) {
-			approx_counter_parameters.Helper( cout );
-			exit( 1 );
-		}
-	}
-	else {
+	if ( t == num_tools ) {
 		cerr << "ERROR: invalid tool!" << endl;
 		Print_Usage();
 		exit( 1 );
@@ -181,9 +176,7 @@ void Test_Counter()
 	}
 	else {
 		if ( counter_parameters.exact ) {
-			cerr << "ERROR: exact weighted counting not supported yet!" << endl;
-			Print_Usage();
-			exit( 1 );
+			WCounter::Test( parameters.cnf_file, counter_parameters, parameters.quiet );
 		}
 		else {
 			cerr << "ERROR: probabilistic exact counting not supported yet!" << endl;
@@ -196,15 +189,47 @@ void Test_Counter()
 void Test_Compiler()
 {
 	if ( strcmp( compiler_parameters.lang, "ROBDD" ) == 0 ) {
-		Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+        Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
 	}
-	else if ( strcmp( compiler_parameters.lang, "OBDD[AND]" ) == 0 ) {
-		Compiler::Test_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+    else if ( strcmp( compiler_parameters.lang, "OBDD[AND]" ) == 0 ) {
+        Compiler::Test_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+    }
+    else if ( strcmp( compiler_parameters.lang, "R2-D2" ) == 0 ) {
+        R2D2_Compiler::Test_R2D2_Compiler( parameters.cnf_file, compiler_parameters );
+    }
+    else if ( strcmp( compiler_parameters.lang, "CCDD" ) == 0 ) {
+		CCDD_Compiler::Test_CCDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+    }
+    else {
+        cerr << "ERROR: invalid language!" << endl;
+        Print_Usage();
+        exit( 1 );
+ 	}
+}
+
+void Test_Sampler()
+{
+	if ( !sampler_parameters.weighted ) {
+		if ( counter_parameters.exact ) {
+			CCDD_Compiler::Test_Sampler( parameters.cnf_file, sampler_parameters, parameters.quiet );
+		}
+		else {
+			cerr << "ERROR: Approximately uniform not supported yet!" << endl;
+			Print_Usage();
+			exit( 1 );
+		}
 	}
 	else {
-		cerr << "ERROR: invalid language!" << endl;
-		Print_Usage();
-		exit( 1 );
+		if ( counter_parameters.exact ) {
+			cerr << "ERROR: Weighted uniform not supported yet!" << endl;
+			Print_Usage();
+			exit( 1 );
+		}
+		else {
+			cerr << "ERROR: Approximately uniform not supported yet!" << endl;
+			Print_Usage();
+			exit( 1 );
+		}
 	}
 }
 
@@ -214,9 +239,7 @@ void Test_PartialKC()
 		Partial_CCDD_Compiler::Test_Approximate_Counter( parameters.cnf_file, approx_counter_parameters, parameters.quiet );
 	}
 	else {
-		cerr << "ERROR: weighted model counting is not supported yet!" << endl;
-		Print_Usage();
-		exit( 1 );
+		cerr << "ERROR: weighted anytime counting not supported yet!" << endl;
 	}
 }
 
@@ -240,7 +263,10 @@ void Test()
 		Test_Compiler();
 	}
 	else if ( strcmp( parameters.tool, counter_parameters.Tool_Name() ) == 0 ) {
-		Test_Counter();
+		if ( counter_parameters.diffversion == 1 ) Test_Counter();
+	}
+	else if ( strcmp( parameters.tool, sampler_parameters.Tool_Name() ) == 0 ) {
+		Test_Sampler();
 	}
 	else if ( strcmp( parameters.tool, approx_counter_parameters.Tool_Name() ) == 0 ) {
 		Test_PartialKC();
@@ -265,19 +291,14 @@ int main( int argc, const char *argv[] )
 //	argv[11] = "/home/leven/Projects/model-counters/benchmarks/SampleCount-benchmarks/langford/lang16.txt";
 	for ( unsigned i = 0; i < argc; i++ ) cout << argv[i] << endl;*/
 	Parse_Basename( argv );
-	if ( strcmp( parameters.procedure_name, preprocessor_parameters.Tool_Name() ) == 0 ) {
-		Parse_Tool_Parameters( preprocessor_parameters, argc, argv );
+	int t = 0;
+	for ( ; t < num_tools; t++ ) {
+		if ( strcmp( parameters.procedure_name, tools[t]->Tool_Name() ) == 0 ) {
+			Parse_Tool_Parameters( *tools[t], argc, argv );
+			break;
+		}
 	}
-	else if ( strcmp( parameters.procedure_name, compiler_parameters.Tool_Name() ) == 0 ) {
-		Parse_Tool_Parameters( compiler_parameters, argc, argv );
-	}
-	else if ( strcmp( parameters.procedure_name, counter_parameters.Tool_Name() ) == 0 ) {
-		Parse_Tool_Parameters( counter_parameters, argc, argv );
-	}
-	else if ( strcmp( parameters.procedure_name, approx_counter_parameters.Tool_Name() ) == 0 ) {
-		Parse_Tool_Parameters( approx_counter_parameters, argc, argv );
-	}
-	else Parse_Parameters( argc, argv );
+	if ( t == num_tools ) Parse_Parameters( argc, argv );
 	Test();
 	return 0;
 }

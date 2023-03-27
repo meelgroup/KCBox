@@ -143,6 +143,7 @@ protected:  /// manage components
 	CNF_Formula * Output_Original_Clauses_In_Component( Component & comp );
 	CNF_Formula * Output_Original_And_Learnt_Clauses_In_Component( Component & comp );
 	CNF_Formula * Output_Renamed_Clauses_In_Component( Component & comp );
+	WCNF_Formula * Output_Renamed_Clauses_In_Component( Component & comp, double * weights );
 	void Output_Renamed_Clauses_In_Component( Component & comp, vector<Clause> & clauses );
 	void Output_Renamed_Clauses_In_Component( Component & comp, vector<vector<int>> & eclauses );
 public:
@@ -163,6 +164,7 @@ protected:
 	BigInt Count_Verified_Models_d4( CNF_Formula & cnf );
 	BigFloat Count_Verified_Models_ganak( CNF_Formula & cnf, double weights[] );
 	BigFloat Count_Verified_Models_ADDMC( CNF_Formula & cnf, double weights[] );
+	BigFloat Count_Verified_Models_c2d( WCNF_Formula & cnf );
 	void Gather_Learnts_Infor();
 	void Verify_Model_Component( Model * model, Component & comp );
 	void Verify_Models_Component( vector<Model *> models, Component & comp );

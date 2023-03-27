@@ -28,6 +28,7 @@ struct Preprocessor_Parameters: public Tool_Parameters
 struct Counter_Parameters: public Tool_Parameters
 {
 	BoolOption competition;
+	FloatOption diffversion;
 	BoolOption weighted;
 	BoolOption exact;
 	BoolOption static_heur;
@@ -37,6 +38,7 @@ struct Counter_Parameters: public Tool_Parameters
 	IntOption format;
 	Counter_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		competition( "--competition", "working for mc competition", false ),
+		diffversion( "--diffversion", "running with a given version", 1 ),
 		weighted( "--weighted", "weighted model counting", false ),
 		exact( "--exact", "exact or probabilistic exact", true ),
 		static_heur( "--static", "focusing on static heuristic", false ),
@@ -46,6 +48,7 @@ struct Counter_Parameters: public Tool_Parameters
 		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 )
 	{
 		Add_Option( &competition );
+		Add_Option( &diffversion );
 		Add_Option( &weighted );
 		Add_Option( &exact );
 		Add_Option( &static_heur );
@@ -53,10 +56,22 @@ struct Counter_Parameters: public Tool_Parameters
 		Add_Option( &memo );
 		Add_Option( &kdepth );
 		Add_Option( &format );
+		Add_Version( 1 );
+		if ( diffversion != _versions.back() ) {
+			cerr << "Warning: the default version of " << tool_name << " is " << diffversion << " rather than the latest version " << _versions.back() << endl;
+		}
 	}
 	bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
+		if ( diffversion.Exists() && !Search_Exi_Nonempty( _versions, float(diffversion) ) ) {
+			cerr << "Current versions:";
+			for ( float ver: _versions ) {
+				cerr << " " << ver;
+			}
+			cerr << endl;
+			return false;
+		}
 		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
 			strcmp( heur, "LinearLRW") != 0 && strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCS") != 0 && \
 			strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
@@ -83,7 +98,7 @@ struct Compiler_Parameters: public Tool_Parameters
 	IntOption US;
 	IntOption kdepth;
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
-		lang( "--lang", "KC language ROBDD or OBDD[AND]", "OBDD[AND]" ),
+		lang( "--lang", "KC language ROBDD, OBDD[AND], R2-D2, or CCDD", "OBDD[AND]" ),
 		out_file( "--out", "the output file with compilation", nullptr ),
 		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
@@ -116,6 +131,39 @@ struct Compiler_Parameters: public Tool_Parameters
 			strcmp( heur, "FlowCutter") != 0 && strcmp( heur, "LinearLRW") != 0 && \
 			strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
 			return false;
+		}
+		return true;
+	}
+};
+
+struct Sampler_Parameters: public Tool_Parameters
+{
+	BoolOption weighted;
+	BoolOption exact;
+	IntOption nsamples;
+	FloatOption memo;
+	IntOption format;
+	StringOption out_file;
+	Sampler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
+		weighted( "--weighted", "weighted sampling", false ),
+		exact( "--exact", "exactly uniform", true ),
+		nsamples( "--nsamples", "number of samples", 1 ),
+		memo( "--memo", "the available memory in GB", 4 ),
+		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 ),
+		out_file( "--out", "the output file for samples", "samples.txt" )
+	{
+		Add_Option( &weighted );
+		Add_Option( &exact );
+		Add_Option( &nsamples );
+		Add_Option( &memo );
+		Add_Option( &format );
+		Add_Option( &out_file );
+	}
+	bool Parse_Parameters( int & i, int argc, const char *argv[] )
+	{
+		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
+		if ( !weighted ) {
+			if ( format.Exists() ) return false;
 		}
 		return true;
 	}
@@ -166,6 +214,9 @@ struct Approx_Counter_Parameters: public Tool_Parameters
 		}
 		if ( !weighted ) {
 			if ( format.Exists() ) return false;
+		}
+		else {
+			if ( kdepth.Exists() ) return false;
 		}
 		if ( confidence.Exists() ) {
 			if ( !lower ) return false;

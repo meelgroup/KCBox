@@ -2298,6 +2298,32 @@ BigFloat Inprocessor::Count_Verified_Models_ADDMC( CNF_Formula & cnf, double wei
 	return result;
 }
 
+BigFloat Inprocessor::Count_Verified_Models_c2d( WCNF_Formula & cnf )
+{
+	StopWatch begin_watch, tmp_watch;
+	ofstream fout( "solvers/c2d-input.txt" );
+	fout << cnf;
+	fout.close();
+	system( "solvers/c2d -in solvers/c2d-input.txt > solvers/c2d-output.txt" );
+	BigFloat result;
+	ifstream fin( "solvers/c2d-output.txt" );
+	while ( !fin.eof() ) {
+		char line[MAX_LINE];
+		fin.getline( line, MAX_LINE );
+		char * str = line;
+		if ( String_Fuzzy_Match_Prefix_Change( str, "c s exact double prec-sci" ) ) {
+			sscanf( str, result );
+			break;
+		}
+	}
+	if ( fin.eof() ) {
+		cerr << "ERROR[Inprocessor]: c2d did not solve this instance!" << endl;
+		exit( 0 );
+	}
+	fin.close();
+	return result;
+}
+
 void Inprocessor::Display_Heuristic_Values( ostream & out )
 {
 	unsigned i;
@@ -3473,6 +3499,60 @@ CNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp
 	CNF_Formula * cnf = new CNF_Formula( Variable::start + comp.Vars_Size() - 1 );
 	for ( i = 0; i < comp.Vars_Size(); i++ ) {
 		_var_map[comp.Vars(i)] = i + Variable::start;
+	}
+	for ( i = 0; i < comp.Vars_Size() ; i++ ) {
+		Variable var = comp.Vars(i);
+		if ( Var_Decided( var ) ) {
+			cnf->Add_Unary_Clause( Literal( _var_map[var], _assignment[var] ) );
+			continue;
+		}
+		lit = Literal( _var_map[var], false );
+		for ( j = 0; j < _old_num_binary_clauses[var + var]; j++ ) {
+			old_lit = _binary_clauses[var + var][j];
+			if ( var + var > old_lit ) continue;
+			if ( Lit_Decided( old_lit ) ) continue;
+			lit2 = Literal( _var_map[old_lit.Var()], old_lit.Sign() );
+			cnf->Add_Binary_Clause( lit, lit2 );
+		}
+		lit = Literal( _var_map[var], true );
+		for ( j = 0; j < _old_num_binary_clauses[var + var + 1]; j++ ) {
+			old_lit = _binary_clauses[var + var + 1][j];
+			if ( var + var + 1 > old_lit ) continue;
+			if ( Lit_Decided( old_lit ) ) continue;
+			lit2 = Literal( _var_map[old_lit.Var()], old_lit.Sign() );
+			cnf->Add_Binary_Clause( lit, lit2 );
+		}
+	}
+	for ( i = 0; i < comp.ClauseIDs_Size(); i++ ) {
+		_big_clause.Clear();
+		Clause & clause = _long_clauses[comp.ClauseIDs(i)];
+		for ( j = 0; j < clause.Size(); j++ ) {
+			old_lit = clause[j];
+			if ( Lit_SAT( old_lit ) ) break;
+			if ( Lit_UNSAT( old_lit ) ) continue;
+			lit = Literal( _var_map[old_lit.Var()], old_lit.Sign() );
+			_big_clause.Add_Lit( lit );
+		}
+		if ( j == clause.Size() ) {
+			assert( _big_clause.Size() >= 2 );
+			cnf->Add_Clause( _big_clause );
+		}
+	}
+	return cnf;
+}
+
+WCNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp, double * weights )
+{
+	unsigned i, j;
+	Literal lit, lit2, old_lit;
+	WCNF_Formula * cnf = new WCNF_Formula( Variable::start + comp.Vars_Size() - 1 );
+	for ( i = 0; i < comp.Vars_Size(); i++ ) {
+		Variable var = comp.Vars(i);
+		_var_map[var] = i + Variable::start;
+		lit = Literal( _var_map[var], false );
+		cnf->Set_Weight( lit, weights[Literal(var, false)] );
+		lit = Literal( _var_map[var], true );
+		cnf->Set_Weight( lit, weights[Literal(var, true)] );
 	}
 	for ( i = 0; i < comp.Vars_Size() ; i++ ) {
 		Variable var = comp.Vars(i);

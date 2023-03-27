@@ -335,13 +335,14 @@ class WCNF_Formula: public CNF_Formula
 {
 	friend ostream & operator << ( ostream & out, WCNF_Formula & cnf );
 protected:
-	vector<float> _weights;  // _weights[lit] is the weight of lit
+	vector<double> _weights;  // _weights[lit] is the weight of lit
 public:
 	WCNF_Formula( unsigned max_var ): CNF_Formula( max_var ), _weights( 2 * max_var + 2, 1 ) {}
 	WCNF_Formula( istream & fin, unsigned format = 0 );
 	WCNF_Formula( Random_Generator & rand_gen, unsigned num_var, unsigned num_cl, unsigned min_len, unsigned max_len );  /// generate a random formula
-	const vector<float> & Weights() { return _weights; }
-	float Weights( Literal lit ) const { return _weights[lit]; }
+	const vector<double> & Weights() { return _weights; }
+	double Weights( Literal lit ) const { return _weights[lit]; }
+	void Set_Weight( Literal lit, double w ) { _weights[lit] = w; }
 	void Display( ostream & out, unsigned format = 0 );
 protected:
 	void Read_MC_Competition_Format( istream & fin );
