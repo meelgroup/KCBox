@@ -376,7 +376,7 @@ bool Solver::Solve( vector<Model *> & models )
 	if ( lifted_sat == 1 ) {
 		Add_Model( models );  // Un_BCP will change _assignment
 		if ( debug_options.verify_model ) Verify_Model( models.back() );
-		Backjump( 1 );
+		if ( _num_levels > 1 ) Backjump( 1 );
 	}
 	else if ( running_options.profile_solving >= Profiling_Detail ) statistics.num_unsat_solve++;
 	if ( running_options.profile_solving >= Profiling_Abstract ) statistics.time_solve += begin_watch.Get_Elapsed_Seconds();
@@ -521,6 +521,7 @@ void Solver::Un_BCP( unsigned start )
 
 void Solver::Backjump( unsigned num_kept_levels )
 {
+	assert( num_kept_levels < _num_levels );
 	_num_levels = num_kept_levels;
 	for ( ; _num_dec_stack > _dec_offsets[_num_levels]; _num_dec_stack-- ) {
 		Literal lit = _dec_stack[_num_dec_stack - 1];
