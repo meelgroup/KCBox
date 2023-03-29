@@ -20,11 +20,11 @@ Since PreLite was designed for the first kernelization in ExactMC, if you use th
 
 ## Panini Description
 
-Panini is an efficient compiler. So far, it suppots the compilation from CNF formula in DIMACS format to OBDD or OBDD\[$\wedge$\], which are the format of tractable circuits. If you use this tool, please cite our paper [New Canonical Representations by Augmenting OBDDs with Conjunctive Decomposition](https://dblp.org/rec/journals/jair/LaiLY17.html?view=bibtex)
+Panini is an efficient compiler. So far, it suppots the compilation from CNF formula in DIMACS format to OBDD, OBDD\[AND\] (OBDD with conjunctive decomposition), or CCDD (constrained conjunction \& decision diagrams ) which are the format of tractable circuits. If you use this tool to compile formula into OBDD or OBDD\[AND\] , please cite our paper [New Canonical Representations by Augmenting OBDDs with Conjunctive Decomposition](https://dblp.org/rec/journals/jair/LaiLY17.html?view=bibtex). If you use this tool to compile formula into CCDD, please cite our paper [CCDD: A Tractable Representation for Model Counting and Uniform Sampling](https://arxiv.org/abs/2202.10025)
 
 ## ExactMC Description
 
-ExactMC is a scalable exact model counter. It performs counting wrt a KC language called constrained conjunction \& decision diagrams (CCDD) that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. ExactMC also supports weighted model counting by searching wrt Decision-DNNF. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
+ExactMC is a scalable exact model counter. It performs counting wrt CCDD that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. ExactMC also supports weighted model counting by searching wrt Decision-DNNF. If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
 
 ## ExactUS Description
 
@@ -65,7 +65,7 @@ Use "KCBox --help" to see the usage of the toolkit, and "KCBox toolname --help" 
 
 ### Precautions for Source Code
 
-- Directory solvers contains some other tools that are used for debugging. If they does not work on your computer, please build them yourself.
+- Directory solvers contains some other tools that are used for debugging. If they do not work on your computer, please build them yourself.
 
 <!-- ####################################################################### -->
 
