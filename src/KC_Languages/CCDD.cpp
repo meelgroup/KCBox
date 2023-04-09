@@ -108,7 +108,7 @@ _lit_sets( 2 )
 		if ( *p == ':' ) p++;
 		else cerr << "ERROR[CDD]: wrong CDD-file format, the " << u << "th node is invalid!" << endl;
 		while ( BLANK_CHAR( *p ) ) p++;
-		if ( *p == 'D' || *p == 'S' ) {
+		if ( *p == 'D' || *p == 'K' ) {
 			node.sym = ( *p == 'D' ) ? CDD_SYMBOL_DECOMPOSE : CDD_SYMBOL_KERNELIZE;
 			p++;
 			Exactly_Read_Unsigneds( p, arr );
