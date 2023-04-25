@@ -241,6 +241,7 @@ BigInt OBDD_Manager::Count_Models( BDD bdd )
 	for ( itr = _visited_nodes.begin(); itr < end; itr++ ) {
         _nodes[*itr].infor.visited = false;
 	}
+	_visited_nodes.clear();
 	delete [] results;
 	return result;
 }

@@ -437,6 +437,7 @@ void Extensive_Inprocessor::Load_Lit_Equivalences( Stack_Frame & frame )
 		_lit_equivalences[~lit2] = ~lit;
 	}
 	_fixed_num_vars += frame.Lit_Equivalences_Size();
+	frame.Clear_Lit_Equivalences();
 }
 
 void Extensive_Inprocessor::Eliminate_Redundancy_Component( Component & comp )

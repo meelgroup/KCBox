@@ -98,7 +98,7 @@ CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 		for ( Variable x = _max_var.Next(); x <= Variable( _var_order.Max() ); x++ ) {
 			_var_order.Erase( x );
 		}
-		_call_stack[0].Clear_Lit_Equivalences();
+		Load_Lit_Equivalences( _call_stack[0] );
 		R2D2_Manager manager2( _var_order );
 		R2D2_Compiler compiler;
 		result = compiler.Compile_FixedLinearOrder( manager2, *this, _var_order );

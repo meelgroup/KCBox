@@ -1786,6 +1786,7 @@ BigInt OBDDC_Manager::Count_Models( BDDC root )
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.visited = false;
 	}
+	_visited_nodes.clear();
 	BigInt result = results[root];
 	delete [] results;
 	return result;
@@ -1886,6 +1887,7 @@ BigInt OBDDC_Manager::Count_Models_Opt( BDDC root )
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
+	_visited_nodes.clear();
 	delete [] results;
 	return result;
 }

@@ -313,6 +313,7 @@ BigInt CCDD_Manager::Count_Models( CDD root )
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
+	_visited_nodes.clear();
 	delete [] results;
 	return result;
 }
