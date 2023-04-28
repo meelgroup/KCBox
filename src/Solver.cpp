@@ -521,7 +521,7 @@ void Solver::Un_BCP( unsigned start )
 
 void Solver::Backjump( unsigned num_kept_levels )
 {
-	assert( num_kept_levels < _num_levels );
+	assert( num_kept_levels <= _num_levels );
 	_num_levels = num_kept_levels;
 	for ( ; _num_dec_stack > _dec_offsets[_num_levels]; _num_dec_stack-- ) {
 		Literal lit = _dec_stack[_num_dec_stack - 1];

@@ -714,6 +714,7 @@ lbool CCDD_Compiler::Try_Final_Kernelization( CCDD_Manager & manager )
 		Leave_Kernelization( manager );
 		ASSERT( Is_Current_Level_Decision() );
 		Recycle_Models( _models_stack[_num_levels - 1] );
+		_rsl_stack[_num_rsl_stack - 1] = Make_Node_With_Imp( manager, _rsl_stack[_num_rsl_stack - 1] );
 		Backtrack();
 		return lbool::unknown;
 	}
@@ -751,7 +752,11 @@ void CCDD_Compiler::Leave_Final_Kernelization( CCDD_Manager & manager )
 	if ( !_call_stack[_num_levels].Existed() ) return;  // _num_levels-- is done in IBCP
 	Extend_New_Level();
 	_num_comp_stack += 1;
-	_rsl_stack[_num_rsl_stack - 1] = Make_Kernelized_Conjunction_Node( manager, _rsl_stack[_num_rsl_stack - 1] );
+	const CDD_Node & sub_root = manager.Node( _rsl_stack[_num_rsl_stack - 1] );
+	NodeID core;
+	if ( sub_root.sym == CDD_SYMBOL_DECOMPOSE ) core = sub_root.ch[sub_root.ch_size - 1];  /// NOTE: first imp, and then kernelization; need to recover
+	else core = _rsl_stack[_num_rsl_stack - 1];
+	_rsl_stack[_num_rsl_stack - 1] = Make_Kernelized_Conjunction_Node( manager, core );
 	Clear_Cached_Binary_Clauses();
 	Set_Current_Level_Kernelized( false );
 	Cancel_Kernelization_Without_Imp();
@@ -761,6 +766,15 @@ void CCDD_Compiler::Leave_Final_Kernelization( CCDD_Manager & manager )
 		Verify_Result_Component( Current_Component(), manager, _rsl_stack[_num_rsl_stack - 1] );
 	}
 	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );
+	if ( sub_root.sym == CDD_SYMBOL_DECOMPOSE ) {
+		_cdd_rnode.sym = CDD_SYMBOL_DECOMPOSE;
+		_cdd_rnode.ch_size = sub_root.ch_size;
+		for ( unsigned i = 0; i < sub_root.ch_size - 1; i++ ) {
+			_cdd_rnode.ch[i] = sub_root.ch[i];
+		}
+		_cdd_rnode.ch[_cdd_rnode.ch_size - 1] = _rsl_stack[_num_rsl_stack - 1];
+		_rsl_stack[_num_rsl_stack - 1] = manager.Add_Decomposition_Node( _cdd_rnode );
+	}
 	Backtrack();
 }
 
