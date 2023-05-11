@@ -11,7 +11,7 @@ class WCounter: public Inprocessor
 {
 protected:
 	BigFloat _normalized_factor;
-	double * _weights;
+	BigFloat * _weights;  // double might overflow
 	BigFloat * _rsl_stack;  // rsl denotes result
 	unsigned _num_rsl_stack;  // recording the number of temporary results
 	Component_Cache<BigFloat> _component_cache;

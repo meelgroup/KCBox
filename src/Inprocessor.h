@@ -143,7 +143,7 @@ protected:  /// manage components
 	CNF_Formula * Output_Original_Clauses_In_Component( Component & comp );
 	CNF_Formula * Output_Original_And_Learnt_Clauses_In_Component( Component & comp );
 	CNF_Formula * Output_Renamed_Clauses_In_Component( Component & comp );
-	WCNF_Formula * Output_Renamed_Clauses_In_Component( Component & comp, double * weights );
+	WCNF_Formula * Output_Renamed_Clauses_In_Component( Component & comp, BigFloat * weights );
 	void Output_Renamed_Clauses_In_Component( Component & comp, vector<Clause> & clauses );
 	void Output_Renamed_Clauses_In_Component( Component & comp, vector<vector<int>> & eclauses );
 public:

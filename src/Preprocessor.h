@@ -196,8 +196,8 @@ public:
 protected:
     void Draw_Lit_Equivalency( vector<Literal> & equ_pairs );
 protected:
-	BigFloat Normalize_Weights( const vector<double> & original_weights, double * normalized_weights );
-	void Shrink_Max_Var( double * normalized_weights );
+	BigFloat Normalize_Weights( const vector<double> & original_weights, BigFloat * normalized_weights );
+	void Shrink_Max_Var( BigFloat * normalized_weights );
 
 //-------------------------------------------------------------
 public:

@@ -29,7 +29,7 @@ void WCounter::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToDo: 
 	if ( _max_var != Variable::undef ) Free_Auxiliary_Memory();
 	/// NOTE: on the following lines, we cannot use max_var because it is not assigned yet (it will be assigned in Preprocessor::Allocate_and_Init_Auxiliary_Memory)
 	Inprocessor::Allocate_and_Init_Auxiliary_Memory( max_var );
-	_weights = new double [2 * _max_var + 2];
+	_weights = new BigFloat [2 * _max_var + 2];
 	_rsl_stack = new BigFloat [2 * _max_var + 2];
 }
 

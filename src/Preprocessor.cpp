@@ -3837,7 +3837,7 @@ void Preprocessor::Draw_Lit_Equivalency( vector<Literal> & equ_pairs )
 	}
 }
 
-BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weights, double * normalized_weights )
+BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weights, BigFloat * normalized_weights )
 {
 	for ( Variable i = Variable::start; i <= _max_var;i++ ) {  // eliminate literal equivalences
 		Literal lit( i, false );
@@ -3858,7 +3858,8 @@ BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weight
 		Literal output = gate.Output();
 		assert( normalized_weights[output] == normalized_weights[~output] );
 		normalized_factor *= normalized_weights[output];
-		normalized_weights[output] = normalized_weights[~output] = 0.5;
+		normalized_weights[output] = 0.5;
+		normalized_weights[~output] = 0.5;
 	}
 	_and_gates.clear();
 	for ( Variable i = Variable::start; i <= _max_var;i++ ) {
@@ -3869,7 +3870,7 @@ BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weight
 			normalized_weights[~lit] = 0;
 			continue;
 		}
-		double sum = normalized_weights[i + i] + normalized_weights[i + i + 1];
+		BigFloat sum = normalized_weights[i + i] + normalized_weights[i + i + 1];
 		normalized_factor *= sum;
 		normalized_weights[i + i] /= sum;
 		normalized_weights[i + i + 1] = 1 - normalized_weights[i + i];
@@ -3881,7 +3882,7 @@ BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weight
 	return normalized_factor;
 }
 
-void Preprocessor::Shrink_Max_Var( double * normalized_weights )
+void Preprocessor::Shrink_Max_Var( BigFloat * normalized_weights )
 {
 	Check_Var_Appearances();
 	unsigned num_removed = 0;

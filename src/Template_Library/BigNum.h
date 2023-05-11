@@ -67,8 +67,11 @@ class BigFloat
 {
 	friend int sscanf( char str[], BigFloat & f );
 	friend void printf( BigFloat & f );
+	friend double Ratio( const BigFloat & part, const BigFloat & sum );
 	friend double Normalize( const BigFloat & left, const BigFloat & right );
 	friend double Normalize( const BigFloat & left, const BigFloat & right, BigFloat & sum );
+	friend BigFloat operator - ( const double left, const BigFloat & right );
+	friend BigFloat operator * ( const double left, const BigFloat & right );
 	friend ostream & operator << ( ostream & fout, const BigFloat & d );
 public:
     BigFloat() { mpf_init(_xCount); }
@@ -82,10 +85,28 @@ public:
     void operator -= (const BigFloat &other) { mpf_sub(_xCount, _xCount, other._xCount); }
     void operator *= (const BigFloat &other) { mpf_mul(_xCount, _xCount, other._xCount); }
     void operator /= (const BigFloat &other) { mpf_div(_xCount, _xCount, other._xCount); }
+    BigFloat operator + (const BigFloat &other)
+    {
+    	BigFloat result;
+    	mpf_add(result._xCount, _xCount, other._xCount);
+    	return result;
+	}
+    BigFloat operator * (const double &other)
+    {
+    	BigFloat result( other );
+    	mpf_mul(result._xCount, _xCount, result._xCount);
+    	return result;
+	}
     BigFloat operator * (const BigFloat &other)
     {
     	BigFloat result;
     	mpf_mul(result._xCount, _xCount, other._xCount);
+    	return result;
+	}
+    BigFloat operator / (const double &other)
+    {
+    	BigFloat result( other );
+    	mpf_div(result._xCount, _xCount, result._xCount);
     	return result;
 	}
     BigFloat operator / (const BigFloat &other)
@@ -133,6 +154,15 @@ public:
 	{
 		mpf_t tmp1, tmp2;
 		mpf_init_set_d( tmp1, w1 ); mpf_init_set_d( tmp2, w2 );
+		mpf_mul( tmp1, tmp1, f1._xCount );
+		mpf_mul( tmp2, tmp2, f2._xCount );
+		mpf_add( _xCount, tmp1, tmp2 );
+		mpf_clear( tmp1 ); mpf_clear( tmp2 );
+	}
+	void Weighted_Sum( const BigFloat & w1, const BigFloat & f1, const BigFloat & w2, const BigFloat & f2 )
+	{
+		mpf_t tmp1, tmp2;
+		mpf_init_set( tmp1, w1._xCount ); mpf_init_set( tmp2, w2._xCount );
 		mpf_mul( tmp1, tmp1, f1._xCount );
 		mpf_mul( tmp2, tmp2, f2._xCount );
 		mpf_add( _xCount, tmp1, tmp2 );

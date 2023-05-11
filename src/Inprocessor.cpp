@@ -3541,7 +3541,7 @@ CNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp
 	return cnf;
 }
 
-WCNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp, double * weights )
+WCNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & comp, BigFloat * weights )
 {
 	unsigned i, j;
 	Literal lit, lit2, old_lit;
@@ -3550,9 +3550,9 @@ WCNF_Formula * Inprocessor::Output_Renamed_Clauses_In_Component( Component & com
 		Variable var = comp.Vars(i);
 		_var_map[var] = i + Variable::start;
 		lit = Literal( _var_map[var], false );
-		cnf->Set_Weight( lit, weights[Literal(var, false)] );
+		cnf->Set_Weight( lit, weights[Literal(var, false)].TransformDouble() );
 		lit = Literal( _var_map[var], true );
-		cnf->Set_Weight( lit, weights[Literal(var, true)] );
+		cnf->Set_Weight( lit, weights[Literal(var, true)].TransformDouble() );
 	}
 	for ( i = 0; i < comp.Vars_Size() ; i++ ) {
 		Variable var = comp.Vars(i);

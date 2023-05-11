@@ -63,6 +63,16 @@ extern void printf( BigFloat & f )
 	gmp_printf( "%FE", f._xCount );
 }
 
+extern double Ratio( const BigFloat & part, const BigFloat & sum )
+{
+	mpf_t tmp;
+	mpf_init( tmp );
+	mpf_div( tmp, part._xCount, sum._xCount );
+	double result = mpf_get_d( tmp );
+	mpf_clear( tmp );
+	return result;
+}
+
 extern double Normalize( const BigFloat & left, const BigFloat & right )
 {
 	mpf_t tmp;
@@ -82,6 +92,20 @@ extern double Normalize( const BigFloat & left, const BigFloat & right, BigFloat
 	mpf_div( tmp, right._xCount, sum._xCount );
 	double result = mpf_get_d( tmp );
 	mpf_clear( tmp );
+	return result;
+}
+
+BigFloat operator - ( const double left, const BigFloat & right )
+{
+	BigFloat result( left );
+	mpf_sub(result._xCount, result._xCount, right._xCount);
+	return result;
+}
+
+BigFloat operator * ( const double left, const BigFloat & right )
+{
+	BigFloat result( left );
+	mpf_mul(result._xCount, result._xCount, right._xCount);
 	return result;
 }
 
