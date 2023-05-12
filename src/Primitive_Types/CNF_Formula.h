@@ -288,6 +288,7 @@ public:
 	void Add_Clause( Clause & cl ) { _clauses.push_back( cl.Copy() ); }  /// allocate space
 	void Add_Clause( Big_Clause & cl ) { _clauses.push_back( cl ); }  /// allocate space
 	void Input_Clause( Clause & cl ) { _clauses.push_back( cl ); }  /// not allocate space
+	void Remove_Last_Clause() { _clauses.back().Free();  _clauses.pop_back(); }
 	unsigned Num_Vars() const { return _max_var - Variable::start + 1; }
 	Variable Max_Var() const { return _max_var; }
 	BigInt Known_Count() const { return _known_count; }
@@ -311,6 +312,7 @@ protected:
 	void Compute_Heur_Var_Values();
 public:
 	Greedy_Graph * Create_Primal_Graph_Opt();  // use membership_list
+	void Condition( const vector<Literal> & lits );
 public:
 	static void Debug()
 	{

@@ -481,6 +481,37 @@ Greedy_Graph * CNF_Formula::Create_Primal_Graph_Opt()
 	return gp;
 }
 
+void CNF_Formula::Condition( const vector<Literal> & term )
+{
+	vector<bool> lit_seen( _max_var * 2 + 2, false );
+	for ( Literal lit: term ) {
+		if ( lit_seen[~lit] ) {
+			cerr << "ERROR[CNF_Formula]: an inconsistent term with conditioning!" << endl;
+			exit(0);
+		}
+		lit_seen[lit] = true;
+	}
+	unsigned i = 0, j;
+	while ( i < _clauses.size() ) {
+		for ( j = 0; j < _clauses[i].Size(); ) {
+			Literal lit = _clauses[i][j];
+			if ( lit_seen[lit] ) break;
+			else if ( lit_seen[~lit] ) _clauses[i].Erase_Lit( j );
+			else j++;
+		}
+		if ( j < _clauses[i].Size() ) {
+			_clauses[i].Free();
+			_clauses.erase( _clauses.begin() + i );
+		}
+		else if ( _clauses[i].Size() == 0 ) break;
+		else i++;
+	}
+	if ( i < _clauses.size() ) {
+		_max_var = Variable::undef;
+		_known_count = 0;
+	}
+}
+
 ostream & operator << ( ostream & out, CNF_Formula & cnf )
 {
 	if ( cnf._max_var < Variable::start ) {
@@ -653,7 +684,6 @@ void WCNF_Formula::Read_Literal_Weight( char * p )
 		_weights.push_back( 1 );
 	}
 	_weights[lit] = w;
-	_weights[~lit] = 1 - w;
 }
 
 void WCNF_Formula::Read_MiniC2D_Format( istream & fin )
