@@ -119,15 +119,33 @@ public:
 		counter.running_options.detect_AND_gates = false;
 		counter.running_options.static_heur = parameters.static_heur;
 		Heuristic heur = Parse_Heuristic( parameters.heur );
+		if ( quiet ) {
+			counter.running_options.profile_solving = Profiling_Close;
+			counter.running_options.profile_preprocessing = Profiling_Close;
+			counter.running_options.profile_counting = Profiling_Close;
+		}
+		if ( parameters.competition ) counter.running_options.display_prefix = "c o ";
 		ifstream fin( infile );
 		WCNF_Formula cnf( fin, parameters.format );
 		fin.close();
+		BigFloat count;
 		if ( cnf.Max_Var() == Variable::undef ) {
-			cout << counter.running_options.display_prefix << "Weighted model count: " << cnf.Known_Count() << endl;
-			return;
+			if ( count != 0 ) cout << "s SATISFIABLE" << endl;
+			else cout << "s UNSATISFIABLE" << endl;
+			count = cnf.Known_Count();
 		}
-		BigFloat count = counter.Count_Models( cnf, heur );
+		else count = counter.Count_Models( cnf, heur );
 		cout << counter.running_options.display_prefix << "Weighted model count: " << count << endl;
+		if ( parameters.competition ) {  // for model counting competition
+			cout << "c s type wmc" << endl;
+			cout << "c o This file describes that the weighted model count is" << endl;
+			cout << "c o " << count << endl;
+			cout << "c s type wmc" << endl;
+//			long exp;
+//			double num = count.TransformDouble_2exp( exp );
+//			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;
+//			cout << "c s exact arb int " << count << endl;
+		}
 	}
 };
 
