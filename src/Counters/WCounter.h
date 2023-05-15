@@ -2,6 +2,7 @@
 #define _WCounter_h_
 
 #include "../Inprocessor.h"
+#include "../Component_Types/Component_BigFloat.h"
 
 
 namespace KCBox {
@@ -14,7 +15,7 @@ protected:
 	BigFloat * _weights;  // double might overflow
 	BigFloat * _rsl_stack;  // rsl denotes result
 	unsigned _num_rsl_stack;  // recording the number of temporary results
-	Component_Cache<BigFloat> _component_cache;
+	Component_Cache_BigFloat _component_cache;
 	vector<Literal> _equivalent_lit_pairs;
 public:
 	WCounter();

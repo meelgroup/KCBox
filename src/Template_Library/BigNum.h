@@ -168,6 +168,7 @@ public:
 		mpf_add( _xCount, tmp1, tmp2 );
 		mpf_clear( tmp1 ); mpf_clear( tmp2 );
 	}
+	size_t Memory() const { return sizeof(mpf_t) + (_xCount->_mp_prec+1) * sizeof(mp_limb_t); }
 protected:
     mpf_t _xCount;
 };
