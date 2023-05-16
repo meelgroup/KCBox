@@ -442,9 +442,56 @@ BigFloat WCounter::Component_Cache_Map( Component & comp )
 {
 	StopWatch tmp_watch;
 	if ( running_options.profile_counting >= Profiling_Abstract ) tmp_watch.Start();
-	unsigned loc = _component_cache.Hit_Component( comp );
+	comp.caching_loc = _component_cache.Hit_Component( comp );
+	if ( Cache_Clear_Applicable() ) Component_Cache_Clear();
 	if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_gen_cnf_cache += tmp_watch.Get_Elapsed_Seconds();
-	return _component_cache.Read_Result( loc );
+	return _component_cache.Read_Result( comp.caching_loc );
+}
+
+bool WCounter::Cache_Clear_Applicable()
+{
+	const size_t GB = 1024 * 1024 * 1024;
+	double max_mem = running_options.max_memory * GB;
+	if ( false ) {
+		return _component_cache.Memory() > max_mem * 0.5;
+/*		if ( _component_cache.Memory() > max_mem * 0.5 ) return true;
+		double upper_bound = max_mem * 0.8;
+		if ( mem >= upper_bound ) return true;
+		unsigned size = _component_cache.Size();
+		unsigned capacity = size + size * ( upper_bound / mem - 1 ) / 2;
+		_component_cache.Reserve( capacity );  // in case of overflow
+		return false;*/
+	}
+	if ( _component_cache.Memory() <= max_mem * 0.3 ) return false;
+	if ( _component_cache.Memory() > max_mem * 0.7 ) return true;
+	if ( _component_cache.Size() < _component_cache.Capacity() || _component_cache.Hit_Successful() ) return false;
+	size_t mem = Total_Used_Memory();
+	if ( running_options.display_counting_process && running_options.profile_counting != Profiling_Close ) {
+		cout << running_options.display_prefix << (float) _component_cache.Memory() / GB << " (cache) / ";
+		cout << (float) mem / GB << " (total) in GB" << endl;
+	}
+	if ( mem < max_mem * 0.8 ) return false;
+	else return true;
+}
+
+void WCounter::Component_Cache_Clear()
+{
+	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "clear cache" << endl;
+	vector<size_t> kept_locs;
+	for ( unsigned i = 1; i < _num_levels; i++ ) {
+		kept_locs.push_back( _comp_stack[_comp_offsets[i]].caching_loc );
+		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
+			kept_locs.push_back( _comp_stack[j].caching_loc );
+		}
+	}
+	_component_cache.Clear_Shrink_Half( kept_locs );
+	unsigned index = 0;
+	for ( unsigned i = 1; i < _num_levels; i++ ) {
+		_comp_stack[_comp_offsets[i]].caching_loc = kept_locs[index++];
+		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
+			_comp_stack[j].caching_loc = kept_locs[index++];
+		}
+	}
 }
 
 void WCounter::Backtrack()

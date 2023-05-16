@@ -43,6 +43,8 @@ protected:
 	void Backtrack_True();
 	void Backtrack_Known( BigFloat cached_result );
 	BigFloat Component_Cache_Map( Component & comp );
+	bool Cache_Clear_Applicable();
+	void Component_Cache_Clear();
 	void Backtrack();  // backtrack one level without discarding results
 	void Extend_New_Level();
 	void Backtrack_Decision();
@@ -119,6 +121,7 @@ public:
 		counter.debug_options.verify_component_count = false;
 		counter.running_options.detect_AND_gates = false;
 		counter.running_options.static_heur = parameters.static_heur;
+		counter.running_options.max_memory = parameters.memo;
 		Heuristic heur = Parse_Heuristic( parameters.heur );
 		if ( quiet ) {
 			counter.running_options.profile_solving = Profiling_Close;
@@ -139,9 +142,11 @@ public:
 		cout << counter.running_options.display_prefix << "Weighted model count: " << count << endl;
 		if ( parameters.competition ) {  // for model counting competition
 			cout << "c s type wmc" << endl;
-			cout << "c o This file describes that the weighted model count is" << endl;
-			cout << "c o " << count << endl;
-			cout << "c s type wmc" << endl;
+			cout << "c o This file describes that the weighted model count is " << count << endl;
+			cout << "c o " << endl;
+			cout << setprecision (16);
+			cout << "c s log10-estimate " << count.Log10() << endl;
+			cout << "c s exact double float " << count << endl;
 //			long exp;
 //			double num = count.TransformDouble_2exp( exp );
 //			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;

@@ -33,7 +33,7 @@ protected:
 	unsigned _num_long_cl;  // the total number of long clauses
 	Cacheable_Component_Infor _hit_infor;
 	BigFloat _default_caching_value;  // for IBCP, we could leave one component without getting result, thus use this notation
-	Hash_Table<Cacheable_Component_BigFloat> _pool;
+	Large_Hash_Table<Cacheable_Component_BigFloat> _pool;
 	Cacheable_Component_BigFloat _big_cacheable_component;
 	size_t _hash_memory;  // used to record the number of used bytes for storing components
 public:
@@ -98,6 +98,18 @@ public:
 		_pool.Clear( kept_locs );
 		_hash_memory = _pool.Memory();
 	}
+	void Clear_Shrink_Half( vector<size_t> & kept_locs )
+	{
+		vector<bool> seen( _pool.Size(), false );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			seen[kept_locs[i]] = true;
+		}
+		for ( unsigned i = 0; i < _pool.Size(); i++ ) {
+			if ( !seen[i] ) delete [] _pool[i]._bits;
+		}
+		_pool.Clear_Shrink_Half( kept_locs );
+		_hash_memory = _pool.Memory();
+	}
 	unsigned Size() const { return _pool.Size(); }
 	unsigned Capacity() const { return _pool.Capacity(); }
 	unsigned Empty() const { return _pool.Empty(); }
@@ -124,9 +136,20 @@ public:
 	void Read_Component_Vars( unsigned loc, Component & comp ) { comp.caching_loc = loc;  _pool[loc].Read_Rough_Component( comp ); }
 	void Erase( unsigned loc )
 	{
-		_hash_memory -= _pool[loc].Memory() - sizeof(Cacheable_Component_BigFloat);
-		delete [] _pool[loc]._bits;
-		_pool.Erase( loc );
+		if ( loc == _pool.Size() - 1 ) {
+			_hash_memory -= _pool[loc].Memory();
+			delete [] _pool[loc]._bits;
+			_pool.Erase( loc );
+			_hash_memory += sizeof(Cacheable_Component_BigFloat);
+		}
+		else {
+			_hash_memory -= _pool[loc].Memory();
+			_hash_memory -= _pool[_pool.Size() - 1].Memory();
+			delete [] _pool[loc]._bits;
+			_pool.Erase( loc );
+			_hash_memory += _pool[loc].Memory();
+			_hash_memory += sizeof(Cacheable_Component_BigFloat);
+		}
 	}
 	BigFloat Read_Result( unsigned pos ) { return _pool[pos]._result; }
 	void Write_Result( unsigned pos, const BigFloat result ) { _pool[pos]._result = result; }

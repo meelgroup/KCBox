@@ -2,6 +2,7 @@
 #define _BigNum_h_
 
 #include <gmp.h>
+#include <math.h>
 #include <ostream>
 #include <string>
 using namespace std;
@@ -138,6 +139,13 @@ public:
 	    bool result = mpf_cmp(_xCount, tmp) <= 0;
 	    mpf_clear( tmp );
 	    return result;
+	}
+	long double Log10() const
+	{
+		long exponent;
+		long double base  = mpf_get_d_2exp(&exponent, _xCount);
+		long double lg = log10l(base) + exponent * log10l(2);
+		return lg;
 	}
 	void Mean( const BigFloat & left, const BigFloat & right, double ratio )
 	{
