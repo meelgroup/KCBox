@@ -146,7 +146,7 @@ public:
 			cout << "c o " << endl;
 			cout << setprecision (16);
 			cout << "c s log10-estimate " << count.Log10() << endl;
-			cout << "c s exact double float " << count << endl;
+			cout << "c s exact arb float " << count << endl;
 //			long exp;
 //			double num = count.TransformDouble_2exp( exp );
 //			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;

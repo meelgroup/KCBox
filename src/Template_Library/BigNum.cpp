@@ -111,6 +111,10 @@ BigFloat operator * ( const double left, const BigFloat & right )
 
 ostream & operator << ( ostream & out, const BigFloat & f )
 {
+    if ( true ) {  // gmpxx
+		out << f._xCount;
+		return out;
+    }
 	unsigned num_bits = mpf_get_prec( f._xCount );  // mp_bitcnt_t
 	num_bits += 1 + 1 + sizeof( unsigned long long );  // first 1 is sign, second 1 is 'E' and ULLONG_SIZE is exponent
 	char * str = new char [num_bits];
