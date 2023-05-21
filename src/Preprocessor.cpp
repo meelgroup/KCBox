@@ -3506,24 +3506,42 @@ bool Preprocessor::Preprocess_Sharp( const vector<double> & weights, vector<Mode
 		Simplify_Lit_Equivalences_By_Unary();
 	}
 	_fixed_num_vars = _unary_clauses.size();
+	vector<bool> weight_equ( _max_var + 1 );
+	if ( running_options.detect_AND_gates ) {
+		for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+			weight_equ[x] = ( weights[x + x] == weights[x + x + 1] );
+		}
+	}
 	bool flag;
 	for ( unsigned i = 0; i < 2; i++ ) {
 		Eliminate_Redundancy();
 		flag = Replace_Equivalent_Lit();
+		if ( running_options.detect_AND_gates ) {
+			for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+				Variable y = _lit_equivalences[x + x].Var();
+				weight_equ[y] = weight_equ[y] && weight_equ[x];
+			}
+		}
 		if ( !flag ) break;
 	}
-	if ( !flag ) flag = Replace_AND_Gates( weights );
+	if ( !flag ) flag = Replace_AND_Gates( weight_equ );
 	while ( flag ) {
 		Eliminate_Redundancy();
 		flag = Replace_Equivalent_Lit();
-		flag = flag || Replace_AND_Gates( weights );
+		if ( !running_options.detect_AND_gates ) {
+			for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+				Variable y = _lit_equivalences[x + x].Var();
+				weight_equ[y] = weight_equ[y] && weight_equ[x];
+			}
+		}
+		flag = flag || Replace_AND_Gates( weight_equ );
 	}
 	Block_Binary_Clauses();
 	if ( running_options.recover_exterior ) Transform_Exterior_Into_Clauses();
 	return true;
 }
 
-bool Preprocessor::Replace_AND_Gates( const vector<double> & weights )
+bool Preprocessor::Replace_AND_Gates( vector<bool> & weight_equ )
 {
 	if ( !running_options.detect_AND_gates ) return false;
 	StopWatch watch;
@@ -3540,7 +3558,7 @@ bool Preprocessor::Replace_AND_Gates( const vector<double> & weights )
 //	cerr << *cnf << endl;  // ToRemove
 	for ( Variable i = _max_var; i > Variable::start; i-- ) {
 		if ( Var_Decided( i ) || _lit_equivalences[i + i] != i + i ) continue;
-		if ( weights[i+i] != weights[i+i+1] ) continue;
+		if ( !weight_equ[i] ) continue;
 		bool found = false;
 		if ( Detect_Gate( Literal( i, false ) ) ) found = true;
 		else if ( Detect_Gate( Literal( i, true ) ) ) found = true;

@@ -119,7 +119,7 @@ public:
 		counter.debug_options.verify_processed_clauses = false;
 		counter.debug_options.verify_count = false;
 		counter.debug_options.verify_component_count = false;
-		counter.running_options.detect_AND_gates = false;
+		counter.running_options.detect_AND_gates = true;
 		counter.running_options.static_heur = parameters.static_heur;
 		counter.running_options.max_memory = parameters.memo;
 		Heuristic heur = Parse_Heuristic( parameters.heur );
