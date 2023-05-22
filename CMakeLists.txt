@@ -91,7 +91,6 @@ if (ENABLE_ASSERTIONS)
 else()
     # Note this definition doesn't appear in the cache variables.
     add_definitions(-DNDEBUG)
-    add_cxx_flag_if_supported("-fno-stack-protector")
     add_definitions(-D_FORTIFY_SOURCE=0)
 endif()
 
@@ -335,7 +334,7 @@ add_executable(${TOOLNAME}
 )
 
 target_link_libraries(${TOOLNAME}
-    ${GMP_LIB}
     ${GMPXX_LIB}
+    ${GMP_LIB}
     minisat-lib-static
 )

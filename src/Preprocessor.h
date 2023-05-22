@@ -179,7 +179,7 @@ public:
 	bool Preprocess_Sharp( WCNF_Formula & cnf, vector<Model *> & models );  /// NOTE: <models> is used to gather the models generated in the process, and the initial elements MUST be models of cnf and be allocated by model_pool
 protected:
 	bool Preprocess_Sharp( const vector<double> & weights, vector<Model *> & models );
-	bool Replace_AND_Gates( vector<bool> & weight_equ );
+	bool Replace_AND_Gates( const vector<bool> & weight_equ );
 public:
 	void Transform_Exterior_Into_Clauses();  // transform literal equivalences and AND-gates into clauses
 	unsigned Lit_Equivalency_Size() const { return _fixed_num_vars - _unary_clauses.size() - _and_gates.size(); }

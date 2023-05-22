@@ -3541,7 +3541,7 @@ bool Preprocessor::Preprocess_Sharp( const vector<double> & weights, vector<Mode
 	return true;
 }
 
-bool Preprocessor::Replace_AND_Gates( vector<bool> & weight_equ )
+bool Preprocessor::Replace_AND_Gates( const vector<bool> & weight_equ )
 {
 	if ( !running_options.detect_AND_gates ) return false;
 	StopWatch watch;
