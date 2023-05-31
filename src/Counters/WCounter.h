@@ -122,16 +122,14 @@ public:
 		counter.running_options.detect_AND_gates = true;
 		counter.running_options.static_heur = parameters.static_heur;
 		counter.running_options.max_memory = parameters.memo;
+		BigFloat::Set_Default_Prec( BigFloat::Get_Default_Prec() * parameters.mpf_prec );
 		Heuristic heur = Parse_Heuristic( parameters.heur );
 		if ( quiet ) {
 			counter.running_options.profile_solving = Profiling_Close;
 			counter.running_options.profile_preprocessing = Profiling_Close;
 			counter.running_options.profile_counting = Profiling_Close;
 		}
-		if ( parameters.competition ) {
-			counter.running_options.display_prefix = "c o ";
-			BigFloat::Set_Default_Prec( BigFloat::Get_Default_Prec() * 32 );
-		}
+		if ( parameters.competition ) counter.running_options.display_prefix = "c o ";
 		ifstream fin( infile );
 		WCNF_Formula cnf( fin, parameters.format );
 		fin.close();

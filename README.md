@@ -26,9 +26,9 @@ Panini is an efficient compiler. So far, it suppots the compilation from CNF for
 
 ExactMC is a scalable exact model counter. It performs counting wrt CCDD that supports linear model counting. This tool also takes in a CNF formula in DIMACS format, and outputs the number of satisfying assignments. ExactMC also supports weighted model counting by searching wrt Decision-DNNF under the format of [MC competition](https://mccompetition.org/). If you use this tool, please cite our paper [The power of Literal Equivalence in Model Counting](https://meelgroup.github.io/files/publications/AAAI-21-LMY.pdf)
 
-## ExactUS Description
+## FastUS Description
 
-ExactUS is an exactly uniform sampler. The main idea is to first compile the formula into CCDD and then sample wrt the compilation. This tool also takes in a CNF formula in DIMACS format, and outputs a given number of random solutions. If you use this tool, please cite our paper [CCDD: A Tractable Representation for Model Counting and Uniform Sampling](https://arxiv.org/abs/2202.10025)
+FastUS is currently an exactly uniform sampler, and in future we will add the function of non-uniform sampling. The main idea is to first compile the formula into CCDD and then sample wrt the compilation. This tool also takes in a CNF formula in DIMACS format, and outputs a given number of random solutions. If you use this tool, please cite our paper [CCDD: A Tractable Representation for Model Counting and Uniform Sampling](https://arxiv.org/abs/2202.10025)
 
 ## PartialKC Description
 

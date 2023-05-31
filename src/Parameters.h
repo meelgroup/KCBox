@@ -30,7 +30,8 @@ struct Counter_Parameters: public Tool_Parameters
 	BoolOption competition;
 	FloatOption diffversion;
 	BoolOption weighted;
-	BoolOption exact;
+	IntOption mpf_prec;
+	StringOption condition;
 	BoolOption static_heur;
 	StringOption heur;
 	FloatOption memo;
@@ -40,7 +41,8 @@ struct Counter_Parameters: public Tool_Parameters
 		competition( "--competition", "working for mc competition", false ),
 		diffversion( "--diffversion", "running with a given version", 1 ),
 		weighted( "--weighted", "weighted model counting", false ),
-		exact( "--exact", "exact or probabilistic exact", true ),
+		mpf_prec( "--mpf_prec", "the times of the default precision of mpf_t", 1 ),
+		condition( "--condition", "the assignment file for counting models with conditioning", nullptr ),
 		static_heur( "--static", "focusing on static heuristic", false ),
 		heur( "--heur", "heuristic strategy (auto, minfill, LinearLRW, VSADS, DLCS, DLCP, dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
@@ -50,7 +52,8 @@ struct Counter_Parameters: public Tool_Parameters
 		Add_Option( &competition );
 		Add_Option( &diffversion );
 		Add_Option( &weighted );
-		Add_Option( &exact );
+		Add_Option( &mpf_prec );
+		Add_Option( &condition );
 		Add_Option( &static_heur );
 		Add_Option( &heur );
 		Add_Option( &memo );
@@ -65,7 +68,7 @@ struct Counter_Parameters: public Tool_Parameters
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
 		if ( diffversion.Exists() && !Search_Exi_Nonempty( _versions, float(diffversion) ) ) {
-			cerr << "Current versions:";
+			cerr << "ERROR: Current versions:";
 			for ( float ver: _versions ) {
 				cerr << " " << ver;
 			}
@@ -83,10 +86,34 @@ struct Counter_Parameters: public Tool_Parameters
 		}
 		if ( !weighted ) {
 			if ( format.Exists() ) return false;
+			if ( mpf_prec.Exists() ) {
+				if ( mpf_prec <= 0 ) cerr << "ERROR: Invalid precision!" << endl;
+				return false;
+			}
 		}
 		return true;
 	}
 };
+
+enum KC_Language
+{
+	lang_OBDD,
+	lang_OBDDC,
+	lang_DecDNNF,
+	lang_RRCDD,
+	lang_CCDD,
+	lang_invalid
+};
+
+extern inline KC_Language Parse_Language( const char * lang )
+{
+	if ( strcmp( lang, "OBDD" ) == 0 ) return lang_OBDD;
+	else if ( strcmp( lang, "OBDD[AND]" ) == 0 ) return lang_OBDDC;
+	else if ( strcmp( lang, "Decision-DNNF" ) == 0 ) return lang_DecDNNF;
+	else if ( strcmp( lang, "R2-D2" ) == 0 ) return lang_RRCDD;
+	else if ( strcmp( lang, "CCDD" ) == 0 ) return lang_CCDD;
+	else return lang_invalid;
+}
 
 struct Compiler_Parameters: public Tool_Parameters
 {
@@ -96,14 +123,16 @@ struct Compiler_Parameters: public Tool_Parameters
 	FloatOption memo;
 	BoolOption CT;
 	IntOption US;
+	StringOption condition;
 	IntOption kdepth;
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
-		lang( "--lang", "KC language ROBDD, OBDD[AND], R2-D2, or CCDD", "OBDD[AND]" ),
+		lang( "--lang", "KC language OBDD, OBDD[AND], Decision-DNNF, R2-D2, or CCDD", "OBDD[AND]" ),
 		out_file( "--out", "the output file with compilation", nullptr ),
 		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		CT( "--CT", "performing model counting", false ),
 		US( "--US", "performing uniform sampling", 1 ),
+		condition( "--condition", "the assignment file for counting models with conditioning", nullptr ),
 		kdepth( "--kdepth", "maximum kernelization depth (not applicable for BDD and OBDD[AND])", 128 )
 	{
 		Add_Option( &lang );
@@ -112,19 +141,24 @@ struct Compiler_Parameters: public Tool_Parameters
 		Add_Option( &memo );
 		Add_Option( &CT );
 		Add_Option( &US );
+		Add_Option( &condition );
 		Add_Option( &kdepth );
 	}
 	bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
-		if ( strcmp( lang, "ROBDD") == 0 || strcmp( lang, "OBDD[AND]") == 0 ) {
+		KC_Language kclang = Parse_Language( lang );
+		if ( kclang == lang_invalid ) {
+			return false;
+		}
+		if ( kclang == lang_OBDD || kclang == lang_OBDDC || kclang == lang_DecDNNF ) {
 			if ( kdepth.Exists() ) return false;
 		}
-		if ( strcmp( lang, "CCDD") != 0 ) {
+		if ( kclang != lang_CCDD ) {
 			if ( US.Exists() ) return false;
 		}
-		if ( strcmp( lang, "ROBDD") != 0 && strcmp( lang, "OBDD[AND]") != 0 && \
-			strcmp( lang, "R2-D2") != 0 && strcmp( lang, "CCDD") != 0 ) {
+		if ( !CT.Exists() && condition.Exists() ) {
+			cerr << "ERROR: --condition must work with --CT!" << endl;
 			return false;
 		}
 		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
@@ -139,21 +173,21 @@ struct Compiler_Parameters: public Tool_Parameters
 struct Sampler_Parameters: public Tool_Parameters
 {
 	BoolOption weighted;
-	BoolOption exact;
+	BoolOption approx;
 	IntOption nsamples;
 	FloatOption memo;
 	IntOption format;
 	StringOption out_file;
 	Sampler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		weighted( "--weighted", "weighted sampling", false ),
-		exact( "--exact", "exactly uniform", true ),
+		approx( "--approx", "approximately uniform", false ),
 		nsamples( "--nsamples", "number of samples", 1 ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 ),
 		out_file( "--out", "the output file for samples", "samples.txt" )
 	{
 		Add_Option( &weighted );
-		Add_Option( &exact );
+		Add_Option( &approx );
 		Add_Option( &nsamples );
 		Add_Option( &memo );
 		Add_Option( &format );

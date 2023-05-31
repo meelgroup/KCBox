@@ -165,24 +165,10 @@ void Test_Preprocessor()
 void Test_Counter()
 {
 	if ( !counter_parameters.weighted ) {
-		if ( counter_parameters.exact ) {
-			KCounter::Test( parameters.cnf_file, counter_parameters, parameters.quiet );
-		}
-		else {
-			cerr << "ERROR: probabilistic exact counting not supported yet!" << endl;
-			Print_Usage();
-			exit( 1 );
-		}
+		KCounter::Test( parameters.cnf_file, counter_parameters, parameters.quiet );
 	}
 	else {
-		if ( counter_parameters.exact ) {
-			WCounter::Test( parameters.cnf_file, counter_parameters, parameters.quiet );
-		}
-		else {
-			cerr << "ERROR: probabilistic exact counting not supported yet!" << endl;
-			Print_Usage();
-			exit( 1 );
-		}
+		WCounter::Test( parameters.cnf_file, counter_parameters, parameters.quiet );
 	}
 }
 
@@ -210,7 +196,7 @@ void Test_Compiler()
 void Test_Sampler()
 {
 	if ( !sampler_parameters.weighted ) {
-		if ( counter_parameters.exact ) {
+		if ( !sampler_parameters.approx ) {
 			CCDD_Compiler::Test_Sampler( parameters.cnf_file, sampler_parameters, parameters.quiet );
 		}
 		else {
@@ -220,7 +206,7 @@ void Test_Sampler()
 		}
 	}
 	else {
-		if ( counter_parameters.exact ) {
+		if ( !sampler_parameters.approx ) {
 			cerr << "ERROR: Weighted uniform not supported yet!" << endl;
 			Print_Usage();
 			exit( 1 );
