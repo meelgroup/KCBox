@@ -3528,7 +3528,7 @@ bool Preprocessor::Preprocess_Sharp( const vector<double> & weights, vector<Mode
 	while ( flag ) {
 		Eliminate_Redundancy();
 		flag = Replace_Equivalent_Lit();
-		if ( !running_options.detect_AND_gates ) {
+		if ( running_options.detect_AND_gates ) {
 			for ( Variable x = Variable::start; x <= _max_var; x++ ) {
 				Variable y = _lit_equivalences[x + x].Var();
 				weight_equ[y] = weight_equ[y] && weight_equ[x];

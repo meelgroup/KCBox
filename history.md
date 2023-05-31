@@ -11,3 +11,5 @@
 * 2021-2022: Panini was updated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. Now it can compile CNF formulas into CCDD.
 
 * 2021-2022: ExactUS was initiated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. 
+
+* 2023: ExactUS was renamed as FastUS by Yong Lai.
