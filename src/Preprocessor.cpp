@@ -3892,6 +3892,7 @@ BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weight
 		normalized_factor *= sum;
 		normalized_weights[i + i] /= sum;
 		normalized_weights[i + i + 1] = 1 - normalized_weights[i + i];
+		assert( normalized_weights[i + i] != 0 && normalized_weights[i + i] != 1 );
 	}
 	if ( running_options.display_preprocessing_process ) {
 		cout << running_options.display_prefix << "norm: " << normalized_factor << endl;

@@ -128,7 +128,10 @@ public:
 			counter.running_options.profile_preprocessing = Profiling_Close;
 			counter.running_options.profile_counting = Profiling_Close;
 		}
-		if ( parameters.competition ) counter.running_options.display_prefix = "c o ";
+		if ( parameters.competition ) {
+			counter.running_options.display_prefix = "c o ";
+			BigFloat::Set_Default_Prec( BigFloat::Get_Default_Prec() * 32 );
+		}
 		ifstream fin( infile );
 		WCNF_Formula cnf( fin, parameters.format );
 		fin.close();

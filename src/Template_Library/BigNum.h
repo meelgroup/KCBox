@@ -75,6 +75,9 @@ class BigFloat
 	friend BigFloat operator * ( const double left, const BigFloat & right );
 	friend ostream & operator << ( ostream & fout, const BigFloat & d );
 public:
+	static void Set_Default_Prec( unsigned prec ) { mpf_set_default_prec( prec ); }
+	static unsigned Get_Default_Prec() { return mpf_get_default_prec(); }
+public:
     BigFloat() { mpf_init(_xCount); }
     BigFloat( double num ) { mpf_init_set_d(_xCount, num); }
     BigFloat( const BigFloat &other ) { mpf_init_set(_xCount, other._xCount); }
