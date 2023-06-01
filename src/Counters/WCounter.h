@@ -115,6 +115,7 @@ public:
 	}
 	static void Test( const char * infile, Counter_Parameters parameters, bool quiet )
 	{
+		BigFloat::Set_Default_Prec( BigFloat::Get_Default_Prec() * parameters.mpf_prec );
 		WCounter counter;
 		counter.debug_options.verify_processed_clauses = false;
 		counter.debug_options.verify_count = false;
@@ -122,7 +123,6 @@ public:
 		counter.running_options.detect_AND_gates = true;
 		counter.running_options.static_heur = parameters.static_heur;
 		counter.running_options.max_memory = parameters.memo;
-		BigFloat::Set_Default_Prec( BigFloat::Get_Default_Prec() * parameters.mpf_prec );
 		Heuristic heur = Parse_Heuristic( parameters.heur );
 		if ( quiet ) {
 			counter.running_options.profile_solving = Profiling_Close;
