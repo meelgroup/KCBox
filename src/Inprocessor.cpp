@@ -1787,6 +1787,9 @@ Variable Inprocessor::Pick_Good_Var_Component( Component & comp )  // using clau
 	case minfill:
 		return Pick_Good_Var_Linearly_Component( comp );
 		break;
+	case FlowCutter:
+		return Pick_Good_Var_Linearly_Component( comp );
+		break;
 	case LinearLRW:
 		return Pick_Good_Var_Linearly_Component( comp );
 		break;

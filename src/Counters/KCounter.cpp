@@ -166,6 +166,9 @@ void KCounter::Choose_Running_Options( Heuristic heur )
 		Compute_Var_Order_Min_Fill_Heuristic_Opt();
 		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 		break;
+	case FlowCutter:
+		Compute_Var_Order_Flow_Cutter();
+		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "The flow cutter treewidth: " << running_options.treewidth << endl;
 	case LinearLRW:
 		Compute_Var_Order_Single_Cluster();
 		break;
@@ -247,6 +250,9 @@ void KCounter::Choose_Running_Options_Static( Heuristic heur )
 		Compute_Var_Order_Min_Fill_Heuristic_Opt();
 		if ( running_options.display_counting_process ) cout << running_options.display_prefix << "The minfill treewidth: " << running_options.treewidth << endl;
 		break;
+	case FlowCutter:
+		Compute_Var_Order_Flow_Cutter();
+		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "The flow cutter treewidth: " << running_options.treewidth << endl;
 	case LexicographicOrder:
 		Compute_Var_Order_Lexicographic();
 		break;

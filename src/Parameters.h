@@ -44,7 +44,7 @@ struct Counter_Parameters: public Tool_Parameters
 		mpf_prec( "--mpf_prec", "the times of the default precision of mpf_t", 1 ),
 		condition( "--condition", "the assignment file for counting models with conditioning", nullptr ),
 		static_heur( "--static", "focusing on static heuristic", false ),
-		heur( "--heur", "heuristic strategy (auto, minfill, LinearLRW, VSADS, DLCS, DLCP, dynamic_minfill)", "auto" ),
+		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCS, DLCP, dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		kdepth( "--kdepth", "maximum kernelization depth", 128 ),
 		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 )
@@ -75,12 +75,12 @@ struct Counter_Parameters: public Tool_Parameters
 			cerr << endl;
 			return false;
 		}
-		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
+		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && strcmp( heur, "FlowCutter") != 0 && \
 			strcmp( heur, "LinearLRW") != 0 && strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCS") != 0 && \
 			strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
 			return false;
 		}
-		if ( static_heur && strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
+		if ( static_heur && strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && strcmp( heur, "FlowCutter") != 0 && \
 			strcmp( heur, "LinearLRW") != 0 ) {
 			return false;
 		}
