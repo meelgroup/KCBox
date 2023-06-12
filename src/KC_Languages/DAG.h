@@ -36,21 +36,13 @@ struct Node_Infor
 	}
 };
 
-class NodeID
+class NodeID: public Identity
 {
-protected:
-	unsigned _id;
 public:
 	NodeID() {}
-	NodeID( unsigned id ): _id( id ) {}
-	NodeID( const NodeID &n ): _id( n._id ) {}
-	NodeID & operator ++(int) { _id++; return *this; }
+	NodeID( unsigned id ): Identity( id ) {}
+	NodeID( const NodeID &n ): Identity( n._id ) {}
 	NodeID & operator = ( NodeID node ) { _id = node._id; return *this; }
-	bool operator == (const NodeID &other) const { return _id == other._id; }
-	bool operator != (const NodeID &other) const { return _id != other._id; }
-	bool operator == (const unsigned other) const { return _id == other; }
-	bool operator != (const unsigned other) const { return _id != other; }
-	operator unsigned () const { return _id; }
 	const static NodeID bot;
 	const static NodeID top;
 	const static NodeID literal( Variable var, bool sign ) { return NodeID( 2 + 2 * var + sign - Literal::start ); }

@@ -10,6 +10,30 @@ namespace KCBox {
 
 /****************************************************************************************************
 *                                                                                                   *
+*                                    small auxiliary classes                                        *
+*                                                                                                   *
+****************************************************************************************************/
+
+class Identity
+{
+protected:
+	unsigned _id;
+public:
+	Identity() {}
+	Identity( unsigned id ): _id( id ) {}
+	Identity( const Identity &n ): _id( n._id ) {}
+	Identity & operator ++(int) { _id++; return *this; }
+	Identity & operator = ( Identity node ) { _id = node._id; return *this; }
+	bool operator == (const Identity &other) const { return _id == other._id; }
+	bool operator != (const Identity &other) const { return _id != other._id; }
+	bool operator == (const unsigned other) const { return _id == other; }
+	bool operator != (const unsigned other) const { return _id != other; }
+	operator unsigned () const { return _id; }
+};
+
+
+/****************************************************************************************************
+*                                                                                                   *
 *                                         List                                                      *
 *                                                                                                   *
 ****************************************************************************************************/
@@ -1622,6 +1646,13 @@ public:
 	{
 		if ( _sets[s].size == 0 ) return false;
 		return Search_Exi_Nonempty( _sets[s].elems, _sets[s].size, elem );
+	}
+	SetID Remove( SetID s, T elem )
+	{
+		if ( !In( s, elem ) ) return s;
+		SortedSet<T> & set = _sets[s];
+		Set_Dec_Element( set.elems, set.size, elem, _many_elems );
+		return Set( _many_elems, set.size - 1 );
 	}
 	SetID Intersection( SetID s1, SetID s2 )
 	{
