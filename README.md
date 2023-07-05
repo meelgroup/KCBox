@@ -32,7 +32,7 @@ FastUS is currently an exactly uniform sampler, and in future we will add the fu
 
 ## PartialKC Description
 
-PartialKC is an anytime model counter with fast convergence performance. The main idea is to perform partial knowledge compilation wrt a KC language called partial constrained conjunction \& decision diagrams. This tool also takes in a CNF formula in DIMACS format, and outputs an estimate of its true model count. If you use this tool, please cite our paper "Fast Converging Anytime Model Counting"
+PartialKC is an anytime model counter with fast convergence performance. The main idea is to perform partial knowledge compilation wrt a KC language called partial constrained conjunction \& decision diagrams. This tool also takes in a CNF formula in DIMACS format, and outputs an estimate of its true model count. If you use this tool, please cite our paper [Fast Converging Anytime Model Counting](https://ojs.aaai.org/index.php/AAAI/article/view/25517)
 
 <!-- ####################################################################### -->
 
@@ -86,4 +86,5 @@ The following researchers have contributed to this project (sorted alphabeticall
 - Daniil Chivilikhin
 - Arijit Shaw
 - Mate Soos
+- Zhenghang Xu
 - Suwei Yang
