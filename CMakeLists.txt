@@ -86,6 +86,9 @@ if (STATICCOMPILE)
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
+find_library(GMP_LIB gmp REQUIRED)
+find_library(GMPXX_LIB gmpxx REQUIRED)
+
 if (ENABLE_ASSERTIONS)
     # NDEBUG was already removed.
 else()
@@ -207,6 +210,16 @@ if (STATICCOMPILE)
     set(BUILD_SHARED_LIBS OFF)
     SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     SET(CMAKE_EXE_LINKER_FLAGS "-static")
+
+        foreach (language CXX C)
+            set(VAR_TO_MODIFY "CMAKE_SHARED_LIBRARY_LINK_${language}_FLAGS")
+            string(REGEX REPLACE "(^| )-rdynamic($| )"
+                                 " "
+                                 replacement
+                                 "${${VAR_TO_MODIFY}}")
+            #message("Original (${VAR_TO_MODIFY}) is ${${VAR_TO_MODIFY}} replacement is ${replacement}")
+            set(${VAR_TO_MODIFY} "${replacement}" CACHE STRING "Default flags for ${build_config} configuration" FORCE)
+        endforeach()
 endif()
 
 SET(TOOLNAME "KCBox" CACHE STRING "please input PreLite, Panini, ExactMC, or PartialKC if you do not want KCBox")
@@ -265,13 +278,12 @@ if (NOT WIN32)
     #add_cxx_flag_if_supported("-Wdeprecated")
 endif()
 
-find_library(GMP_LIB gmp)
-find_library(GMPXX_LIB gmpxx)
-
 find_package(ZLIB)
 include_directories(${ZLIB_INCLUDE_DIR})
 include_directories(${minisat_SOURCE_DIR})
 include_directories(${PreLite_SOURCE_DIR})
+include_directories(${GMP_INCLUDE_DIRS})
+include_directories(${GMPXX_INCLUDE_DIRS})
 
 #--------------------------------------------------------------------------------------------------
 # Compile flags:
@@ -334,7 +346,7 @@ add_executable(${TOOLNAME}
 )
 
 target_link_libraries(${TOOLNAME}
+    minisat-lib-static
     ${GMPXX_LIB}
     ${GMP_LIB}
-    minisat-lib-static
 )
