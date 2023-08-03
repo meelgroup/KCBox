@@ -67,6 +67,7 @@ protected:
 	unsigned _num_result_stack;
 	Binary_Map<NodeID, NodeID, NodeID> _op_table;
 public:
+	OBDD_Manager( Variable max_var );
 	OBDD_Manager( const Chain & var_order );
 	OBDD_Manager( istream & fin );
 	~OBDD_Manager();

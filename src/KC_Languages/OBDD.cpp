@@ -4,6 +4,16 @@
 namespace KCBox {
 
 
+OBDD_Manager::OBDD_Manager( Variable max_var ): // _var_order is not assigned
+Diagram_Manager( max_var ),
+_nodes( LARGE_HASH_TABLE ),
+_op_table( LARGE_HASH_TABLE * 10 )
+{
+	Generate_Lexicographic_Var_Order( _max_var );
+	Add_Fixed_Nodes();
+	Allocate_and_Init_Auxiliary_Memory();
+}
+
 OBDD_Manager::OBDD_Manager( const Chain & var_order ) :
 Diagram_Manager( Variable( var_order.Max() ) ),
 Linear_Order( var_order ),
