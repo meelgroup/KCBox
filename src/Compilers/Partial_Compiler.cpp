@@ -1720,7 +1720,7 @@ void Partial_CCDD_Compiler::Iterate_Trivial( Partial_CCDD_Manager & manager )
 	if ( running_options.profile_partial_kc >= Profiling_Abstract ) tmp_watch.Start();
 	if ( DEBUG_OFF ) cout << "#vars: " << Current_Component().Vars_Size() << endl;  // ToModify
 	BigInt exact = Count_Models_Simple_Component( Current_Component(), _models_stack[_num_levels - 1] );
-	BigFloat exact_num = exact.TransformDouble();
+	BigFloat exact_num( exact );
 	assert( exact_num.LE_2exp( Current_Component().Vars_Size() ) );  // ToModify
 	if ( running_options.profile_partial_kc >= Profiling_Abstract ) statistics.time_simply_counting += tmp_watch.Get_Elapsed_Seconds();
 	if ( DEBUG_OFF ) cout << "time simply: " << statistics.time_simply_counting << endl;  // ToRemove
@@ -2299,7 +2299,7 @@ bool Partial_CCDD_Compiler::Iterate_Trivial_Possibly( Partial_CCDD_Manager & man
 		Adjust_Trivial_Bound( Current_Component() );
 		return false;
 	}
-	BigFloat exact_num = exact.TransformDouble();
+	BigFloat exact_num( exact );
 	exact_num.Mul_2exp( NumVars(_max_var) - Current_Component().Vars_Size() );
 	_rsl_stack[_num_rsl_stack] = manager.Add_Known_Node( exact_num, Current_Component().caching_loc );
 	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack] );
