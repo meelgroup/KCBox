@@ -519,16 +519,17 @@ void WCounter::Backtrack_Decision()
 {
 	assert( _num_rsl_stack > 1 );
 	assert( _rsl_stack[_num_rsl_stack - 2] != 0 );  // backjump guarantees this
+	bool incomplete = ( _rsl_stack[_num_rsl_stack - 1] == 0 );  /// NOTE: conflict can come from the upper levels
 	Literal decision = _dec_stack[_num_dec_stack];
 //	cerr << _rsl_stack[_num_rsl_stack - 2] << " vs " << _rsl_stack[_num_rsl_stack - 1] << endl;  // ToRemove
 	_num_rsl_stack--;
 	_rsl_stack[_num_rsl_stack] *= _weights[decision];
 	_rsl_stack[_num_rsl_stack - 1] *= _weights[~decision];
 	_rsl_stack[_num_rsl_stack - 1] += _rsl_stack[_num_rsl_stack];
-	if ( debug_options.verify_component_count ) {
+	if ( !incomplete && debug_options.verify_component_count ) {
 		Verify_Result_Component( Current_Component(), _rsl_stack[_num_rsl_stack - 1] );
 	}
-	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );
+	if ( !incomplete ) _component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );
 	for ( unsigned i = _dec_offsets[_num_levels - 1] + 1; i < _num_dec_stack; i++ ) {
 		_rsl_stack[_num_rsl_stack - 1] *= _weights[_dec_stack[i]];
 	}
@@ -571,16 +572,17 @@ void WCounter::Iterate_Decision()
 {
 	assert( _num_rsl_stack > 1 );
 	assert( _rsl_stack[_num_rsl_stack - 2] != 0 );  // backjump guarantees this
+	bool incomplete = ( _rsl_stack[_num_rsl_stack - 1] == 0 );  /// NOTE: conflict can come from the upper levels
 	Literal decision = _dec_stack[_num_dec_stack];
 //	cerr << _rsl_stack[_num_rsl_stack - 2] << " vs " << _rsl_stack[_num_rsl_stack - 1] << endl;  // ToRemove
 	_num_rsl_stack--;
 	_rsl_stack[_num_rsl_stack] *= _weights[decision];
 	_rsl_stack[_num_rsl_stack - 1] *= _weights[~decision];
 	_rsl_stack[_num_rsl_stack - 1] += _rsl_stack[_num_rsl_stack];
-	if ( debug_options.verify_component_count ) {
+	if ( !incomplete && debug_options.verify_component_count ) {
 		Verify_Result_Component( Current_Component(), _rsl_stack[_num_rsl_stack - 1] );
 	}
-	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );
+	if ( !incomplete ) _component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );
 	_active_comps[_num_levels - 1]++;
 }
 

@@ -397,10 +397,10 @@ NodeID RCDD_Compiler::Make_Decision_Node( RCDD_Manager & manager, NodeID low, No
 	Decision_Node bnode( _dec_stack[_num_dec_stack].Var(), low, high );
 	NodeID result = manager.Add_Decision_Node( bnode );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_dag += begin_watch.Get_Elapsed_Seconds();
-	if ( debug_options.verify_component_compilation ) {
+	if ( high != NodeID::bot && debug_options.verify_component_compilation ) {
 		Verify_Result_Component( Current_Component(), manager, result );
 	}
-	_component_cache.Write_Result( Current_Component().caching_loc, result );
+	if ( high != NodeID::bot ) _component_cache.Write_Result( Current_Component().caching_loc, result );
 	const size_t GB = 1024 * 1024 * 1024;
 	if ( _component_cache.Memory() > running_options.max_memory / 4 * GB ) {
 		Component_Cache_Clear();
