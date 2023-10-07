@@ -455,10 +455,12 @@ NodeID CCDD_Compiler::Make_Decision_Node( CCDD_Manager & manager, NodeID low, No
 	if ( high != NodeID::bot ) _component_cache.Write_Result( Current_Component().caching_loc, result );
 	if ( Cache_Clear_Applicable( manager ) ) Component_Cache_Clear();
 	if ( manager.Num_Nodes() >= _node_redundancy_factor * running_options.removing_redundant_nodes_trigger ) {
+		if ( high == NodeID::bot ) _rsl_stack[_num_rsl_stack++] = result;
 		unsigned old_size = manager.Num_Nodes();
 		Remove_Redundant_Nodes( manager );
 		unsigned new_size = manager.Num_Nodes();
-		result = _component_cache.Read_Result( Current_Component().caching_loc );
+		if ( high == NodeID::bot ) result = _rsl_stack[--_num_rsl_stack];
+		else result = _component_cache.Read_Result( Current_Component().caching_loc );
 		if ( old_size - new_size < running_options.removing_redundant_nodes_trigger / 2000 ) _node_redundancy_factor *= 3;
 		else if ( old_size - new_size < running_options.removing_redundant_nodes_trigger / 200 ) _node_redundancy_factor *= 2;
 		else _node_redundancy_factor *= 1.5;

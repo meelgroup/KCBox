@@ -416,10 +416,12 @@ NodeID Compiler::Make_Decision_Node( OBDDC_Manager & manager, NodeID low, NodeID
 		Component_Cache_Clear();
 	}
 	if ( manager.Num_Nodes() >= _remove_redundancy_trigger ) {
+		if ( high == NodeID::bot ) _rsl_stack[_num_rsl_stack++] = result;
 		unsigned old_size = manager.Num_Nodes();
 		Remove_Redundant_Nodes( manager );
 		unsigned new_size = manager.Num_Nodes();
-		result = _component_cache.Read_Result( Current_Component().caching_loc );
+		if ( high == NodeID::bot ) result = _rsl_stack[--_num_rsl_stack];
+		else result = _component_cache.Read_Result( Current_Component().caching_loc );
 		if ( old_size - new_size < 1000 ) _remove_redundancy_trigger += 2 * _remove_redundancy_trigger;
 		else if ( old_size - new_size < 10000 ) _remove_redundancy_trigger += _remove_redundancy_trigger;
 		else _remove_redundancy_trigger += _remove_redundancy_trigger / 2;

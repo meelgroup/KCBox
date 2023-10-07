@@ -406,8 +406,10 @@ NodeID RCDD_Compiler::Make_Decision_Node( RCDD_Manager & manager, NodeID low, No
 		Component_Cache_Clear();
 	}
 	if ( manager.Num_Nodes() >= running_options.removing_redundant_nodes_trigger ) {
+		if ( high == NodeID::bot ) _rsl_stack[_num_rsl_stack++] = result;
 		Remove_Redundant_Nodes( manager );
-		result = _component_cache.Read_Result( Current_Component().caching_loc );
+		if ( high == NodeID::bot ) result = _rsl_stack[--_num_rsl_stack];
+		else result = _component_cache.Read_Result( Current_Component().caching_loc );
 	}
 	return result;
 }
