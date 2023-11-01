@@ -174,7 +174,7 @@ void Test_Counter()
 
 void Test_Compiler()
 {
-	if ( strcmp( compiler_parameters.lang, "ROBDD" ) == 0 ) {
+	if ( strcmp( compiler_parameters.lang, "OBDD" ) == 0 ) {
         Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
 	}
     else if ( strcmp( compiler_parameters.lang, "OBDD[AND]" ) == 0 ) {
