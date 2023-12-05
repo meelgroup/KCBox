@@ -86,9 +86,6 @@ if (STATICCOMPILE)
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
-find_library(GMP_LIB gmp REQUIRED)
-find_library(GMPXX_LIB gmpxx REQUIRED)
-
 if (ENABLE_ASSERTIONS)
     # NDEBUG was already removed.
 else()
@@ -277,6 +274,9 @@ if (NOT WIN32)
     add_cxx_flag_if_supported("-Wno-class-memaccess")
     #add_cxx_flag_if_supported("-Wdeprecated")
 endif()
+
+find_library(GMP_LIB gmp REQUIRED)
+find_library(GMPXX_LIB gmpxx REQUIRED)
 
 find_package(ZLIB)
 include_directories(${ZLIB_INCLUDE_DIR})

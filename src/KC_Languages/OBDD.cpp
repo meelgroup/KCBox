@@ -256,6 +256,67 @@ BigInt OBDD_Manager::Count_Models( BDD bdd )
 	return result;
 }
 
+unsigned OBDD_Manager::Num_Nodes( BDD root )
+{
+	if ( root < 2 ) return 1;
+	else if ( root < _num_fixed_nodes ) return 3;
+	unsigned i;
+	_node_stack[0] = root;
+	unsigned num_node_stack = 1;
+	while ( num_node_stack > 0 ) {
+		BDD top = _node_stack[--num_node_stack];
+		BDD_Node & topn = _nodes[top];
+		if ( Is_Const( top ) ) continue;
+		if ( !_nodes[topn.low].infor.visited ) {
+			_node_stack[num_node_stack++] = topn.low;
+			_nodes[topn.low].infor.visited = true;
+			_visited_nodes.push_back( topn.low );
+		}
+		if ( !_nodes[topn.high].infor.visited ) {
+			_node_stack[num_node_stack++] = topn.high;
+			_nodes[topn.high].infor.visited = true;
+			_visited_nodes.push_back( topn.high );
+		}
+	}
+	unsigned node_size = _visited_nodes.size() + 1;  // 1 denotes the root
+	for ( i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.visited = false;
+	}
+	_visited_nodes.clear();
+	return node_size;
+}
+
+unsigned OBDD_Manager::Num_Edges( BDD root )
+{
+	if ( root < 2 ) return 0;
+	else if ( root < _num_fixed_nodes ) return 2;
+	unsigned i;
+	_node_stack[0] = root;
+	unsigned num_node_stack = 1;
+	unsigned result = 0;
+	while ( num_node_stack > 0 ) {
+		BDD top = _node_stack[--num_node_stack];
+		BDD_Node & topn = _nodes[top];
+		if ( Is_Const( top ) ) continue;
+		result += 2;
+		if ( !_nodes[topn.low].infor.visited ) {
+			_node_stack[num_node_stack++] = topn.low;
+			_nodes[topn.low].infor.visited = true;
+			_visited_nodes.push_back( topn.low );
+		}
+		if ( !_nodes[topn.high].infor.visited ) {
+			_node_stack[num_node_stack++] = topn.high;
+			_nodes[topn.high].infor.visited = true;
+			_visited_nodes.push_back( topn.high );
+		}
+	}
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.visited = false;
+	}
+	_visited_nodes.clear();
+	return result;
+}
+
 bool OBDD_Manager::Entail_Clause( BDD root, Clause & clause )
 {
 	unsigned i;

@@ -98,13 +98,21 @@ public:
 			if ( compiler.running_options.display_compiling_process ) cout << "c o Number of edges: 0" << endl;
 			return;
 		}
-		OBDDC_Manager manager( cnf.Max_Var() );
-		BDDC root = compiler.Compile( manager, cnf, heur );
-		OBDD_Manager bdd_manager( manager.Var_Order() );
-		manager.Convert_Down_ROBDD( root, bdd_manager );
+		OBDDC_Manager bddc_manager( cnf.Max_Var() );
+		BDDC bddc_root = compiler.Compile( bddc_manager, cnf, heur );
+		if ( compiler.running_options.display_compiling_process ) {
+			cout << compiler.running_options.display_prefix << "Converting to OBDD..." << endl;
+		}
+		OBDD_Manager manager( bddc_manager.Var_Order() );
+		BDD root = bddc_manager.Convert_Down_ROBDD( bddc_root, manager );
+		if ( compiler.running_options.display_compiling_process ) {
+			cout << compiler.running_options.display_prefix << "Done." << endl;
+			cout << compiler.running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( root ) << endl;
+			cout << compiler.running_options.display_prefix << "Number of edges: " << manager.Num_Edges( root ) << endl;
+		}
 		if ( parameters.out_file != nullptr ) {
 			ofstream fout( parameters.out_file );
-			bdd_manager.Display( fout );
+			manager.Display( fout );
 			fout.close();
 		}
 	}

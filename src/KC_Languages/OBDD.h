@@ -84,6 +84,8 @@ protected:
 	void Verify_Reduced( BDD bdd );
 public: // querying
 	unsigned Num_Nodes() const { return _nodes.Size(); }
+	unsigned Num_Nodes( BDD root );
+	unsigned Num_Edges( BDD root );
 	const BDD_Node & Node( unsigned i ) { return _nodes[i]; }
 	bool Entail_Clause( BDD root, Clause & clause );
 	bool Entail_CNF( BDD root, CNF_Formula & cnf );
