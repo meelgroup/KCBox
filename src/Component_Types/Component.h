@@ -340,6 +340,11 @@ public:
 	unsigned Capacity() const { return _pool.Capacity(); }
 	unsigned Empty() const { return _pool.Empty(); }
 	unsigned Memory() const { return _hash_memory; }
+	void Shrink_To_Fit()
+	{
+		_pool.Shrink_To_Fit();
+		_hash_memory = _pool.Memory();
+	}
 	unsigned Hit_Component( Component & comp )
 	{
 		Cacheable_Component<T>::_infor = _hit_infor;  /// NOTE: for different Component_Cache, Cacheable_Component::_infor is different, so update Cacheable_Component::_infor before Hit

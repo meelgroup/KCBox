@@ -12,8 +12,6 @@ RCDD_Manager( max_var, estimated_node_num )
 
 void R2D2_Manager::Allocate_and_Init_Auxiliary_Memory()
 {
-	_lit_equivalency_low.Reorder( _var_order );
-	_lit_equivalency_high.Reorder( _var_order );
 	_lit_vector.reserve( NumVars( _max_var ) );
 }
 
@@ -44,18 +42,7 @@ void R2D2_Manager::Free_Auxiliary_Memory()
 {
 }
 
-void R2D2_Manager::Reorder( Chain & new_order )
-{
-	if ( _nodes.Size() > _num_fixed_nodes ) {
-		cerr << "ERROR[RRCDD]: cannot be reordered with non-fixed nodes yet!" << endl;
-	}
-	_var_order = new_order;
-	_lit_equivalency.Reorder( new_order );
-	_lit_equivalency_low.Reorder( new_order );
-	_lit_equivalency_high.Reorder( new_order );
-}
-
-CDD R2D2_Manager::Add_Node( Rough_CDD_Node & rnode )
+NodeID R2D2_Manager::Add_Node( Rough_CDD_Node & rnode )
 {
 	if ( rnode.sym == CDD_SYMBOL_FALSE ) return NodeID::bot;
 	else if ( rnode.sym == CDD_SYMBOL_TRUE ) return NodeID::top;
@@ -68,7 +55,7 @@ CDD R2D2_Manager::Add_Node( Rough_CDD_Node & rnode )
 	else return NodeID::undef;
 }
 
-CDD R2D2_Manager::Add_Decision_Node( Decision_Node & bnode )
+NodeID R2D2_Manager::Add_Decision_Node( Decision_Node & bnode )
 {
 	assert( Variable::start <= bnode.var && bnode.var <= _max_var );
 	assert( bnode.low < _nodes.Size() && bnode.high < _nodes.Size() );
@@ -356,12 +343,12 @@ NodeID R2D2_Manager::Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_eq
 	else return n;
 }
 
-CDD R2D2_Manager::Add_Kernelization_Node( Rough_CDD_Node & rnode )  // use _many_nodes, _many_equ_nodes, _many_equ_nodes, _aux_decom_rnode, _aux_subst_rnode
+NodeID R2D2_Manager::Add_Kernelization_Node( Rough_CDD_Node & rnode )  // use _many_nodes, _many_equ_nodes, _many_equ_nodes, _aux_decom_rnode, _aux_subst_rnode
 {
 	assert( rnode.sym == CDD_SYMBOL_KERNELIZE );
 	if ( rnode.ch_size == 0 ) return NodeID::top;
 	if ( rnode.ch_size == 1 ) return rnode.ch[0];
-	CDD cdd;
+	NodeID cdd;
 	unsigned main_ch_sym = _nodes[rnode.ch[0]].sym;
 	if ( main_ch_sym == CDD_SYMBOL_FALSE ) return CDD_SYMBOL_FALSE;
 	for ( unsigned i = 1; i < rnode.ch_size; i++ ) {
@@ -488,7 +475,7 @@ bool R2D2_Manager::Var_Apppeared( NodeID n, Variable var )
 	_node_stack[0] = n;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack > 0 ) {
-		CDD top = _node_stack[--num_node_stack];
+		NodeID top = _node_stack[--num_node_stack];
 		CDD_Node & topn = _nodes[top];
 		if ( Is_Const( top ) ) continue;
 		if ( topn.sym <= _max_var ) {
@@ -523,7 +510,7 @@ bool R2D2_Manager::Var_Apppeared( NodeID n, Variable var )
 	return appeared;
 }
 
-void R2D2_Manager::Verify_R2D2( CDD root )
+void R2D2_Manager::Verify_R2D2( NodeID root )
 {
 	if ( Is_Fixed( root ) ) return;
 	Hash_Cluster<Variable> var_cluster( NumVars( _max_var ) );
@@ -580,7 +567,7 @@ void R2D2_Manager::Verify_Node( NodeID n, Hash_Cluster<Variable> & var_cluster, 
 	else if ( n <= NodeID::literal( _max_var, true ) ) { assert( Is_Const( node.ch[0] ) && Is_Const( node.ch[1] ) ); }
 	else if ( node.sym <= _max_var ) Verify_Decision_Node( node, var_cluster, sets );
 	else if ( node.sym == CDD_SYMBOL_DECOMPOSE ) Verify_Decomposition_Node( node, var_cluster, sets );
-	else if ( node.sym == CDD_SYMBOL_KERNELIZE ) Verify_Substitution_Node( node, var_cluster, sets );
+	else if ( node.sym == CDD_SYMBOL_KERNELIZE ) Verify_Kernelization_Node( node, var_cluster, sets );
 	else {
 		cerr << "ERROR[CDD]: Node " << n << " has a wrong symbol!" << endl;
 		assert( node.sym == false );

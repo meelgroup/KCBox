@@ -189,12 +189,12 @@ public:
 	Partial_CCDD_Manager( const Partial_CCDD_Manager & other );
 	~Partial_CCDD_Manager();
 	void Clear( Model_Pool * pool );
-	CDD Complete_Lower_Bound( CDD root, CCDD_Manager & manager );
-	CDD Complete_Upper_Bound( CDD root, CCDD_Manager & manager );
-	BigFloat Weight( CDD root );
+	CDDiagram Complete_Lower_Bound( NodeID root, CCDD_Manager & manager );
+	CDDiagram Complete_Upper_Bound( NodeID root, CCDD_Manager & manager );
+	BigFloat Weight( NodeID root );
 	size_t Memory();
 	void Open_Counting_Mode() { assert( _nodes.Size() == _num_fixed_nodes );  _counting_mode = true; }
-	void Remove_Redundant_Nodes( vector<CDD> & kept_nodes );
+	void Remove_Redundant_Nodes( vector<NodeID> & kept_nodes );
 	void Reset_Frequencies();
 	void Display( ostream & out );
 	void Display_Nodes( ostream & out );
@@ -202,13 +202,13 @@ public:
 	void Display_New_Nodes( ostream & out, unsigned & old_size );
 	void Display_Weight( ostream & out, bool sorted = false );
 	void Display_Imbalance_Nodes( ostream & out );
-	void Display_Partial_CCDD( ostream & out, CDD root );
-	void Display_Partial_CCDD_With_Weights( ostream & out, CDD root );
+	void Display_Partial_CCDD( ostream & out, NodeID root );
+	void Display_Partial_CCDD_With_Weights( ostream & out, NodeID root );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Add_Fixed_Nodes();
 	void Free_Auxiliary_Memory();
-	void Verify_Decomposability( CDD root );
+	void Verify_Decomposability( NodeID root );
 	void Verify_Parents();
 	void Realloc_Model_Space( Model_Pool * pool);
 	void Thin_Model_Space( Model_Pool * pool);  // each unknown node reserve one model
@@ -217,23 +217,23 @@ protected:
 	void Verify_Node( NodeID n );
 public: // querying
 	unsigned Num_Nodes() { return _nodes.Size(); }
-	unsigned Num_Nodes( CDD root );
-	unsigned Num_Edges( CDD root );
-	unsigned Num_Nodes( unsigned type, CDD root );
-	unsigned Decision_Depth( CDD root );  // the max number of decision vertices in all paths from root to leaves
+	unsigned Num_Nodes( NodeID root );
+	unsigned Num_Edges( NodeID root );
+	unsigned Num_Nodes( unsigned type, NodeID root );
+	unsigned Decision_Depth( NodeID root );  // the max number of decision vertices in all paths from root to leaves
 	const Partial_CDD_Node & Node( NodeID n ) { return _nodes[n]; }
 	unsigned & Cache_Location( NodeID n ) { return _nodes[n].caching_loc; }
 	double Count_Models();
 	void Count_Models_Ternary( double & lower, double & inter, double & upper );  // return a lower bound, an upper bound, an intermediate estimation
 public: // transformation
-	CDD Add_Known_Node( BigFloat count, unsigned cloc ) { return Push_Node( count, cloc ); }
-	CDD Add_Unknown_Node( vector<Model *> & mods ) { return Push_Node( mods ); }
-	CDD Add_Decision_Node( Partial_Decision_Node & bnode, unsigned cloc );
-	CDD Add_Decision_Node( Rough_Partial_CDD_Node & rnode, unsigned cloc );
-	CDD Add_Decomposition_Node( Rough_Partial_CDD_Node & rnode );
-	CDD Add_Kernelization_Node( Rough_Partial_CDD_Node & rnode, unsigned cloc );
-	CDD Update_Decision_Child( NodeID parent, bool sign, NodeID new_child );  // false: low; true: high
-	CDD Update_Kernelization_Child( NodeID parent, NodeID new_child );
+	NodeID Add_Known_Node( BigFloat count, unsigned cloc ) { return Push_Node( count, cloc ); }
+	NodeID Add_Unknown_Node( vector<Model *> & mods ) { return Push_Node( mods ); }
+	NodeID Add_Decision_Node( Partial_Decision_Node & bnode, unsigned cloc );
+	NodeID Add_Decision_Node( Rough_Partial_CDD_Node & rnode, unsigned cloc );
+	NodeID Add_Decomposition_Node( Rough_Partial_CDD_Node & rnode );
+	NodeID Add_Kernelization_Node( Rough_Partial_CDD_Node & rnode, unsigned cloc );
+	NodeID Update_Decision_Child( NodeID parent, bool sign, NodeID new_child );  // false: low; true: high
+	NodeID Update_Kernelization_Child( NodeID parent, NodeID new_child );
 	void Swap_Unknown_Models( NodeID n, vector<Model *> & models ) { _nodes[n].models.swap( models ); }
 	bool Sample( Random_Generator & rand_gen, NodeID n );
 	bool Sample_Adaptive( Random_Generator & rand_gen, NodeID n, double prob );

@@ -1,70 +1,45 @@
 #ifndef _RCDD_h_
 #define _RCDD_h_
 
-#include "CDD.h"
+#include "CCDD.h"
 #include "../Primitive_Types/Lit_Equivalency.h"
 
 
 namespace KCBox {
 
 
-class RCDD_Manager: public CDD_Manager, public Linear_Order
+class RCDD_Manager: public CCDD_Manager
 {
     friend class RCDD_Compiler;
-protected:  // auxiliary memory
-	Lit_Equivalency _lit_equivalency;
-	Variable * _many_vars;
-	Literal * _many_lits;
-	NodeID * _many_nodes;  // stored temporary children
-	NodeID * _many_lit_nodes;  // stored temporary children
-	NodeID * _many_equ_nodes;  // stored temporary equ children
-	bool * _equ_node_seen;  // whether a equ node in an array appears
-	NodeID ** _node_sets;
-	unsigned * _node_set_sizes;
-	SetID * _many_sets;
-	Rough_CDD_Node _aux_rnode;
-	Rough_CDD_Node _aux_rnode2;
-	Rough_CDD_Node _aux_decom_rnode;
-	Rough_CDD_Node _aux_kerne_rnode;
-	Rough_CDD_Node _condition_rnode;
-protected:  // used for condition
-	Hash_Cluster<Literal> _lit_sets;
-	Literal * _decision_stack;
-	unsigned _num_decisions;
-	unsigned * _decision_levels;
-	unsigned _num_levels;
-	unsigned * _cache_stack;
 public:
 	RCDD_Manager( Variable max_var, unsigned estimated_node_num = LARGE_HASH_TABLE );
 	RCDD_Manager( Chain & order, unsigned estimated_node_num = LARGE_HASH_TABLE );
 	RCDD_Manager( istream & fin );
 	RCDD_Manager( RCDD_Manager & other );
 	~RCDD_Manager();
-	void Reorder( Chain & new_order );
 	void Rename( unsigned map[] );
 	void Abandon_Rename( unsigned map[] );
-	void Enlarge_Max_Var( Chain & new_chain );
 	void Display( ostream & out );
 	void Display_Stat( ostream & out );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Free_Auxiliary_Memory();
 public: // querying
-	bool Entail_Clause( CDD root, Clause & cl );
-	bool Entail_CNF( CDD root, CNF_Formula & cnf );
-	BigInt Count_Models( CDD root );
-	BigInt Count_Models_Opt( CDD root );
+	bool Entail_Clause( const CDDiagram & rcdd, Clause & cl );
+	bool Entail_CNF( const CDDiagram & rcdd, CNF_Formula & cnf );
+	BigInt Count_Models( const CDDiagram & rcdd );
 protected:
 	void Assign( Literal lit ) { if ( Lit_Undecided( lit ) ) { _assignment[lit.Var()] = lit.Sign(); _decision_stack[_num_decisions++] = lit; } }
 	SetID Pick_Less_Equ_Decisions( unsigned n, SetID pre_lits );  // select decisions whose variables less than the current decision node
 	bool Propagate_New_Equ_Decisions( unsigned n );
 	void Cancel_Current_Equ_Decisions();
+	BigInt Count_Models( NodeID root ) { return CCDD_Manager::Count_Models( root ); }
 public: // transformation
-	CDD Add_Node( Rough_CDD_Node & rnode );
-	CDD Add_Decision_Node( Decision_Node & bnode );
-	CDD Add_Decomposition_Node( Rough_CDD_Node & rnode );
-	CDD Add_Kernelization_Node( Rough_CDD_Node & rnode );
-	CDD Add_Equivalence_Node( int elit, int elit2 );  // literal in DAMICS
+	NodeID Add_Node( Rough_CDD_Node & rnode );
+	NodeID Add_Decision_Node( Decision_Node & bnode );
+	NodeID Add_Decomposition_Node( Rough_CDD_Node & rnode );
+	NodeID Add_Kernelization_Node( Rough_CDD_Node & rnode );
+	NodeID Add_Equivalence_Node( int elit, int elit2 );  // literal in DAMICS
 	unsigned Add_Equivalence_Nodes( const vector<Literal> & lit_equivalences, NodeID * nodes );
 	unsigned Add_Equivalence_Nodes( Literal * lit_pairs, unsigned num_pairs, NodeID * nodes );
 protected:
@@ -95,26 +70,25 @@ protected:
 	NodeID Replace_Child_Internal_Different_Change( unsigned parent, unsigned child, unsigned new_child ); // change infor.min_var and infor.num_var
 	NodeID Replace_Child_Rough( Rough_BDDC_Node & parent, unsigned child, unsigned new_child );
 public: // transformation
-	CDD Convert_Up( OBDD_Manager & bdd_manager, BDD bdd );
-	CDD Convert_Up( OBDDC_Manager & bddc_manager, BDDC bddc );
-	BDD Convert_Down( CDD cdd, OBDD_Manager & bdd_manager );
-	BDDC Convert_Down( CDD cdd, OBDDC_Manager & bddc_manager );
+	CDDiagram Convert_Up( OBDD_Manager & bdd_manager, const Diagram & bdd );
+	CDDiagram Convert_Up( OBDDC_Manager & bddc_manager, const Diagram & bddc );
+	Diagram Convert_Down( const CDDiagram & rcdd, OBDD_Manager & bdd_manager );
+	Diagram Convert_Down( const CDDiagram & rcdd, OBDDC_Manager & bddc_manager );
 protected:
-    void Condition_Min_Substitution( NodeID root, Decision_Node & bnode );
-    unsigned Finest_Last( Rough_CDD_Node & rnode );
+	unsigned Finest_Last( Rough_CDD_Node & rnode );
 public: // transforming
-	CDD Condition( CDD root, vector<int> elits );
+	CDDiagram Condition( const CDDiagram & rcdd, vector<int> elits );
 protected:
-	void Verify_RCDD( CDD root );
+	void Verify_RCDD( NodeID root );
 	void Verify_Node( NodeID n, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Decision_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Decomposition_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
-	void Verify_Substitution_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	void Verify_Kernelization_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Equivalence_Node( CDD_Node & node );
-	void Verify_Entail_CNF( CDD root, CNF_Formula & cnf );
-	void Verify_UNSAT_Under_Assignment( CDD root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	void Verify_Entail_CNF( NodeID root, CNF_Formula & cnf );
+	void Verify_UNSAT_Under_Assignment( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 protected:
-	void Compute_Var_Sets( CDD root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	void Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Compute_Vars( NodeID n, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	SetID Pick_Effective_Equ_Decisions( unsigned n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 protected:  // basic functions

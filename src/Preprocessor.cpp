@@ -3855,6 +3855,22 @@ void Preprocessor::Draw_Lit_Equivalency( vector<Literal> & equ_pairs )
 	}
 }
 
+BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weights, vector<double> & normalized_weights )
+{
+	BigFloat normalized_factor = 1;
+	for ( Variable i = Variable::start; i <= _max_var;i++ ) {
+		double sum = original_weights[i + i] + original_weights[i + i + 1];
+		normalized_factor *= sum;
+		normalized_weights[i + i] = original_weights[i + i] / sum;
+		normalized_weights[i + i + 1] = 1 - normalized_weights[i + i];
+		assert( normalized_weights[i + i] != 0 && normalized_weights[i + i] != 1 );
+	}
+	if ( running_options.display_preprocessing_process ) {
+		cout << running_options.display_prefix << "norm: " << normalized_factor << endl;
+	}
+	return normalized_factor;
+}
+
 BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weights, BigFloat * normalized_weights )
 {
 	for ( Variable i = Variable::start; i <= _max_var;i++ ) {  // eliminate literal equivalences

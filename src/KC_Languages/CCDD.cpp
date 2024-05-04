@@ -4,6 +4,13 @@
 namespace KCBox {
 
 
+ostream & operator << ( ostream & out, const BigCount & c )
+{
+	out << c._base << " * 2 ^ " << c._exp;
+	return out;
+}
+
+
 CCDD_Manager::CCDD_Manager( Variable max_var, unsigned estimated_node_num ):
 CDD_Manager( max_var, estimated_node_num ),
 _lit_sets( _max_var + 1 )
@@ -39,6 +46,8 @@ void CCDD_Manager::Allocate_and_Init_Auxiliary_Memory()
 	}
 	_aux_decom_rnode.sym = CDD_SYMBOL_DECOMPOSE;
 	_aux_kerne_rnode.sym = CDD_SYMBOL_KERNELIZE;
+	_num_decisions = 0;
+	_num_levels = 0;
 }
 
 CCDD_Manager::CCDD_Manager( Chain & vorder, unsigned estimated_node_num ):
@@ -197,7 +206,7 @@ void CCDD_Manager::Enlarge_Max_Var( Chain & new_order )
 	Allocate_and_Init_Auxiliary_Memory();
 }
 
-void CCDD_Manager::Load_Nodes( RCDD_Manager & other )
+void CCDD_Manager::Load_Nodes( CCDD_Manager & other )
 {
 	assert( _max_var == other.Max_Var() );
 	assert( _nodes.Size() == _num_fixed_nodes );
@@ -205,7 +214,317 @@ void CCDD_Manager::Load_Nodes( RCDD_Manager & other )
 	Swap_Nodes( other );
 }
 
-BigInt CCDD_Manager::Count_Models( CDD root )
+bool CCDD_Manager::Entail_Clause( const CDDiagram & ccdd, Clause &cl )
+{
+	assert( Contain( ccdd ) );
+	if ( ccdd.Root() == NodeID::bot ) return true;
+	Add_Search_Level();
+	unsigned i;
+	Label_Value( cl.Last_Lit() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_SAT( cl[i] ); i++ ) {
+		_assignment[cl[i].Var()] = cl[i].NSign();
+	}
+	Un_Label_Value( cl.Last_Lit() );
+	bool result;
+	if ( Lit_SAT( cl[i] ) ) result = true;
+	else {
+		_assignment[cl[i].Var()] = cl[i].NSign();
+		result = Decide_SAT_Under_Assignment( ccdd.Root() );
+	}
+	Cancel_Search_Level();
+	return result;
+}
+
+bool CCDD_Manager::Decide_SAT_Under_Assignment( NodeID root )
+{
+	if ( root <= 128 * 1024 ) return Decide_SAT_Under_Assignment_Small( root );
+//	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	Large_Binary_Map<NodeID, SetID, bool> op_table;
+	Binary_Map_Node<NodeID, SetID, bool> op_node;
+	SetID * sets = new SetID [_max_var];
+	bool * rsl_stack = new bool [_max_var];
+	unsigned num_rsl_stack = 0;
+	unsigned old_num_levels = _num_levels;
+	_path[old_num_levels] = root;
+	_path_mark[old_num_levels] = unsigned (-1);
+	sets[old_num_levels] = SETID_EMPTY;
+	Add_Search_Level();
+	while ( _num_levels > old_num_levels ) {
+		NodeID top = _path[_num_levels - 1];
+		if ( Is_Const( top ) ) {
+			rsl_stack[num_rsl_stack++] = ( top == NodeID::top );
+			Cancel_Search_Level();
+			continue;
+		}
+		CDD_Node & topn = _nodes[_path[_num_levels - 1]];
+//		cerr << top << ": ";
+//		topn.Display( cerr );
+		SetID lits = sets[_num_levels - 1];
+		if ( _path_mark[_num_levels - 1] == unsigned (-1) ) {
+			op_node.left = top;
+			op_node.right = lits;
+			_cache_stack[_num_levels - 1] = op_table.Hit( op_node );
+			if ( op_table.Hit_Successful() ) {
+				rsl_stack[num_rsl_stack++] = op_table[_cache_stack[_num_levels - 1]].result;
+				Cancel_Search_Level();
+				continue;
+			}
+			_path_mark[_num_levels - 1]++;
+		}
+		if ( topn.sym <= _max_var ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				if ( Var_Decided( topn.Var() ) ) {
+					_path_mark[_num_levels - 1] = 2;
+					_path[_num_levels] = topn.ch[_assignment[topn.sym]];
+					sets[_num_levels] = _lit_sets.Remove( lits, Literal( topn.Var(), _assignment[topn.Var()] ) );
+				}
+				else {
+					_path_mark[_num_levels - 1]++;
+					_path[_num_levels] = topn.ch[0];
+					sets[_num_levels] = lits;
+				}
+				_path_mark[_num_levels] = unsigned (-1);
+				Add_Search_Level();
+			}
+			else if ( _path_mark[_num_levels - 1] == 1 ) {
+				if ( rsl_stack[num_rsl_stack - 1] ) {
+					op_table[_cache_stack[_num_levels - 1]].result = true;
+					Cancel_Search_Level();
+					continue;
+				}
+				num_rsl_stack--;
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[1];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+				Cancel_Search_Level();
+			}
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				unsigned i, loc = Search_First_Non_Literal_Position( top );
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					rsl_stack[num_rsl_stack++] = false;
+					op_table[_cache_stack[_num_levels - 1]].result = false;
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1] = loc;
+			}
+			unsigned pos = _path_mark[_num_levels - 1];
+			if ( pos < topn.ch_size ) {
+				if ( pos > 0 && !Is_Fixed( topn.ch[pos - 1] ) ) {
+					if ( !rsl_stack[num_rsl_stack - 1] ) {
+						op_table[_cache_stack[_num_levels - 1]].result = false;
+						Cancel_Search_Level();
+						continue;
+					}
+					num_rsl_stack--;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[pos];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+				Cancel_Search_Level();
+ 			}
+		}
+		else {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				assert( _decision_levels[_num_levels - 1] == _num_decisions );  // a substituted node does not has a substituted child
+				SetID new_lits = Propagate_New_Equ_Decisions( top, _lit_sets, lits );
+				if ( new_lits == SETID_UNDEF ) {
+					rsl_stack[num_rsl_stack++] = false;
+					op_table[_cache_stack[_num_levels - 1]].result = false;
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[0];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = new_lits;
+				Add_Search_Level();
+			}
+			else {
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+				Cancel_Search_Level();
+			}
+		}
+	}
+	assert( num_rsl_stack == 1 );
+	_lit_sets.Clear();
+	bool result = rsl_stack[0];
+	delete [] sets;
+	delete [] rsl_stack;
+	return result;
+}
+
+bool CCDD_Manager::Decide_SAT_Under_Assignment_Small( NodeID root )
+{
+	if ( Is_Const( root ) ) return root == NodeID::top;
+//	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	Binary_Map<NodeID, SetID, bool> op_table;
+	Binary_Map_Node<NodeID, SetID, bool> op_node;
+	SetID * sets = new SetID [_max_var];
+	bool * rsl_stack = new bool [_max_var];
+	unsigned num_rsl_stack = 0;
+	unsigned old_num_levels = _num_levels;
+	_path[old_num_levels] = root;
+	_path_mark[old_num_levels] = unsigned (-1);
+	sets[old_num_levels] = SETID_EMPTY;
+	Add_Search_Level();
+	while ( _num_levels > old_num_levels ) {
+		NodeID top = _path[_num_levels - 1];
+		if ( Is_Const( top ) ) {
+			rsl_stack[num_rsl_stack++] = ( top == NodeID::top );
+			Cancel_Search_Level();
+			continue;
+		}
+		CDD_Node & topn = _nodes[_path[_num_levels - 1]];
+//		cerr << top << ": ";
+//		topn.Display( cerr );
+		SetID lits = sets[_num_levels - 1];
+		if ( _path_mark[_num_levels - 1] == unsigned (-1) ) {
+			op_node.left = top;
+			op_node.right = lits;
+			_cache_stack[_num_levels - 1] = op_table.Hit( op_node );
+			if ( op_table.Hit_Successful() ) {
+				rsl_stack[num_rsl_stack++] = op_table[_cache_stack[_num_levels - 1]].result;
+				Cancel_Search_Level();
+				continue;
+			}
+			_path_mark[_num_levels - 1]++;
+		}
+		if ( topn.sym <= _max_var ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				if ( Var_Decided( topn.Var() ) ) {
+					_path_mark[_num_levels - 1] = 2;
+					_path[_num_levels] = topn.ch[_assignment[topn.sym]];
+					sets[_num_levels] = _lit_sets.Remove( lits, Literal( topn.Var(), _assignment[topn.Var()] ) );
+				}
+				else {
+					_path_mark[_num_levels - 1]++;
+					_path[_num_levels] = topn.ch[0];
+					sets[_num_levels] = lits;
+				}
+				_path_mark[_num_levels] = unsigned (-1);
+				Add_Search_Level();
+			}
+			else if ( _path_mark[_num_levels - 1] == 1 ) {
+				if ( rsl_stack[num_rsl_stack - 1] ) {
+					op_table[_cache_stack[_num_levels - 1]].result = true;
+					Cancel_Search_Level();
+					continue;
+				}
+				num_rsl_stack--;
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[1];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+				Cancel_Search_Level();
+			}
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				unsigned i, loc = Search_First_Non_Literal_Position( top );
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					rsl_stack[num_rsl_stack++] = false;
+					op_table[_cache_stack[_num_levels - 1]].result = false;
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1] = loc;
+			}
+			unsigned pos = _path_mark[_num_levels - 1];
+			if ( pos < topn.ch_size ) {
+				if ( pos > 0 && !Is_Fixed( topn.ch[pos - 1] ) ) {
+					if ( !rsl_stack[num_rsl_stack - 1] ) {
+						op_table[_cache_stack[_num_levels - 1]].result = false;
+						Cancel_Search_Level();
+						continue;
+					}
+					num_rsl_stack--;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[pos];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+				Cancel_Search_Level();
+ 			}
+		}
+		else {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				assert( _decision_levels[_num_levels - 1] == _num_decisions );  // a substituted node does not has a substituted child
+				SetID new_lits = Propagate_New_Equ_Decisions( top, _lit_sets, lits );
+				if ( new_lits == SETID_UNDEF ) {
+					rsl_stack[num_rsl_stack++] = false;
+					op_table[_cache_stack[_num_levels - 1]].result = false;
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[0];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = new_lits;
+				Add_Search_Level();
+			}
+			else {
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+				Cancel_Search_Level();
+			}
+		}
+	}
+	assert( num_rsl_stack == 1 );
+	_lit_sets.Clear();
+	bool result = rsl_stack[0];
+	delete [] sets;
+	delete [] rsl_stack;
+	return result;
+}
+
+bool CCDD_Manager::Decide_SAT( const CDDiagram & ccdd, const vector<Literal> & assignment )
+{
+	assert( Contain( ccdd ) );
+	if ( ccdd.Root() == NodeID::bot ) return false;
+	Add_Search_Level();
+	unsigned i;
+	Label_Value( ~assignment.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( assignment[i] ); i++ ) {
+		Assign( assignment[i] );
+	}
+	Un_Label_Value( assignment.back() );
+	bool result;
+	if ( Lit_UNSAT( assignment[i] ) ) result = 0;
+	else {
+		Assign( assignment[i] );
+		result = Decide_SAT_Under_Assignment( ccdd.Root() );
+	}
+	Cancel_Search_Level();
+	return result;
+}
+
+BigInt CCDD_Manager::Count_Models( NodeID root )
 {
 	unsigned num_vars = NumVars( _max_var );
 	BigInt result;
@@ -223,7 +542,7 @@ BigInt CCDD_Manager::Count_Models( CDD root )
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.mark = _max_var;
 	while ( num_node_stack ) {
-	    CDD top = _node_stack[num_node_stack - 1];
+	    NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 //	    cerr << top << ": ";
 //	    topn.Display( cerr );
@@ -318,9 +637,432 @@ BigInt CCDD_Manager::Count_Models( CDD root )
 	return result;
 }
 
-void CCDD_Manager::Mark_Models( CDD root, vector<BigFloat> & results )
+BigInt CCDD_Manager::Count_Models( const CDDiagram & ccdd, const vector<Literal> & assignment )
 {
-	_node_stack[0] = root;
+	assert( Contain( ccdd ) );
+	if ( ccdd.Root() == NodeID::bot ) return 0;
+	Add_Search_Level();
+	unsigned i;
+	Label_Value( ~assignment.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( assignment[i] ); i++ ) {
+		Assign( assignment[i] );
+	}
+	Un_Label_Value( assignment.back() );
+	BigInt result;
+	if ( Lit_UNSAT( assignment[i] ) ) result = 0;
+	else {
+		Assign( assignment[i] );
+		result = Count_Models_Under_Assignment( ccdd.Root() );
+		result.Div_2exp( _num_decisions );
+	}
+	Cancel_Search_Level();
+	return result;
+}
+
+void CCDD_Manager::Add_Search_Level()
+{
+	_decision_levels[_num_levels] = _num_decisions;
+	_num_levels++;
+}
+
+void CCDD_Manager::Cancel_Search_Level()
+{
+	_num_levels--;
+	while ( _num_decisions > _decision_levels[_num_levels] ) {
+		Literal lit = _decision_stack[--_num_decisions];
+		_assignment[lit.Var()] = lbool::unknown;
+	}
+}
+
+BigInt CCDD_Manager::Count_Models_Under_Assignment( NodeID root )
+{
+	if ( root <= 32 * 1024 ) return Count_Models_Under_Assignment_Small( root );
+	unsigned num_vars = NumVars( _max_var );
+//	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	Large_Binary_Map<NodeID, SetID, BigCount> op_table;
+	Binary_Map_Node<NodeID, SetID, BigCount> op_node;
+	SetID * sets = new SetID [num_vars + 1];
+	BigCount * rsl_stack = new BigCount [num_vars + 1];
+	unsigned num_rsl_stack = 0;
+	unsigned old_num_levels = _num_levels;
+	_path[old_num_levels] = root;
+	_path_mark[old_num_levels] = unsigned (-1);
+	sets[old_num_levels] = SETID_EMPTY;
+	Add_Search_Level();
+	while ( _num_levels > old_num_levels ) {
+		NodeID top = _path[_num_levels - 1];
+		if ( Is_Const( top ) ) {
+			if ( top == NodeID::bot ) rsl_stack[num_rsl_stack] = BigCount( 0, num_vars );
+			else rsl_stack[num_rsl_stack].Assign_2exp( num_vars );
+			num_rsl_stack++;
+			Cancel_Search_Level();
+			continue;
+		}
+		CDD_Node & topn = _nodes[_path[_num_levels - 1]];
+//		cerr << top << ": ";
+//		topn.Display( cerr );
+		SetID lits = sets[_num_levels - 1];
+		if ( _path_mark[_num_levels - 1] == unsigned (-1) ) {
+			op_node.left = top;
+			op_node.right = lits;
+			_cache_stack[_num_levels - 1] = op_table.Hit( op_node );
+			if ( op_table.Hit_Successful() ) {
+				rsl_stack[num_rsl_stack++] = op_table[_cache_stack[_num_levels - 1]].result;
+				Cancel_Search_Level();
+				continue;
+			}
+			_path_mark[_num_levels - 1]++;
+		}
+		if ( topn.sym <= _max_var ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				if ( Var_Decided( topn.Var() ) ) {
+					_path_mark[_num_levels - 1] = 2;
+					_path[_num_levels] = topn.ch[_assignment[topn.sym]];
+					sets[_num_levels] = _lit_sets.Remove( lits, Literal( topn.Var(), _assignment[topn.Var()] ) );
+				}
+				else {
+					_path_mark[_num_levels - 1]++;
+					_path[_num_levels] = topn.ch[0];
+					sets[_num_levels] = lits;
+				}
+				_path_mark[_num_levels] = unsigned (-1);
+				Add_Search_Level();
+			}
+			else if ( _path_mark[_num_levels - 1] == 1 ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[1];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				if ( !Var_Decided( topn.Var() ) ) {
+					num_rsl_stack--;
+					rsl_stack[num_rsl_stack - 1] += rsl_stack[num_rsl_stack];
+					rsl_stack[num_rsl_stack - 1].Div_2exp( 1 );
+				}
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+			}
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				unsigned i, loc = Search_First_Non_Literal_Position( top );
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					rsl_stack[num_rsl_stack++] = BigCount( 0, num_vars );
+					op_table[_cache_stack[_num_levels - 1]].result = BigCount( 0, num_vars );
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1] = loc;
+			}
+			unsigned pos = _path_mark[_num_levels - 1];
+			if ( pos < topn.ch_size ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[pos];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				unsigned num_sat = 0, loc = Search_First_Non_Literal_Position( top );
+				for ( unsigned i = 0; i < loc; i++ ) {
+					num_sat += Lit_SAT( Node2Literal( topn.ch[i] ) );
+				}
+				if ( loc == topn.ch_size ) {
+					rsl_stack[num_rsl_stack].Assign_2exp( num_vars - ( loc - num_sat ) );
+					num_rsl_stack++;
+				}
+				else {
+					num_rsl_stack -= topn.ch_size - loc - 1;
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						rsl_stack[num_rsl_stack - 1] *= rsl_stack[num_rsl_stack + i - loc - 1];
+					}
+					rsl_stack[num_rsl_stack - 1].Div_2exp( ( topn.ch_size - loc - 1 ) * num_vars );
+					rsl_stack[num_rsl_stack - 1].Div_2exp( loc - num_sat );
+				}
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+ 			}
+		}
+		else {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				assert( _decision_levels[_num_levels - 1] == _num_decisions );  // a substituted node does not has a substituted child
+				SetID new_lits = Propagate_New_Equ_Decisions( top, _lit_sets, lits );
+				if ( new_lits == SETID_UNDEF ) {
+					rsl_stack[num_rsl_stack++] = BigCount( 0, num_vars );
+					op_table[_cache_stack[_num_levels - 1]].result = BigCount( 0, num_vars );
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[0];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = new_lits;
+				Add_Search_Level();
+			}
+			else {
+				unsigned num_fixed = _num_decisions - _decision_levels[_num_levels - 1];
+				num_fixed += topn.ch_size - 1 - Num_Propagated_Equs( top );
+				rsl_stack[num_rsl_stack - 1].Div_2exp( num_fixed );
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+			}
+		}
+	}
+	assert( num_rsl_stack == 1 );
+	_lit_sets.Clear();
+	BigInt result = rsl_stack[0];
+	delete [] sets;
+	delete [] rsl_stack;
+	return result;
+}
+
+BigInt CCDD_Manager::Count_Models_Under_Assignment_Small( NodeID root )
+{
+	unsigned num_vars = NumVars( _max_var );
+	BigInt result;
+	if ( Is_Const( root ) ) {
+		result.Assign_2exp( num_vars );
+		return result;
+	}
+//	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	Binary_Map<NodeID, SetID, BigCount> op_table;
+	Binary_Map_Node<NodeID, SetID, BigCount> op_node;
+	SetID * sets = new SetID [num_vars + 1];
+	BigCount * rsl_stack = new BigCount [num_vars + 1];
+	unsigned num_rsl_stack = 0;
+	unsigned old_num_levels = _num_levels;
+	_path[old_num_levels] = root;
+	_path_mark[old_num_levels] = unsigned (-1);
+	sets[old_num_levels] = SETID_EMPTY;
+	Add_Search_Level();
+	while ( _num_levels > old_num_levels ) {
+		NodeID top = _path[_num_levels - 1];
+		if ( Is_Const( top ) ) {
+			if ( top == NodeID::bot ) rsl_stack[num_rsl_stack] = BigCount( 0, num_vars );
+			else rsl_stack[num_rsl_stack].Assign_2exp( num_vars );
+			num_rsl_stack++;
+			Cancel_Search_Level();
+			continue;
+		}
+		CDD_Node & topn = _nodes[_path[_num_levels - 1]];
+//		cerr << top << ": ";
+//		topn.Display( cerr );
+		SetID lits = sets[_num_levels - 1];
+		if ( _path_mark[_num_levels - 1] == unsigned (-1) ) {
+			op_node.left = top;
+			op_node.right = lits;
+			_cache_stack[_num_levels - 1] = op_table.Hit( op_node );
+			if ( op_table.Hit_Successful() ) {
+				rsl_stack[num_rsl_stack++] = op_table[_cache_stack[_num_levels - 1]].result;
+				Cancel_Search_Level();
+				continue;
+			}
+			_path_mark[_num_levels - 1]++;
+		}
+		if ( topn.sym <= _max_var ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				if ( Var_Decided( topn.Var() ) ) {
+					_path_mark[_num_levels - 1] = 2;
+					_path[_num_levels] = topn.ch[_assignment[topn.sym]];
+					sets[_num_levels] = _lit_sets.Remove( lits, Literal( topn.Var(), _assignment[topn.Var()] ) );
+				}
+				else {
+					_path_mark[_num_levels - 1]++;
+					_path[_num_levels] = topn.ch[0];
+					sets[_num_levels] = lits;
+				}
+				_path_mark[_num_levels] = unsigned (-1);
+				Add_Search_Level();
+			}
+			else if ( _path_mark[_num_levels - 1] == 1 ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[1];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				if ( !Var_Decided( topn.Var() ) ) {
+					num_rsl_stack--;
+					rsl_stack[num_rsl_stack - 1] += rsl_stack[num_rsl_stack];
+					rsl_stack[num_rsl_stack - 1].Div_2exp( 1 );
+				}
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+			}
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				unsigned i, loc = Search_First_Non_Literal_Position( top );
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					rsl_stack[num_rsl_stack++] = BigCount( 0, num_vars );
+					op_table[_cache_stack[_num_levels - 1]].result = BigCount( 0, num_vars );
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1] = loc;
+			}
+			unsigned pos = _path_mark[_num_levels - 1];
+			if ( pos < topn.ch_size ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[pos];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				unsigned num_sat = 0, loc = Search_First_Non_Literal_Position( top );
+				for ( unsigned i = 0; i < loc; i++ ) {
+					num_sat += Lit_SAT( Node2Literal( topn.ch[i] ) );
+				}
+				if ( loc == topn.ch_size ) {
+					rsl_stack[num_rsl_stack].Assign_2exp( num_vars - ( loc - num_sat ) );
+					num_rsl_stack++;
+				}
+				else {
+					num_rsl_stack -= topn.ch_size - loc - 1;
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						rsl_stack[num_rsl_stack - 1] *= rsl_stack[num_rsl_stack + i - loc - 1];
+					}
+					rsl_stack[num_rsl_stack - 1].Div_2exp( ( topn.ch_size - loc - 1 ) * num_vars );
+					rsl_stack[num_rsl_stack - 1].Div_2exp( loc - num_sat );
+				}
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+ 			}
+		}
+		else {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				assert( _decision_levels[_num_levels - 1] == _num_decisions );  // a substituted node does not has a substituted child
+				SetID new_lits = Propagate_New_Equ_Decisions( top, _lit_sets, lits );
+				if ( new_lits == SETID_UNDEF ) {
+					rsl_stack[num_rsl_stack++] = BigCount( 0, num_vars );
+					op_table[_cache_stack[_num_levels - 1]].result = BigCount( 0, num_vars );
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[0];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = new_lits;
+				Add_Search_Level();
+			}
+			else {
+				unsigned num_fixed = _num_decisions - _decision_levels[_num_levels - 1];
+				num_fixed += topn.ch_size - 1 - Num_Propagated_Equs( top );
+				rsl_stack[num_rsl_stack - 1].Div_2exp( num_fixed );
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+			}
+		}
+	}
+	assert( num_rsl_stack == 1 );
+	_lit_sets.Clear();
+	result = rsl_stack[0];
+	delete [] sets;
+	delete [] rsl_stack;
+	return result;
+}
+
+SetID CCDD_Manager::Propagate_New_Equ_Decisions( NodeID n, Hash_Cluster<Literal> & lit_cluster, SetID lits )
+{
+	unsigned num = 0;
+	CDD_Node & node = _nodes[n];
+	for ( unsigned i = 1; i < node.ch_size; i++ ) {
+		Literal lit0( _nodes[node.ch[i]].Var(), true );
+		Literal lit1 = Node2Literal( _nodes[node.ch[i]].ch[1] );
+		if ( Lit_Decided( lit0 ) && Lit_Decided( lit1 ) ) {
+			if ( Lit_SAT( lit0 ) ) {
+				if ( Lit_UNSAT( lit1 ) ) return SETID_UNDEF;
+				lits = lit_cluster.Remove( lits, lit1 );
+			}
+			else {
+				if ( Lit_SAT( lit1 ) ) return SETID_UNDEF;
+				lits = lit_cluster.Remove( lits, ~lit1 );
+			}
+		}
+		else if ( Lit_Decided( lit1 ) ) {
+			if ( Lit_SAT( lit1 ) ) {
+				Assign( lit0 );
+				_many_lits[num++] = lit0;
+				lits = lit_cluster.Remove( lits, lit1 );
+			}
+			else {
+				Assign( ~lit0 );
+				_many_lits[num++] = ~lit0;
+				lits = lit_cluster.Remove( lits, ~lit1 );
+			}
+		}
+		else if ( Lit_Decided( lit0 ) ) {
+			if ( Lit_SAT( lit0 ) ) Assign( lit1 );
+			else Assign( ~lit1 );
+		}
+	}
+	for ( unsigned i = 1; i < node.ch_size; i++ ) {
+		Literal lit0( _nodes[node.ch[i]].Var(), true );
+		Literal lit1 = Node2Literal( _nodes[node.ch[i]].ch[1] );
+		if ( Lit_Decided( lit0 ) && !Lit_Decided( lit1 ) ) {
+			if ( Lit_SAT( lit0 ) ) Assign( lit1 );
+			else Assign( ~lit1 );
+		}
+	}
+	_qsorter.Sort( _many_lits, num );
+	return lit_cluster.Union_Disjoint( lits, _many_lits, num );
+}
+
+unsigned CCDD_Manager::Num_Propagated_Equs( NodeID n )
+{
+	unsigned num = 0;
+	CDD_Node & node = _nodes[n];
+	for ( unsigned i = 1; i < node.ch_size; i++ ) {
+		CDD_Node & child = _nodes[node.ch[i]];
+		num += Var_Decided( child.Var() );
+	}
+	return num;
+}
+
+BigInt CCDD_Manager::Count_Models_With_Condition( const CDDiagram & ccdd, const vector<Literal> & term )
+{
+	assert( Contain( ccdd ) );
+	if ( ccdd.Root() == NodeID::bot ) return 0;
+	Add_Search_Level();
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		Assign( term[i] );
+	}
+	Un_Label_Value( term.back() );
+	BigInt result;
+	if ( Lit_UNSAT( term[i] ) ) {
+		cerr << "ERROR[CCDD_Manager]: an inconsistent term with conditioning!" << endl;
+		exit(0);
+	}
+	else {
+		Assign( term[i] );
+		result = Count_Models_Under_Assignment( ccdd.Root() );
+	}
+	Cancel_Search_Level();
+	return result;
+}
+
+void CCDD_Manager::Mark_Models( const CDDiagram & ccdd, vector<BigFloat> & results )
+{
+	assert( Contain( ccdd ) );
+	_node_stack[0] = ccdd.Root();
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	unsigned num_vars = NumVars( _max_var );
@@ -333,7 +1075,7 @@ void CCDD_Manager::Mark_Models( CDD root, vector<BigFloat> & results )
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    CDD top = _node_stack[num_node_stack - 1];
+	    NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( topn.sym <= _max_var ) {
@@ -410,18 +1152,19 @@ void CCDD_Manager::Mark_Models( CDD root, vector<BigFloat> & results )
 	}
 }
 
-void CCDD_Manager::Probabilistic_Model( CDD root, vector<float> & prob_values )
+void CCDD_Manager::Probabilistic_Model( const CDDiagram & ccdd, vector<float> & prob_values )
 {
-	if ( root == NodeID::bot ) {
+	assert( Contain( ccdd ) );
+	if ( ccdd.Root() == NodeID::bot ) {
 		cerr << "ERROR[CCDD_Manager]: invalid probabilistic model!" << endl;
-		assert( root != NodeID::bot );
+		assert( ccdd.Root() != NodeID::bot );
 	}
-	else if ( root == NodeID::top ) return;
-	_node_stack[0] = root;
+	else if ( ccdd.Root() == NodeID::top ) return;
+	_node_stack[0] = ccdd.Root();
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	unsigned num_vars = NumVars( _max_var );
-	BigFloat * results = new BigFloat [root + 1];
+	BigFloat * results = new BigFloat [ccdd.Root() + 1];
 	results[NodeID::bot] = 0;
 	_nodes[NodeID::bot].infor.visited = true;
 	results[NodeID::top].Assign_2exp( num_vars );
@@ -432,7 +1175,7 @@ void CCDD_Manager::Probabilistic_Model( CDD root, vector<float> & prob_values )
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    CDD top = _node_stack[num_node_stack - 1];
+	    NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( topn.sym <= _max_var ) {
@@ -512,13 +1255,18 @@ void CCDD_Manager::Probabilistic_Model( CDD root, vector<float> & prob_values )
 	delete [] results;
 }
 
-void CCDD_Manager::Uniformly_Sample( Random_Generator & rand_gen, CDD root, vector<vector<bool>> & samples )
+void CCDD_Manager::Uniformly_Sample( Random_Generator & rand_gen, const CDDiagram & ccdd, vector<vector<bool>> & samples )
 {
-	vector<BigFloat> model_values( root + 1 );
-	Mark_Models( root, model_values );
+	assert( Contain( ccdd ) );
+	if ( ccdd.Root() == NodeID::bot ) {
+		samples.clear();
+		return;
+	}
+	vector<BigFloat> model_values( ccdd.Root() + 1 );
+	Mark_Models( ccdd, model_values );
 	for ( vector<bool> & current_sample: samples ) {
 		current_sample.resize( _max_var + 1 );
-		_path[0] = root;
+		_path[0] = ccdd.Root();
 		_path_mark[0] = true;
 		unsigned path_len = 1;
 		while ( path_len > 0 ) {
@@ -593,16 +1341,317 @@ void CCDD_Manager::Uniformly_Sample( Random_Generator & rand_gen, CDD root, vect
 	}
 }
 
-void CCDD_Manager::Statistics( CDD root )
+void CCDD_Manager::Uniformly_Sample( Random_Generator & rand_gen, const CDDiagram & ccdd, vector<vector<bool>> & samples, const vector<Literal> & assignment )
 {
-	if ( Is_Const( root ) ) {
+	assert( Contain( ccdd ) );
+	Add_Search_Level();
+	unsigned i;
+	Label_Value( ~assignment.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( assignment[i] ); i++ ) {
+		Assign( assignment[i] );
+	}
+	Un_Label_Value( assignment.back() );
+	BigInt result;
+	if ( !Lit_UNSAT( assignment[i] ) ) {
+		Assign( assignment[i] );
+		Large_Binary_Map<NodeID, SetID, double> prob_values;
+		if ( !Probabilistic_Model( ccdd.Root(), prob_values ) ) samples.clear();
+		for ( vector<bool> & current_sample: samples ) {
+			Uniformly_Sample( rand_gen, ccdd.Root(), current_sample, prob_values );
+		}
+		_lit_sets.Clear();
+	}
+	Cancel_Search_Level();
+}
+
+bool CCDD_Manager::Probabilistic_Model( NodeID root, Large_Binary_Map<NodeID, SetID, double> & prob_values )
+{
+	unsigned num_vars = NumVars( _max_var );
+	if ( Is_Const( root ) ) return root == NodeID::top;
+//	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	Large_Binary_Map<NodeID, SetID, BigFloat> op_table;
+	Binary_Map_Node<NodeID, SetID, BigFloat> op_node;
+	Binary_Map_Node<NodeID, SetID, double> prob_node;
+	SetID * sets = new SetID [num_vars + 1];
+	BigFloat * rsl_stack = new BigFloat [num_vars + 1];
+	unsigned num_rsl_stack = 0;
+	unsigned old_num_levels = _num_levels;
+	_path[old_num_levels] = root;
+	_path_mark[old_num_levels] = unsigned (-1);
+	sets[old_num_levels] = SETID_EMPTY;
+	Add_Search_Level();
+	while ( _num_levels > old_num_levels ) {
+		NodeID top = _path[_num_levels - 1];
+		if ( Is_Const( top ) ) {
+			if ( top == NodeID::bot ) rsl_stack[num_rsl_stack] = 0;
+			else rsl_stack[num_rsl_stack].Assign_2exp( num_vars );
+			num_rsl_stack++;
+			Cancel_Search_Level();
+			continue;
+		}
+		CDD_Node & topn = _nodes[_path[_num_levels - 1]];
+//		cerr << top << ": ";
+//		topn.Display( cerr );
+		SetID lits = sets[_num_levels - 1];
+		if ( _path_mark[_num_levels - 1] == unsigned (-1) ) {
+			op_node.left = top;
+			op_node.right = lits;
+			_cache_stack[_num_levels - 1] = op_table.Hit( op_node );
+			if ( op_table.Hit_Successful() ) {
+				rsl_stack[num_rsl_stack++] = op_table[_cache_stack[_num_levels - 1]].result;
+				Cancel_Search_Level();
+				continue;
+			}
+			_path_mark[_num_levels - 1]++;
+		}
+		if ( topn.sym <= _max_var ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				if ( Var_Decided( topn.Var() ) ) {
+					_path_mark[_num_levels - 1] = 2;
+					_path[_num_levels] = topn.ch[_assignment[topn.sym]];
+					sets[_num_levels] = _lit_sets.Remove( lits, Literal( topn.Var(), _assignment[topn.Var()] ) );
+				}
+				else {
+					_path_mark[_num_levels - 1]++;
+					_path[_num_levels] = topn.ch[0];
+					sets[_num_levels] = lits;
+				}
+				_path_mark[_num_levels] = unsigned (-1);
+				Add_Search_Level();
+			}
+			else if ( _path_mark[_num_levels - 1] == 1 ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[1];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				prob_node.left = op_table[_cache_stack[_num_levels - 1]].left;
+				prob_node.right = op_table[_cache_stack[_num_levels - 1]].right;
+				if ( !Var_Decided( topn.Var() ) ) {
+					if ( rsl_stack[num_rsl_stack - 1] == 0 ) prob_node.result = 0;
+					else prob_node.result = Normalize( rsl_stack[num_rsl_stack - 2], rsl_stack[num_rsl_stack - 1] );
+					num_rsl_stack--;
+					rsl_stack[num_rsl_stack - 1] += rsl_stack[num_rsl_stack];
+					rsl_stack[num_rsl_stack - 1].Div_2exp( 1 );
+				}
+				else prob_node.result = _assignment[topn.Var()] == true ? 1 : 0;
+				prob_values.Hit( prob_node );
+				assert( !prob_values.Hit_Successful() );
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+			}
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				unsigned i, loc = Search_First_Non_Literal_Position( top );
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					rsl_stack[num_rsl_stack++] = 0;
+					op_table[_cache_stack[_num_levels - 1]].result = 0;
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1] = loc;
+			}
+			unsigned pos = _path_mark[_num_levels - 1];
+			if ( pos < topn.ch_size ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[pos];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				unsigned num_sat = 0, loc = Search_First_Non_Literal_Position( top );
+				for ( unsigned i = 0; i < loc; i++ ) {
+					num_sat += Lit_SAT( Node2Literal( topn.ch[i] ) );
+				}
+				if ( loc == topn.ch_size ) {
+					rsl_stack[num_rsl_stack].Assign_2exp( num_vars - ( loc - num_sat ) );
+					num_rsl_stack++;
+				}
+				else {
+					num_rsl_stack -= topn.ch_size - loc - 1;
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						rsl_stack[num_rsl_stack - 1] *= rsl_stack[num_rsl_stack + i - loc - 1];
+					}
+					rsl_stack[num_rsl_stack - 1].Div_2exp( ( topn.ch_size - loc - 1 ) * num_vars );
+					rsl_stack[num_rsl_stack - 1].Div_2exp( loc - num_sat );
+				}
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+ 			}
+		}
+		else {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				assert( _decision_levels[_num_levels - 1] == _num_decisions );  // a substituted node does not has a substituted child
+				SetID new_lits = Propagate_New_Equ_Decisions( top, _lit_sets, lits );
+				if ( new_lits == SETID_UNDEF ) {
+					rsl_stack[num_rsl_stack++] = 0;
+					op_table[_cache_stack[_num_levels - 1]].result = 0;
+					Cancel_Search_Level();
+					continue;
+				}
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[0];
+				_path_mark[_num_levels] = unsigned (-1);
+				sets[_num_levels] = new_lits;
+				Add_Search_Level();
+			}
+			else {
+				unsigned num_fixed = _num_decisions - _decision_levels[_num_levels - 1];
+				num_fixed += topn.ch_size - 1 - Num_Propagated_Equs( top );
+				rsl_stack[num_rsl_stack - 1].Div_2exp( num_fixed );
+				op_table[_cache_stack[_num_levels - 1]].result = rsl_stack[num_rsl_stack - 1];
+//				cerr << op_table[_cache_stack[_num_levels - 1]].result << endl;
+				Cancel_Search_Level();
+			}
+		}
+	}
+	assert( num_rsl_stack == 1 );
+	delete [] sets;
+	delete [] rsl_stack;
+	return op_table.Map( root, SETID_EMPTY ) != 0;
+}
+
+void CCDD_Manager::Uniformly_Sample( Random_Generator & rand_gen, NodeID root, vector<bool> & sample, Large_Binary_Map<NodeID, SetID, double> & prob_values )
+{
+	sample.resize( _max_var + 1 );
+	SetID * sets = new SetID [_max_var + 1];
+	unsigned old_num_levels = _num_levels;
+	_path[old_num_levels] = root;
+	_path_mark[old_num_levels] = 0;
+	sets[old_num_levels] = SETID_EMPTY;
+	Add_Search_Level();
+	while ( _num_levels > old_num_levels ) {
+		NodeID top = _path[_num_levels - 1];
+		CDD_Node & topn = _nodes[top];
+		SetID lits = sets[_num_levels - 1];
+		if ( topn.sym <= _max_var ) {
+			if ( top < _num_fixed_nodes ) {
+				Literal lit = Node2Literal( top );
+				sample[lit.Var()] = lit.Sign();
+				_var_seen[lit.Var()] = true;
+				Cancel_Search_Level();
+			}
+			else if ( _path_mark[_num_levels - 1] == 0 ) {
+				_path_mark[_num_levels - 1]++;
+				if ( Var_Decided( topn.Var() ) ) {
+					sample[topn.sym] = ( _assignment[topn.Var()] == true );
+					sets[_num_levels] = _lit_sets.Remove( lits, Literal( topn.Var(), sample[topn.sym] ) );
+				}
+				else {
+					double prob = prob_values.Map( top, lits );
+					sample[topn.sym] = rand_gen.Generate_Bool( prob );
+					sets[_num_levels] = lits;
+				}
+				_var_seen[topn.sym] = true;
+				_path[_num_levels] = topn.ch[sample[topn.sym]];
+				_path_mark[_num_levels] = 0;
+				Add_Search_Level();
+			}
+			else Cancel_Search_Level();
+		}
+		else if ( topn.sym == CDD_SYMBOL_DECOMPOSE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				_path_mark[_num_levels - 1] = Search_First_Non_Literal_Position( top );
+				for ( unsigned i = 0; i < _path_mark[_num_levels - 1]; i++ ) {
+					Literal imp = Node2Literal( topn.ch[i] );
+					assert( !Lit_UNSAT( imp ) );
+					sample[imp.Var()] = imp.Sign();
+					_var_seen[imp.Var()] = true;
+				}
+			}
+			unsigned pos = _path_mark[_num_levels - 1];
+			if ( pos < topn.ch_size ) {
+				_path_mark[_num_levels - 1]++;
+				_path[_num_levels] = topn.ch[pos];
+				_path_mark[_num_levels] = 0;
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else Cancel_Search_Level();
+		}
+		else if ( topn.sym == CDD_SYMBOL_KERNELIZE ) {
+			if ( _path_mark[_num_levels - 1] == 0 ) {
+				_path_mark[_num_levels - 1]++;
+				lits = Propagate_New_Equ_Decisions( top, _lit_sets, lits );
+				_path[_num_levels] = topn.ch[0];
+				_path_mark[_num_levels] = 0;
+				sets[_num_levels] = lits;
+				Add_Search_Level();
+			}
+			else {
+				for ( unsigned i = 1; i < topn.ch_size; i++ ) {
+					CDD_Node & equ = _nodes[topn.ch[i]];
+					if ( !_var_seen[equ.sym] ) {
+						if ( Var_Decided( equ.Var() ) ) sample[equ.sym] = ( _assignment[equ.sym] == true );
+						else sample[equ.sym] = rand_gen.Generate_Bool( 0.5 );
+						_var_seen[equ.sym] = true;
+					}
+					bool b = sample[equ.sym];
+					Literal equ_lit = Node2Literal( equ.ch[b] );
+					sample[equ_lit.Var()] = equ_lit.Sign();
+					_var_seen[equ_lit.Var()] = true;
+				}
+				Cancel_Search_Level();
+			}
+		}
+		else Cancel_Search_Level();
+	}
+	for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+		if ( !_var_seen[x] ) {
+			if ( Var_Decided( x ) ) sample[x] = ( _assignment[x] == true );
+			else sample[x] = rand_gen.Generate_Bool( 0.5 );
+		}
+		else _var_seen[x] = false;
+	}
+	delete [] sets;
+}
+
+void CCDD_Manager::Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const CDDiagram & ccdd, vector<vector<bool>> & samples, const vector<Literal> & term )
+{
+	assert( Contain( ccdd ) );
+	Add_Search_Level();
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		Assign( term[i] );
+	}
+	Un_Label_Value( term.back() );
+	BigInt result;
+	if ( !Lit_UNSAT( term[i] ) ) {
+		Assign( term[i] );
+		Large_Binary_Map<NodeID, SetID, double> prob_values;
+		if ( !Probabilistic_Model( ccdd.Root(), prob_values ) ) samples.clear();
+		for ( vector<bool> & current_sample: samples ) {
+			Uniformly_Sample( rand_gen, ccdd.Root(), current_sample, prob_values );
+			for ( unsigned j = 0; j <= i; j++ ) {
+				current_sample[term[j].Var()] = rand_gen.Generate_Bool( 0.5 );
+			}
+		}
+		_lit_sets.Clear();
+	}
+	Cancel_Search_Level();
+}
+
+void CCDD_Manager::Statistics( const CDDiagram & ccdd )
+{
+	assert( Contain( ccdd ) );
+	if ( Is_Const( ccdd.Root() ) ) {
 		cout << "Number of nodes: " << 1 << endl;
 		cout << "Number of edges: " << 0 << endl;
 		cout << "Number of kernelized nodes: " << 0 << endl;
 		cout << "Kernelization depth: " << 0 << endl;
 		return;
 	}
-	_node_stack[0] = root;
+	_node_stack[0] = ccdd.Root();
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	_nodes[NodeID::bot].infor.mark = 0;
@@ -611,7 +1660,7 @@ void CCDD_Manager::Statistics( CDD root )
 	unsigned num_edges = 0;
 	unsigned num_kernelized_nodes = 0;
 	while ( num_node_stack ) {
-	    CDD top = _node_stack[num_node_stack - 1];
+	    NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -649,7 +1698,7 @@ void CCDD_Manager::Statistics( CDD root )
 	cout << "Number of nodes: " << num_nodes << endl;
 	cout << "Number of edges: " << num_edges << endl;
 	cout << "Number of kernelized nodes: " << num_kernelized_nodes << endl;
-	cout << "Kernelization depth: " << _nodes[root].infor.mark << endl;
+	cout << "Kernelization depth: " << _nodes[ccdd.Root()].infor.mark << endl;
 	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
 	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( NodeID id: _visited_nodes ) {
@@ -658,7 +1707,7 @@ void CCDD_Manager::Statistics( CDD root )
 	_visited_nodes.clear();
 }
 
-CDD CCDD_Manager::Add_Node( Rough_CDD_Node & rnode )
+NodeID CCDD_Manager::Add_Node( Rough_CDD_Node & rnode )
 {
 	if ( rnode.sym == CDD_SYMBOL_FALSE ) return NodeID::bot;
 	else if ( rnode.sym == CDD_SYMBOL_TRUE ) return NodeID::top;
@@ -671,7 +1720,7 @@ CDD CCDD_Manager::Add_Node( Rough_CDD_Node & rnode )
 	else return NodeID::undef;
 }
 
-CDD CCDD_Manager::Add_Decision_Node( Decision_Node & bnode )
+NodeID CCDD_Manager::Add_Decision_Node( Decision_Node & bnode )
 {
 	assert( Variable::start <= bnode.var && bnode.var <= _max_var );
 	assert( bnode.low < _nodes.Size() && bnode.high < _nodes.Size() );
@@ -1137,7 +2186,6 @@ NodeID CCDD_Manager::Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_eq
 			Literal lit = Node2Literal( node.ch[i] );
 			if ( !lit_equivalency.Lit_Renamable( lit ) ) _aux_rnode.Add_Child( node.ch[i] );
 		}
-		unsigned num_left_lits = _aux_rnode.ch_size;
 		for ( ; i < node.ch_size; i++ ) {
 			Simple_CDD_Node child( _nodes[node.ch[i]] );
 			if ( child.sym == CDD_SYMBOL_KERNELIZE ) {
@@ -1179,7 +2227,7 @@ NodeID CCDD_Manager::Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_eq
 	else return n;
 }
 
-CDD CCDD_Manager::Push_Decomposition_Node_After_Extracting( Rough_CDD_Node & rnode )  // use node_sets, node_set_sizes
+NodeID CCDD_Manager::Push_Decomposition_Node_After_Extracting( Rough_CDD_Node & rnode )  // use node_sets, node_set_sizes
 {
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	unsigned i, tmp_size = 0;
@@ -1259,7 +2307,7 @@ NodeID CCDD_Manager::Push_Core_After_Extracting( Decision_Node & bnode )  // use
 	else return Push_Node( bnode );
 }
 
-CDD CCDD_Manager::Add_Decomposition_Node( Rough_CDD_Node & rnode )  // use _many_nodes, node_sets, node_set_sizes
+NodeID CCDD_Manager::Add_Decomposition_Node( Rough_CDD_Node & rnode )  // use _many_nodes, node_sets, node_set_sizes
 {
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	if ( rnode.ch_size == 0 ) return NodeID::top;
@@ -1325,12 +2373,12 @@ unsigned CCDD_Manager::Finest( Rough_CDD_Node & rnode )  // use _many_nodes, nod
 	}
 }
 
-CDD CCDD_Manager::Add_Kernelization_Node( Rough_CDD_Node & rnode )  // use _many_nodes, _many_equ_nodes, _many_equ_nodes, _aux_decom_rnode, _aux_subst_rnode
+NodeID CCDD_Manager::Add_Kernelization_Node( Rough_CDD_Node & rnode )  // use _many_nodes, _many_equ_nodes, _many_equ_nodes, _aux_decom_rnode, _aux_subst_rnode
 {
 	assert( rnode.sym == CDD_SYMBOL_KERNELIZE );
 	if ( rnode.ch_size == 0 ) return NodeID::top;
 	if ( rnode.ch_size == 1 ) return rnode.ch[0];
-	CDD cdd;
+	NodeID cdd;
 	unsigned main_ch_sym = _nodes[rnode.ch[0]].sym;
 	if ( main_ch_sym == CDD_SYMBOL_FALSE ) return NodeID::bot;
 	if ( main_ch_sym == CDD_SYMBOL_KERNELIZE ) {
@@ -1368,7 +2416,7 @@ unsigned CCDD_Manager::Transform_Lit_Equivalences( Lit_Equivalency & lit_equival
 	return num_equ;
 }
 
-CDD CCDD_Manager::Add_Equivalence_Node( int elit, int elit2 )
+NodeID CCDD_Manager::Add_Equivalence_Node( int elit, int elit2 )
 {
 	Literal lit = InternLit( elit ), lit2 = InternLit( elit2 );
 	assert( lit.Var() != lit2.Var() && lit.Var() <= _max_var && lit2.Var() <= _max_var );
@@ -1427,7 +2475,7 @@ unsigned CCDD_Manager::Finest_Last( Rough_CDD_Node & rnode )
 	}
 }
 
-void CCDD_Manager::Verify_CCDD( CDD root )
+void CCDD_Manager::Verify_CCDD( NodeID root )
 {
 	if ( Is_Fixed( root ) ) return;
 	Hash_Cluster<Variable> var_cluster( NumVars( _max_var ) );
@@ -1475,7 +2523,7 @@ void CCDD_Manager::Verify_CCDD( CDD root )
 	_visited_nodes.clear();
 }
 
-void CCDD_Manager::Compute_Var_Sets( CDD root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
+void CCDD_Manager::Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
 {
 	sets[NodeID::bot] = SETID_EMPTY;
 	_nodes[NodeID::bot].infor.visited = true;
@@ -1701,7 +2749,7 @@ void CCDD_Manager::Verify_Equivalence_Node( CDD_Node & node )
 	assert( Var_LT( node.Var(), child.Var() ) );
 }
 
-void CCDD_Manager::Verify_Entail_CNF( CDD root, CNF_Formula & cnf )
+void CCDD_Manager::Verify_Entail_CNF( NodeID root, CNF_Formula & cnf )
 {
 	Hash_Cluster<Variable> var_cluster( NumVars( _max_var ) );
 	vector<SetID> sets( root + 1 );
@@ -2012,7 +3060,7 @@ void CCDD_Manager::Cancel_Current_Equ_Decisions()
 	}
 }
 
-void CCDD_Manager::Verify_Model( CDD root, const vector<bool> & sample )
+void CCDD_Manager::Verify_Model( NodeID root, const vector<bool> & sample )
 {
 	_path[0] = root;
 	unsigned path_len = 1;

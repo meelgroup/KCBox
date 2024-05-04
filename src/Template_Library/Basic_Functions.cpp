@@ -525,7 +525,7 @@ extern double Read_Double_Change( char * & source )
 	return a;
 }
 
-extern bool Read_String_Change( char * & source, char * target )
+extern bool Read_String_Change( char * & source, const char * target )
 {
     char * source_copy = source;
 	while ( *source == ' ' || *source == '\t' ) source++;
@@ -535,7 +535,7 @@ extern bool Read_String_Change( char * & source, char * target )
 	return matched;
 }
 
-extern bool String_Fuzzy_Match( char * str1, char * str2 )
+extern bool String_Fuzzy_Match( const char * str1, const char * str2 )
 {
 	while ( true ) {
 		while ( BLANK_CHAR(*str1) ) str1++;

@@ -130,28 +130,48 @@ public:
 			counter.running_options.profile_counting = Profiling_Close;
 		}
 		if ( parameters.competition ) counter.running_options.display_prefix = "c o ";
-		ifstream fin( infile );
-		WCNF_Formula cnf( fin, parameters.format );
-		fin.close();
-		BigFloat count;
-		if ( cnf.Max_Var() == Variable::undef ) {
-			if ( count != 0 ) cout << "s SATISFIABLE" << endl;
-			else cout << "s UNSATISFIABLE" << endl;
-			count = cnf.Known_Count();
+		if ( !parameters.condition.Exists() ) {
+			ifstream fin( infile );
+			WCNF_Formula cnf( fin, parameters.format );
+			fin.close();
+			BigFloat count;
+			if ( cnf.Max_Var() == Variable::undef ) {
+				if ( count != 0 ) cout << "s SATISFIABLE" << endl;
+				else cout << "s UNSATISFIABLE" << endl;
+				count = cnf.Known_Count();
+			}
+			else count = counter.Count_Models( cnf, heur );
+			cout << counter.running_options.display_prefix << "Weighted model count: " << count << endl;
+			if ( parameters.competition ) {  // for model counting competition
+				cout << "c s type wmc" << endl;
+				cout << "c o This file describes that the weighted model count is " << count << endl;
+				cout << "c o " << endl;
+				cout << setprecision (16);
+				cout << "c s log10-estimate " << count.Log10() << endl;
+				cout << "c s exact arb float " << count << endl;
+	//			long exp;
+	//			double num = count.TransformDouble_2exp( exp );
+	//			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;
+	//			cout << "c s exact arb int " << count << endl;
+			}
 		}
-		else count = counter.Count_Models( cnf, heur );
-		cout << counter.running_options.display_prefix << "Weighted model count: " << count << endl;
-		if ( parameters.competition ) {  // for model counting competition
-			cout << "c s type wmc" << endl;
-			cout << "c o This file describes that the weighted model count is " << count << endl;
-			cout << "c o " << endl;
-			cout << setprecision (16);
-			cout << "c s log10-estimate " << count.Log10() << endl;
-			cout << "c s exact arb float " << count << endl;
-//			long exp;
-//			double num = count.TransformDouble_2exp( exp );
-//			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;
-//			cout << "c s exact arb int " << count << endl;
+		else {
+			ifstream fin_cond( parameters.condition );
+			vector<vector<Literal>> terms;
+			Read_Assignments( fin_cond, terms );
+			fin_cond.close();
+			vector<BigFloat> counts( terms.size() );
+			for ( unsigned i = 0; i < terms.size(); i++ ) {
+				ifstream fin( infile );
+				WCNF_Formula cnf( fin );
+				fin.close();
+				cnf.Condition( terms[i] );
+				if ( cnf.Max_Var() == Variable::undef ) counts[i] = cnf.Known_Count();
+				else counts[i] = counter.Count_Models( cnf, heur );
+			}
+			for ( unsigned i = 0; i < counts.size(); i++ ) {
+				cout << counter.running_options.display_prefix << "Weighted model count: " << counts[i] << endl;
+			}
 		}
 	}
 };

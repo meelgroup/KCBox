@@ -488,7 +488,7 @@ void Inprocessor::Compute_Var_Order_Single_Cluster()
 
 void Inprocessor::Propagate_Var_Order_Weight( Variable var, double * var_weight )
 {
-	const float factor = 0.01;
+	const double factor = 0.01;
 	for ( unsigned i = 0; i < _binary_var_membership_lists[var].size(); i++ ) {
 		var_weight[_binary_var_membership_lists[var][i]] += factor / 2;
 	}

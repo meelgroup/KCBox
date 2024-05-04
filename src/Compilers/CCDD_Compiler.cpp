@@ -41,7 +41,7 @@ void CCDD_Compiler::Reset()
 	CDD_Compiler::Reset();
 }
 
-CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+CDDiagram CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( !running_options.display_compiling_process ) {
@@ -67,12 +67,12 @@ CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 			}
 		}
 		Reset();
-		return NodeID::bot;
+		return manager.Generate_CCDD( NodeID::bot );
 	}
 	Store_Lit_Equivalences( _call_stack[0] );
 	if ( Non_Unary_Clauses_Empty() ) {
 		Recycle_Models( _models_stack[0] );
-		CDD result = Make_Root_Node( manager, NodeID::top );
+		NodeID result = Make_Root_Node( manager, NodeID::top );
 		Un_BCP( _dec_offsets[--_num_levels] );
 		_call_stack[0].Clear_Lit_Equivalences();
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
@@ -84,13 +84,13 @@ CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 			}
 		}
 		Reset();
-		return result;
+		return manager.Generate_CCDD( result );
 	}
 	Gather_Infor_For_Counting();
 	Choose_Running_Options( heur, vorder );
 	if ( running_options.display_compiling_process && running_options.profile_compiling != Profiling_Close ) running_options.Display( cout );  // ToRemove
 	if ( Is_Linear_Ordering( running_options.var_ordering_heur ) == lbool(true) ) Reorder_Manager( manager );
-	CDD result;
+	NodeID result;
 	if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) {
 		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "==== Shift to R2-D2 compilation ====" << endl;
 		manager.Shrink_Nodes();
@@ -101,7 +101,8 @@ CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 		Load_Lit_Equivalences( _call_stack[0] );
 		R2D2_Manager manager2( _var_order );
 		R2D2_Compiler compiler;
-		result = compiler.Compile_FixedLinearOrder( manager2, *this, _var_order );
+		CDDiagram r2d2 = compiler.Compile_FixedLinearOrder( manager2, *this, _var_order );
+		result = r2d2.Root();
 		if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "==== Finish R2-D2 compilation ====" << endl;
 		manager.Load_Nodes( manager2 );
 	}
@@ -131,7 +132,7 @@ CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 		if ( running_options.profile_compiling >= Profiling_Abstract ) {
 			Display_Statistics( 1 );
 			Display_Memory_Status( cout );
-			manager.Statistics( result );
+			manager.Statistics( manager.Generate_CCDD( result ) );
 		}
 	}
 	Reset();
@@ -143,7 +144,7 @@ CDD CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 		BigInt verified_count = Count_Verified_Models_sharpSAT( cnf );
 		assert( count == verified_count );
 	}
-	return result;
+	return manager.Generate_CCDD( result );
 }
 
 NodeID CCDD_Compiler::Make_Root_Node( CCDD_Manager & manager, NodeID node )
@@ -876,7 +877,7 @@ void CCDD_Compiler::Verify_Result_Component( Component & comp, CCDD_Manager & ma
 	BigInt tmp_count = count;  // ToRemove
 	tmp_count.Div_2exp( _num_dec_stack );
 	if ( verified_count != count ) {
-		manager.Display_CDD( cerr, result );  // ToRemove
+		manager.Display_CDD( cerr, manager.Generate_CCDD( result ) );  // ToRemove
 		cerr << "NodeID: " << result << endl;
 		comp.Display( cerr );
 		Display_Decision_Stack( cerr, _num_levels - 1 );

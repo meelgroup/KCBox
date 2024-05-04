@@ -140,14 +140,14 @@ void CDD_Manager::Enlarge_Max_Var( Variable max_var )
 	Allocate_and_Init_Auxiliary_Memory();
 }
 
-unsigned CDD_Manager::Num_Nodes( CDD root )
+unsigned CDD_Manager::Num_Nodes( NodeID root )
 {
 	if ( Is_Const( root ) ) return 1;
 	unsigned i;
 	_node_stack[0] = root;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack > 0 ) {
-		CDD top = _node_stack[--num_node_stack];
+		NodeID top = _node_stack[--num_node_stack];
 		CDD_Node & topn = _nodes[top];
 		if ( Is_Const( top ) ) continue;
 		if ( !_nodes[topn.ch[0]].infor.visited ) {
@@ -176,7 +176,7 @@ unsigned CDD_Manager::Num_Nodes( CDD root )
 	return node_size;
 }
 
-unsigned CDD_Manager::Num_Edges( CDD root )
+unsigned CDD_Manager::Num_Edges( NodeID root )
 {
 	if ( root < 2 ) return 0;
 	else if ( root < _num_fixed_nodes ) return 2;
@@ -214,10 +214,185 @@ unsigned CDD_Manager::Num_Edges( CDD root )
 	return result;
 }
 
-void CDD_Manager::Remove_Redundant_Nodes( CDD & kept_root )
+bool CDD_Manager::Decide_Valid_With_Condition( const CDDiagram & cdd, const vector<Literal> & term )
 {
-	_nodes[kept_root].infor.visited = true;
-	for ( unsigned i = kept_root; i >= _num_fixed_nodes; i-- ) {
+	assert( Contain( cdd ) );
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+	}
+	Un_Label_Value( term.back() );
+	bool result;
+	if ( Lit_UNSAT( term[i] ) ) {
+		cerr << "ERROR[CDD_Manager]: an inconsistent term with conditioning!" << endl;
+		exit(0);
+	}
+	else {
+		_assignment[term[i].Var()] = term[i].Sign();
+		result = Decide_Valid_Under_Assignment( cdd.Root() );
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[term[i].Var()] = lbool::unknown;
+	}
+	return result;
+}
+
+bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
+{
+	if ( Is_Const( root ) ) return root == NodeID::top;
+	_nodes[0].infor.mark = 0;
+	_nodes[1].infor.mark = 1;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( Var_Decided( i ) ) {
+			_nodes[i + i].infor.mark = ( _assignment[i] == false );
+			_nodes[i + i + 1].infor.mark = ( _assignment[i] == true );
+		}
+		else {
+			_nodes[i + i].infor.mark = 0;
+			_nodes[i + i + 1].infor.mark = 0;
+		}
+	}
+	_path[0] = root;
+	_path_mark[0] = 0;
+	unsigned path_len = 1;
+	while ( path_len ) {
+		CDD_Node & topn = _nodes[_path[path_len - 1]];
+		if ( topn.sym <= _max_var ) {
+			if ( Var_Decided( topn.Var() ) ) {
+				if ( _nodes[topn.ch[_assignment[topn.sym]]].infor.mark == UNSIGNED_UNDEF ) {
+					_path[path_len] = topn.ch[_assignment[topn.sym]];
+					_path_mark[path_len++] = 0;
+				}
+				else {
+					topn.infor.mark = _nodes[topn.ch[_assignment[topn.sym]]].infor.mark;
+					_visited_nodes.push_back( _path[--path_len] );
+				}
+			}
+			else {
+				switch ( _path_mark[path_len - 1] ) {
+					case 0:
+						if ( EITHOR_ZERO( _nodes[topn.ch[0]].infor.mark, _nodes[topn.ch[1]].infor.mark ) ) {
+							topn.infor.mark = 0;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else if ( BOTH_X( _nodes[topn.ch[0]].infor.mark, _nodes[topn.ch[1]].infor.mark, 1 ) ) {
+							topn.infor.mark = 1;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else if ( _nodes[topn.ch[0]].infor.mark == 1 ) {
+							_path[path_len] = topn.ch[1];
+							_path_mark[path_len - 1] += 2;
+							_path_mark[path_len++] = 0;
+						}
+						else {
+							_path[path_len] = topn.ch[0];
+							_path_mark[path_len - 1]++;
+							_path_mark[path_len++] = 0;
+						}
+						break;
+					case 1:
+						if ( _nodes[topn.ch[0]].infor.mark == 0 ) {
+							topn.infor.mark = 0;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else if ( _nodes[topn.ch[1]].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+							topn.infor.mark = _nodes[topn.ch[1]].infor.mark;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else {
+							_path[path_len] = topn.ch[1];
+							_path_mark[path_len - 1]++;
+							_path_mark[path_len++] = 0;
+						}
+						break;
+					case 2:
+						topn.infor.mark = _nodes[topn.ch[1]].infor.mark;
+						_visited_nodes.push_back( _path[--path_len] );
+						break;
+				}
+			}
+		}
+		else {
+			if ( _path_mark[path_len - 1] == 0 ) {
+				unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
+				for ( i = 0; _nodes[topn.ch[i]].infor.mark != 0; i++ );
+				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
+				if ( _nodes[topn.ch[i]].infor.mark == 0 ) {
+					topn.infor.mark = 0;
+					_visited_nodes.push_back( _path[path_len - 1] );
+					path_len--;
+				}
+				else {
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
+					for ( i = 0; _nodes[topn.ch[i]].infor.mark == 1; i++ );
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
+					if ( _nodes[topn.ch[i]].infor.mark == 1 ) {
+						topn.infor.mark = 1;
+						_visited_nodes.push_back( _path[--path_len] );
+					}
+					else {
+						_path[path_len] = topn.ch[i];
+						_path_mark[path_len - 1] = i + 1;
+						_path_mark[path_len++] = 0;
+					}
+				}
+			}
+			else if ( _path_mark[path_len - 1] < topn.ch_size ) {
+				if ( _nodes[topn.ch[_path_mark[path_len - 1] - 1]].infor.mark == 0 ) {
+					topn.infor.mark = 0;
+					_visited_nodes.push_back( _path[--path_len] );
+				}
+				else {
+					unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
+					for ( i = _path_mark[path_len - 1]; _nodes[topn.ch[i]].infor.mark == 1; i++ );
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
+					if ( _nodes[topn.ch[i]].infor.mark == 1 ) {
+						topn.infor.mark = 1;
+						_visited_nodes.push_back( _path[--path_len] );
+					}
+					else {
+						_path[path_len] = topn.ch[i];
+						_path_mark[path_len - 1] = i + 1;
+						_path_mark[path_len++] = 0;
+					}
+				}
+			}
+			else {
+				topn.infor.mark = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+				_visited_nodes.push_back( _path[--path_len ] );
+			}
+		}
+	}
+	bool result = _nodes[root].infor.mark == 1;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+	}
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	}
+	_visited_nodes.clear();
+	return result;
+}
+
+void CDD_Manager::Clear_Nodes()
+{
+	for ( unsigned u = _num_fixed_nodes; u < _nodes.Size(); u++ ) {
+		delete [] _nodes[u].ch;
+	}
+	_nodes.Resize( _num_fixed_nodes );
+}
+
+void CDD_Manager::Remove_Redundant_Nodes()
+{
+	DLList_Node<NodeID> * itr;
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		_nodes[itr->data].infor.visited = true;
+	}
+	for ( unsigned i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[_nodes[i].ch[0]].infor.visited = true;
 			_nodes[_nodes[i].ch[1]].infor.visited = true;
@@ -247,17 +422,24 @@ void CDD_Manager::Remove_Redundant_Nodes( CDD & kept_root )
 			delete [] _nodes[i].ch;
 		}
 	}
-	kept_root = _nodes[kept_root].infor.mark;
-	_nodes.Resize( kept_root + 1 );
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		itr->data = _nodes[itr->data].infor.mark;
+	}
+	unsigned new_size = _nodes.Size() - num_remove;
+	_nodes.Resize( new_size );
 	for ( unsigned i = 0; i < _nodes.Size(); i++ ) {
 		_nodes[i].infor.Init();
 	}
 	Shrink_Nodes();
 }
 
-void CDD_Manager::Remove_Redundant_Nodes( vector<CDD> & kept_nodes )
+void CDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 {
 //	Display( cout );
+	DLList_Node<NodeID> * itr;
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		_nodes[itr->data].infor.visited = true;
+	}
 	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
 		_nodes[kept_nodes[i]].infor.visited = true;
 	}
@@ -296,6 +478,9 @@ void CDD_Manager::Remove_Redundant_Nodes( vector<CDD> & kept_nodes )
 			delete [] _nodes[i].ch;
 		}
 	}
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		itr->data = _nodes[itr->data].infor.mark;
+	}
 	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
 		assert( _nodes[kept_nodes[i]].infor.mark != UNSIGNED_UNDEF );
 		kept_nodes[i] = _nodes[kept_nodes[i]].infor.mark;
@@ -310,6 +495,41 @@ void CDD_Manager::Display( ostream & out )
 {
 	out << "Maximum variable: " << ExtVar( _max_var ) << endl;
 	Display_Nodes( out );
+}
+
+void CDD_Manager::Display_dot( ostream & out )
+{
+	out << "digraph DD {" << endl;
+	out << "size = \"7.5,10\"" << endl
+		<< "center = true" << endl;
+	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
+	out << "  node_1 [label=T,shape=square]" << endl;
+	for ( unsigned i = 2; i < _nodes.Size(); i++ ) {
+		if ( _nodes[i].sym == CDD_SYMBOL_CONJOIN ) {
+			out << "  node_" << i << "[label=∧,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else if ( _nodes[i].sym == CDD_SYMBOL_DECOMPOSE ) {
+			out << "  node_" << i << "[label=<∧<SUB>d</SUB>>,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else if ( _nodes[i].sym == CDD_SYMBOL_KERNELIZE ) {
+			out << "  node_" << i << "[label=<∧<SUB>k</SUB>>,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else {
+			out << "  node_" << i << "[label=" << _nodes[i].sym << ",shape=circle] " << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[0] << " [style = dotted]" << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[1] << " [style = solid]" << endl;
+		}
+	}
+	out << "}" << endl;
 }
 
 void CDD_Manager::Display_Nodes( ostream & out )
@@ -354,16 +574,16 @@ void CDD_Manager::Display_Nodes( ostream & out, NodeID * nodes, unsigned size )
 	}
 }
 
-void CDD_Manager::Display_CDD( ostream & out, CDD root )
+void CDD_Manager::Display_CDD( ostream & out, const CDDiagram & cdd )
 {
-	if ( Is_Fixed( root ) ) {
-		out << root << ":\t";
-		_nodes[root].Display( out );
+	if ( Is_Fixed( cdd.Root() ) ) {
+		out << cdd.Root() << ":\t";
+		_nodes[cdd.Root()].Display( out );
 		return;
 	}
 	_nodes[NodeID::bot].infor.visited = true;
 	_nodes[NodeID::top].infor.visited = true;
-	_path[0] = root;
+	_path[0] = cdd.Root();
 	_path_mark[0] = 0;
 	unsigned path_len = 1;
 	while ( path_len > 0 ) {
@@ -382,16 +602,83 @@ void CDD_Manager::Display_CDD( ostream & out, CDD root )
 			childn.infor.visited = true;
 		}
 	}
-	for ( unsigned i = 0; i < root; i++ ) {
+	for ( unsigned i = 0; i < cdd.Root(); i++ ) {
 		if ( _nodes[i].infor.visited ) {
 			out << i << ":\t";
 			_nodes[i].Display( out );
 			_nodes[i].infor.visited = false;
 		}
 	}
-	out << root << ":\t";
-	_nodes[root].Display( out );
-	_nodes[root].infor.visited = false;
+	out << cdd.Root() << ":\t";
+	_nodes[cdd.Root()].Display( out );
+	_nodes[cdd.Root()].infor.visited = false;
+}
+
+void CDD_Manager::Display_CDD_dot( ostream & out, const CDDiagram & cdd )
+{
+	out << "digraph DD {" << endl;
+	out << "size = \"7.5,10\"" << endl
+		<< "center = true" << endl;
+	if ( Is_Fixed( cdd.Root() ) ) {
+		if ( cdd.Root() == NodeID::bot ) out << "  node_0 [label=F,shape=square]" << endl;  //⊥
+		else out << "  node_1 [label=T,shape=square]" << endl;
+		out << "}" << endl;
+		return;
+	}
+	_nodes[NodeID::bot].infor.visited = true;
+	_nodes[NodeID::top].infor.visited = true;
+	_path[0] = cdd.Root();
+	_path_mark[0] = 0;
+	_nodes[cdd.Root()].infor.visited = true;
+	unsigned path_len = 1;
+	while ( path_len > 0 ) {
+		NodeID top = _path[path_len - 1];
+		CDD_Node & topn = _nodes[top];
+		if ( _path_mark[path_len - 1] == topn.ch_size ) {
+			path_len--;
+			continue;
+		}
+		NodeID child = topn.ch[_path_mark[path_len - 1]];
+		CDD_Node & childn = _nodes[child];
+		_path_mark[path_len - 1]++;  // path_len will change in the following statement
+		if ( !childn.infor.visited ) {
+			_path[path_len] = child;
+			_path_mark[path_len++] = 0;
+			childn.infor.visited = true;
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
+	_nodes[NodeID::top].infor.visited = false;
+	out << "  node_1 [label=T,shape=square]" << endl;
+	for ( unsigned i = 2; i <= cdd.Root(); i++ ) {
+		if ( !_nodes[i].infor.visited ) continue;
+		_nodes[i].infor.visited = false;
+		if ( _nodes[i].sym == CDD_SYMBOL_CONJOIN ) {
+			out << "  node_" << i << "[label=∧,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else if ( _nodes[i].sym == CDD_SYMBOL_DECOMPOSE ) {
+			out << "  node_" << i << "[label=<∧<SUB>d</SUB>>,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else if ( _nodes[i].sym == CDD_SYMBOL_KERNELIZE ) {
+			out << "  node_" << i << "[label=<∧<SUB>k</SUB>>,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else {
+			out << "  node_" << i << "[label=" << _nodes[i].sym << ",shape=circle] " << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[0] << " [style = dotted]" << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[1] << " [style = solid]" << endl;
+		}
+	}
+	out << "}" << endl;
 }
 
 

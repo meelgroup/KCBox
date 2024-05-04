@@ -57,7 +57,7 @@ size_t Compiler::Memory()
 	return mem;
 }
 
-BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+Diagram Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
 {
 	assert( Is_Linear_Ordering( heur ) );
 	StopWatch begin_watch, tmp_watch;
@@ -79,14 +79,14 @@ BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic he
 			if ( running_options.profile_compiling >= Profiling_Abstract ) {
 //				Display_Statistics( 0 );
 				cout << running_options.display_prefix << "Number of edges: " << 0 << endl;
-				cout << running_options.display_prefix << "Number of models: " << 0 << endl;
+//				cout << running_options.display_prefix << "Number of models: " << 0 << endl;
 			}
 		}
 		Reset();
-		return NodeID::bot;
+		return manager.Generate_OBDDC( NodeID::bot );
 	}
 	if ( Non_Unary_Clauses_Empty() ) {
-		BDDC result = Make_Node_With_Init_Imp( manager, NodeID::top );
+		NodeID result = Make_Node_With_Init_Imp( manager, NodeID::top );
 		Un_BCP( _dec_offsets[--_num_levels] );
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_compiling_process ) {
@@ -97,16 +97,20 @@ BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic he
 			}
 		}
 		Reset();
-		return result;
+		return manager.Generate_OBDDC( result );
 	}
 	Gather_Infor_For_Counting();
 	Choose_Running_Options( heur, vorder );
 	if ( heur != FixedLinearOrder ) Reorder_BDDC_Manager( manager );
 	Create_Init_Level();
-	if ( running_options.imp_strategy != SAT_Imp_Computing ) Compile_With_Implicite_BCP( manager );
+	if ( running_options.imp_strategy != SAT_Imp_Computing ) {
+		Recycle_Models( _models_stack[0] );
+		if ( Large_Scale_Problem() ) _model_pool->Free_Unallocated_Models();
+		Compile_With_Implicite_BCP( manager );
+	}
 	else Compile_With_SAT_Imp_Computing( manager );
 	_num_rsl_stack--;
-	BDDC result = Make_Node_With_Init_Imp( manager, _rsl_stack[0] );
+	NodeID result = Make_Node_With_Init_Imp( manager, _rsl_stack[0] );
 	Backtrack();
 	if ( running_options.display_compiling_process && running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
 	if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
@@ -128,7 +132,7 @@ BDDC Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic he
 		BigInt verified_count = Count_Verified_Models_sharpSAT( cnf );
 		assert( count == verified_count );
 	}
-	return result;
+	return manager.Generate_OBDDC( result );
 }
 
 NodeID Compiler::Make_Node_With_Init_Imp( OBDDC_Manager & manager, NodeID node )
@@ -136,7 +140,7 @@ NodeID Compiler::Make_Node_With_Init_Imp( OBDDC_Manager & manager, NodeID node )
 	StopWatch begin_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
 //	assert( _unary_clauses.size() == _fixed_num_vars );
-	_bddc_rnode.sym = BDDC_SYMBOL_CONJOIN;
+	_bddc_rnode.sym = DECOMP_SYMBOL_CONJOIN;
 	_bddc_rnode.ch[0] = node;
 	_bddc_rnode.ch_size = ( node != NodeID::top );
 	for ( unsigned i = 0; i < _num_dec_stack; i++ ) {
@@ -183,13 +187,13 @@ void Compiler::Create_Init_Level()
 
 void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 {
+	unsigned old_num_levels = _num_levels;
+	unsigned old_num_rsl_stack = _num_rsl_stack;
 	Variable var;
 	NodeID cached_result;
 	Reason backjump_reason = Reason::undef;  // just used for omitting warning
 	unsigned backjump_level;
-	Recycle_Models( _models_stack[0] );
-	if ( Large_Scale_Problem() ) _model_pool->Free_Unallocated_Models();
-	while ( _num_levels > 1 ) {
+	while ( _num_levels >= old_num_levels ) {
 		if ( DEBUG_OFF ) {
 			if ( Num_Components_On_Current_Level() <= 1 && _state_stack[_num_levels - 1] == 0 )
 				Display_Component( Parent_of_Current_Component(), cerr );  // ToRemove
@@ -328,7 +332,7 @@ void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 			}
 		}
 	}
-	assert( _num_levels == 1 && _num_rsl_stack == 1 );
+	assert( _num_levels == old_num_levels - 1 && _num_rsl_stack == old_num_rsl_stack + 1 );
 }
 
 void Compiler::Backjump_Decision( unsigned num_kept_levels )
@@ -364,7 +368,7 @@ NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node )
 {
 	StopWatch begin_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
-	_bddc_rnode.sym = BDDC_SYMBOL_CONJOIN;
+	_bddc_rnode.sym = DECOMP_SYMBOL_CONJOIN;
 	_bddc_rnode.ch[0] = node;
 	_bddc_rnode.ch_size = ( node != NodeID::top );
 	for ( unsigned i = _dec_offsets[_num_levels - 1] + 1; i < _num_dec_stack; i++ ) {
@@ -506,7 +510,7 @@ NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID * nodes, un
 	StopWatch begin_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
 	unsigned i;
-	_bddc_rnode.sym = BDDC_SYMBOL_CONJOIN;
+	_bddc_rnode.sym = DECOMP_SYMBOL_CONJOIN;
 	_bddc_rnode.ch_size = 0;
 	for ( i = _dec_offsets[_num_levels - 1] + 1; i < _num_dec_stack; i++ ) {
 		_bddc_rnode.Add_Child( NodeID::literal( _dec_stack[i] ) );
@@ -523,7 +527,7 @@ void Compiler::Compile_With_SAT_Imp_Computing( OBDDC_Manager & manager )
 {
 	StopWatch tmp_watch;
 	Variable var;
-    NodeID cached_result;
+	NodeID cached_result;
 	Move_Models( _models_stack[0], _models_stack[1] );
 	while ( _num_levels > 1 ) {
 		if ( DEBUG_OFF ) {
@@ -735,11 +739,67 @@ void Compiler::Display_Result_Stack( ostream & out )
 	}
 }
 
-void Compiler::Display_Result_Statistics( ostream & out, OBDDC_Manager & manager, BDDC bddc )
+void Compiler::Display_Result_Statistics( ostream & out, OBDDC_Manager & manager, NodeID root )
 {
-	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( bddc ) << endl;
-	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( bddc ) << endl;
-	out << running_options.display_prefix << "Number of models: " << manager.Count_Models_Opt( bddc ) << endl;
+	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( root ) << endl;
+	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( root ) << endl;
+//	out << running_options.display_prefix << "Number of models: " << manager.Count_Models( bddc ) << endl;
+}
+
+Diagram Compiler::Compile( OBDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+{
+	OBDDC_Manager bddc_manager( cnf.Max_Var() );
+	Diagram bddc = Compile( bddc_manager, cnf, heur, vorder );
+	_component_cache.Shrink_To_Fit();
+	if ( running_options.display_compiling_process ) {
+		cout << running_options.display_prefix << "Converting to OBDD..." << endl;
+	}
+	Diagram bdd;
+	if ( heur != FixedLinearOrder && bddc_manager.Node( bddc.Root() ).sym == DECOMP_SYMBOL_CONJOIN ) {
+		const BDDC_Node & root_node = bddc_manager.Node( bddc.Root() );
+		Chain new_order;
+		unsigned n;
+		for ( n = 0; n < root_node.ch_size; n++ ) {
+			if ( !bddc_manager.Is_Literal( root_node.ch[n] ) ) break;
+			new_order.Append( bddc_manager.Node( root_node.ch[n] ).sym );
+		}
+		for ( unsigned i = 0; i < bddc_manager.Var_Order().Size(); i++ ) {
+			new_order.Append( bddc_manager.Var_Order()[i] );
+		}
+		manager.Reorder( new_order );
+		_bddc_rnode.sym = DECOMP_SYMBOL_CONJOIN;
+		_bddc_rnode.ch_size = 0;
+		for ( unsigned i = n; i < root_node.ch_size; i++ ) {
+			_bddc_rnode.Add_Child( root_node.ch[i] );
+		}
+		NodeID bddc_child = bddc_manager.Add_Decomposition_Node( _bddc_rnode );
+		bdd = bddc_manager.Convert_Down_ROBDD( bddc_manager.Generate_OBDDC( bddc_child ), manager );
+		NodeID root = bdd.Root();
+		while ( n > 0 ) {
+			Literal lit = bddc_manager.Node2Literal( root_node.ch[--n] );
+			if ( lit.Sign() ) root = manager.Add_Node( lit.Var(), NodeID::bot, root );
+			else root = manager.Add_Node( lit.Var(), root, NodeID::bot );
+		}
+		bdd = manager.Generate_OBDD( root );
+	}
+	else {
+		manager.Reorder( bddc_manager.Var_Order() );
+		bdd = bddc_manager.Convert_Down_ROBDD( bddc, manager );
+	}
+	if ( running_options.display_compiling_process ) {
+		cout << running_options.display_prefix << "Done." << endl;
+		cout << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( bdd ) << endl;
+		cout << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( bdd ) << endl;
+	}
+	if ( debug_options.verify_compilation ) {
+//		manager.Display_Stat( cout );  // ToRemove
+		manager.Verify_ROBDD( bdd );
+		assert( manager.Entail_CNF( bdd, cnf ) );
+		BigInt count = manager.Count_Models( bdd );
+		BigInt verified_count = Count_Verified_Models_sharpSAT( cnf );
+		assert( count == verified_count );
+	}
+	return bdd;
 }
 
 void Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )

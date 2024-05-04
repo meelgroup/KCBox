@@ -60,6 +60,8 @@ protected:
 	void Backtrack_Decomposition();
 protected:
 	void Verify_Result_Component( Component & comp, BigInt count );
+	bool Verified_Path();
+	bool Verified_Components( Component & comp );
 	void Display_Statistics( unsigned option );
 	void Display_Result_Stack( ostream & out );
 	void Display_Memory_Status( ostream & out );
@@ -144,25 +146,77 @@ public:
 			counter.running_options.profile_counting = Profiling_Close;
 		}
 		if ( parameters.competition ) counter.running_options.display_prefix = "c o ";
-		ifstream fin( infile );
-		CNF_Formula cnf( fin );
-		fin.close();
-		BigInt count;
-		if ( cnf.Max_Var() == Variable::undef ) {
-			count = cnf.Known_Count();
-			if ( count != 0 ) cout << "s SATISFIABLE" << endl;
-			else cout << "s UNSATISFIABLE" << endl;
+		if ( !parameters.condition.Exists() ) {
+			ifstream fin( infile );
+			CNF_Formula cnf( fin );
+			fin.close();
+			BigInt count;
+			if ( cnf.Max_Var() == Variable::undef ) {
+				count = cnf.Known_Count();
+				if ( count != 0 ) cout << "s SATISFIABLE" << endl;
+				else cout << "s UNSATISFIABLE" << endl;
+			}
+			else count = counter.Count_Models( cnf, heur );
+			cout << counter.running_options.display_prefix << "Number of models: " << count << endl;
+			if ( parameters.competition ) {  // for model counting competition
+				cout << "c s type mc" << endl;
+				cout << "c o The solver log10-estimates a solution of " << count << endl;
+				long exp;
+				double num = count.TransformDouble_2exp( exp );
+				cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;
+				cout << "c o Arbitrary precision result is " << count << endl;
+				cout << "c s exact arb int " << count << endl;
+			}
 		}
-		else count = counter.Count_Models( cnf, heur );
-		cout << counter.running_options.display_prefix << "Number of models: " << count << endl;
-		if ( parameters.competition ) {  // for model counting competition
-			cout << "c s type mc" << endl;
-			cout << "c o The solver log10-estimates a solution of " << count << endl;
-			long exp;
-			double num = count.TransformDouble_2exp( exp );
-			cout << "c s log10-estimate " << log10( num ) + exp * log10(2) << endl;
-			cout << "c o Arbitrary precision result is " << count << endl;
-			cout << "c s exact arb int " << count << endl;
+		else {
+			ifstream fin_cond( parameters.condition );
+			vector<vector<Literal>> terms;
+			Read_Assignments( fin_cond, terms );
+			fin_cond.close();
+			vector<BigInt> counts( terms.size() );
+			if ( access("B+E_linux", X_OK ) == 0 || access("solvers/B+E_linux", X_OK ) == 0 ) {
+				for ( unsigned i = 0; i < terms.size(); i++ ) {
+					ifstream fin( infile );
+					CNF_Formula cnf( fin );
+					fin.close();
+					cnf.Condition( terms[i] );
+					char BE_input[2048];
+					strcpy( BE_input, infile );
+					strcat( BE_input, ".condition.cnf" );
+					ofstream fout( BE_input );
+					fout << cnf;
+					fout.close();
+					char BE_output[2048];
+					strcpy( BE_output, BE_input );
+					strcat( BE_output, ".BE.cnf" );
+					char command[4096];
+					if ( access("B+E_linux", X_OK ) == 0 ) strcpy( command, "./B+E_linux " );
+					else strcpy( command, "solvers/B+E_linux " );
+					strcat( command, BE_input );
+					strcat( command, " > ");
+					strcat( command, BE_output );
+					system( command );
+					ifstream fin2( BE_output );
+					CNF_Formula cnf2( fin2 );
+					fin2.close();
+					if ( cnf2.Max_Var() == Variable::undef ) counts[i] = cnf2.Known_Count();
+					else counts[i] = counter.Count_Models( cnf2, heur );
+				}
+			}
+			else {
+				cerr << "Warning: it would be better to use B+E with the path solvers/B+E_linux!" << endl;
+				for ( unsigned i = 0; i < terms.size(); i++ ) {
+					ifstream fin( infile );
+					CNF_Formula cnf( fin );
+					fin.close();
+					cnf.Condition( terms[i] );
+					if ( cnf.Max_Var() == Variable::undef ) counts[i] = cnf.Known_Count();
+					else counts[i] = counter.Count_Models( cnf, heur );
+				}
+			}
+			for ( unsigned i = 0; i < counts.size(); i++ ) {
+				cout << counter.running_options.display_prefix << "Number of models: " << counts[i] << endl;
+			}
 		}
 	}
 };

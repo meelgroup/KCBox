@@ -30,7 +30,7 @@ istream & operator >> ( istream & in, BigInt & i )
 
 ostream & operator << ( ostream & out, const BigInt & i )
 {
-    if ( false ) {  // gmpxx
+    if ( true ) {  // gmpxx
 		out << i._xCount;
 		return out;
     }

@@ -537,6 +537,11 @@ BigInt EPCCL_Theory::Count_Models()
 	return result;
 }
 
+WCNF_Formula::WCNF_Formula( CNF_Formula & cnf ): CNF_Formula( cnf )
+{
+	_weights.resize( 2 * _max_var + 2, 1 );  //
+}
+
 WCNF_Formula::WCNF_Formula( istream & fin, unsigned format )
 {
 	if ( fin.fail() ) {
@@ -629,8 +634,11 @@ bool WCNF_Formula::Get_Line_MC_Competition( istream & fin, char line[] )
 		while ( BLANK_CHAR( *p ) ) p++;
 		if ( Read_String_Change( p, "t" ) ) {
 			if ( !Read_String_Change( p, "wmc" ) ) {
-				cerr << "ERROR[WCNF_Formula]: invalid type!" << endl;
-				exit( 1 );
+				if ( Read_String_Change( p, "mc" ) ) cerr << "Warning[WCNF_Formula]: unweighted format!" << endl;
+				else {
+					cerr << "ERROR[WCNF_Formula]: invalid type!" << endl;
+					exit( 1 );
+				}
 			}
 		}
 		else if ( Read_String_Change( p, "p" ) ) {

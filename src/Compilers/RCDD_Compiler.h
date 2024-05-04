@@ -21,7 +21,7 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
 public:
-	CDD Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur, Chain & vorder = Chain::default_empty_chain );  // Reset outside
+	CDDiagram Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur, Chain & vorder = Chain::default_empty_chain );  // Reset outside
 protected:
 	NodeID Make_Root_Node( RCDD_Manager & manager, NodeID node );
 	NodeID Make_Kernelized_Conjunction_Node( RCDD_Manager & manager, NodeID node );
@@ -117,9 +117,9 @@ public:
 			return;
 		}
 		RCDD_Manager manager( cnf.Max_Var() );
-		CDD root = compiler.Compile( manager, cnf, AutomaticalHeur );
+		CDDiagram rcdd = compiler.Compile( manager, cnf, AutomaticalHeur );
 		if ( parameters.CT ) {
-			BigInt count = manager.Count_Models_Opt( root );
+			BigInt count = manager.Count_Models( rcdd );
 			cout << compiler.running_options.display_prefix << "Number of models: " << count << endl;
 		}
 		if ( parameters.out_file != nullptr ) {

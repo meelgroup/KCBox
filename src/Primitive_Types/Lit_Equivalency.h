@@ -24,6 +24,7 @@ public:
 	Lit_Equivalency( Chain & var_order );
 	~Lit_Equivalency();
 	void Reorder( const Chain & var_order );
+	const Chain & Var_Order() const { return _var_order; }
 	void Reset();
 	bool Empty() const { return _substituted_vars.Empty(); }
 	void Add_Equivalence( Literal lit, Literal lit2 ) { Union( lit, lit2 ); }

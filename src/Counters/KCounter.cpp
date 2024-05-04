@@ -1698,6 +1698,7 @@ BigInt KCounter::Backtrack_Failure()
 
 void KCounter::Verify_Result_Component( Component & comp, BigInt count )
 {
+	if ( !Verified_Path() && !Verified_Components( comp ) ) return;
 	CNF_Formula * cnf = Output_Renamed_Clauses_In_Component( comp );
 	BigInt verified_count = Count_Verified_Models_d4( *cnf );
 	if ( verified_count != count ) {
@@ -1710,6 +1711,19 @@ void KCounter::Verify_Result_Component( Component & comp, BigInt count )
 		assert( verified_count == count );
 	}
 	delete cnf;
+}
+
+bool KCounter::Verified_Path()
+{
+	if ( true ) return true;  // all paths
+	return _assignment[254] == false && _assignment[246] == false && _assignment[262] == false && _assignment[263] == false \
+	&& _assignment[264] == false && _assignment[252] == false && _assignment[253] == true;
+}
+
+bool KCounter::Verified_Components( Component & comp )
+{
+	if ( true ) return true;  // all components
+	return comp.caching_loc == 95855 || comp.caching_loc == 95856 || comp.caching_loc == 95857;
 }
 
 void KCounter::Display_Result_Stack( ostream & out )

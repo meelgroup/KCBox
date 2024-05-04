@@ -32,6 +32,10 @@ void Diagram_Manager::Allocate_and_Init_Auxiliary_Memory( Variable max_var )
 Diagram_Manager::~Diagram_Manager()
 {
     if ( _max_var != Variable::undef ) Free_Auxiliary_Memory();
+    if ( !_allocated_nodes.Empty() ) {
+		cerr << "ERROR[Diagram_Manager]: please free allocated nodes first!" << endl;
+		exit( 1 );
+    }
 }
 
 void Diagram_Manager::Free_Auxiliary_Memory()

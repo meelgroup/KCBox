@@ -102,6 +102,74 @@ protected:
 	}
 };
 
+extern inline void Write_Assignment( ostream & out, const vector<bool> & sample, Variable max_var )
+{
+	for ( Variable x = Variable::start; x <= max_var; x++ ) {
+		if ( sample[x] ) out << x << " ";
+		else out << '-' << x << " ";
+	}
+	out << endl;
+}
+
+extern inline void Write_Assignments( ostream & out, const vector<vector<bool>> & samples, Variable max_var )
+{
+	for ( const vector<bool> & sample: samples ) {
+		Write_Assignment( out, sample, max_var );
+	}
+}
+
+extern inline void Write_Assignment( ostream & out, const vector<Literal> & assignment )
+{
+	for ( unsigned i = 0; i < assignment.size(); i++ ) {
+		out << ExtLit( assignment[i] ) << ' ';
+	}
+	out << '0';
+}
+
+extern inline void Read_Assignments( istream & fin, vector<vector<Literal>> & assignments )
+{
+	if ( fin.fail() ) {
+		cerr << "ERROR: the input file cannot be opened!" << endl;
+		exit( 1 );
+	}
+	char line[MAX_LINE];
+	vector<Literal> assignment;
+	while ( !fin.eof() ) {
+		char * p = line;
+		fin.getline( line, MAX_LINE );
+		if ( line[0] == 'c' ) continue;
+		while ( BLANK_CHAR_GENERAL( *p ) ) p++;
+		while ( *p != '\0' ) {
+			int elit;
+			if ( sscanf( p, "%d", &elit) != 1 ) {
+				cerr << "ERROR: invalid literal!" << endl;
+				exit( 1 );
+			}
+			if ( elit == 0 ) break;
+			assignment.push_back( InternLit( elit ) );
+			if( *p == '-' ) p++;
+			while ( DIGIT_CHAR( *p ) ) p++;
+			while ( BLANK_CHAR_GENERAL( *p ) ) p++;
+		}
+		if ( !assignment.empty() ) {
+			assignments.push_back( assignment );
+			assignment.clear();
+		}
+	}
+}
+
+extern inline void Write_Assignments( ostream & fout, const vector<vector<Literal>> & assignments )
+{
+	for ( const vector<Literal> & assignment: assignments ) {
+		for ( unsigned i = 0; i < assignment.size(); i++ ) {
+			fout << ExtLit( assignment[i] ) << ' ';
+		}
+		fout << '0' << endl;
+	}
+}
+
+extern void Random_Assignments( vector<vector<Literal>> & assignments, Random_Generator & rand_gen, Variable max_var, unsigned min_len, unsigned max_len );
+
 class Decision_Stack: public Assignment
 {
 protected:

@@ -210,7 +210,7 @@ protected:
 
 inline vector<Neighbour *> Greedy_Graph::Neighbours( unsigned v )
 {
-	assert( 0 <= v && v <= max_vertex );
+	assert( v <= max_vertex );
 	assert( vertices[v].degree != UNSIGNED_UNDEF );
 	vector<Neighbour *> neighbours;
 	Neighbour * p = vertices[v].adjacency->next;

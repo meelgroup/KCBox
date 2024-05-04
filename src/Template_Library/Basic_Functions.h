@@ -987,9 +987,25 @@ extern inline void Swap_Two_Elements_Vector( vector<T> & vec, unsigned first, un
 }
 
 template<typename T>
+extern inline void Insert( T * source, unsigned len, T element )
+{
+	if ( len == 0 ) source[0] = element;
+	else if ( element < source[0] ) {
+		for ( unsigned i = len - 1; i != UNSIGNED_UNDEF; i-- ) source[i+1] = source[i];
+		source[0] = element;
+	}
+	else {
+		unsigned i;
+		for ( i = len - 1; source[i] > element; i-- ) source[i+1] = source[i];
+		source[i+1] = element;
+	}
+}
+
+template<typename T>
 extern inline void Insert( T * source, unsigned len, T element, T * target )
 {
-	if ( source[len - 1] < element ) {
+	if ( len == 0 ) source[0] = element;
+	else if ( source[len - 1] < element ) {
 		for ( unsigned i = 0; i < len; i++ ) target[i] = source[i];
 		target[len] = element;
 	}
@@ -1115,7 +1131,7 @@ extern int Exactly_Read_Unsigneds( char * source, unsigned target[] );
 
 extern void Exactly_Read_Unsigneds( char * source, vector<unsigned> & target );
 
-extern bool Read_String_Change( char * & source, char * target );
+extern bool Read_String_Change( char * & source, const char * target );
 
 extern int Read_Integer_Change( char * & source );
 
@@ -1125,7 +1141,7 @@ extern double Read_Float_Change( char * & source );
 
 extern double Read_Double_Change( char * & source );
 
-extern bool String_Fuzzy_Match( char * str1, char * str2 );
+extern bool String_Fuzzy_Match( const char * str1, const char * str2 );
 
 extern bool String_Fuzzy_Match_Prefix_Change( char * & str, const char * prefix );
 

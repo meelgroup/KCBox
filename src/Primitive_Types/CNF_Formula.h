@@ -340,6 +340,7 @@ protected:
 	vector<double> _weights;  // _weights[lit] is the weight of lit
 public:
 	WCNF_Formula( unsigned max_var ): CNF_Formula( max_var ), _weights( 2 * max_var + 2, 1 ) {}
+	WCNF_Formula( CNF_Formula & cnf );
 	WCNF_Formula( istream & fin, unsigned format = 0 );
 	WCNF_Formula( Random_Generator & rand_gen, unsigned num_var, unsigned num_cl, unsigned min_len, unsigned max_len );  /// generate a random formula
 	const vector<double> & Weights() { return _weights; }

@@ -313,6 +313,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 add_executable(${TOOLNAME}
 	src/Compilers/Integrated_Compiler.cpp
 	src/Compilers/CDD_Compiler.cpp
+	src/Compilers/DNNF_Compiler.cpp
 	src/Compilers/R2D2_Compiler.cpp
 	src/Compilers/RCDD_Compiler.cpp
 	src/Compilers/CCDD_Compiler.cpp
@@ -324,6 +325,7 @@ add_executable(${TOOLNAME}
 	src/KC_Languages/OBDD.cpp
 	src/KC_Languages/OBDD[AND].cpp
 	src/KC_Languages/CDD.cpp
+	src/KC_Languages/DecDNNF.cpp
 	src/KC_Languages/RCDD.cpp
 	src/KC_Languages/RRCDD.cpp
 	src/KC_Languages/CCDD.cpp

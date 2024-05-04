@@ -10,10 +10,7 @@
 namespace KCBox {
 
 
-#define BDDC_CHILD_POS_UNDEF (unsigned(-1))
-#define BDDC_SYMBOL_TRUE	( unsigned(-1) )
-#define BDDC_SYMBOL_FALSE	( unsigned(-2) )
-#define BDDC_SYMBOL_CONJOIN	(unsigned(-3))
+#define DECOMP_SYMBOL_CONJOIN	(unsigned(-3))
 
 
 struct Rough_BDDC_Node
@@ -27,10 +24,10 @@ struct Rough_BDDC_Node
 	void Add_Child( NodeID child ) { ch[ch_size++] = child; }
 	void Display( ostream & out )
 	{
-		if ( sym == BDDC_SYMBOL_FALSE ) out << "F 0";
-		else if ( sym == BDDC_SYMBOL_TRUE ) out << "T 0";
+		if ( sym == BDD_SYMBOL_FALSE ) out << "F 0";
+		else if ( sym == BDD_SYMBOL_TRUE ) out << "T 0";
 		else {
-			if ( sym == BDDC_SYMBOL_CONJOIN ) out << "C";
+			if ( sym == DECOMP_SYMBOL_CONJOIN ) out << "C";
 			else out << sym;
 			for ( unsigned i = 0; i < ch_size; i++ ) {
 				out << ' ' << ch[i];
@@ -90,10 +87,10 @@ struct BDDC_Node
 	}
 	void Display( ostream & out, bool stat = false ) const
 	{
-		if ( sym == BDDC_SYMBOL_FALSE ) out << "F 0";
-		else if ( sym == BDDC_SYMBOL_TRUE ) out << "T 0";
+		if ( sym == BDD_SYMBOL_FALSE ) out << "F 0";
+		else if ( sym == BDD_SYMBOL_TRUE ) out << "T 0";
 		else {
-			if ( sym == BDDC_SYMBOL_CONJOIN ) out << "C";
+			if ( sym == DECOMP_SYMBOL_CONJOIN ) out << "C";
 			else out << sym;
 			for ( unsigned i = 0; i < ch_size; i++ ) {
 				out << ' ' << ch[i];
@@ -212,21 +209,19 @@ struct BDDC_Ternary_Op_Node
 	}
 };
 
-typedef NodeID BDDC;
-
 class OBDDC_Manager: public Diagram_Manager, public Linear_Order
 {
-	friend bool Is_Equivalent( OBDDC_Manager & manager1, BDDC root1, OBDDC_Manager & manager2, BDDC root2 );
+	friend bool Is_Equivalent( OBDDC_Manager & manager1, Diagram bddc1, OBDDC_Manager & manager2, Diagram bddc2 );
 	friend class Compiler;
 protected:
-	Hash_Table<BDDC_Node> _nodes;
-	unsigned _num_fixed_nodes;  // FALSE, TRUE, and literals
+	Large_Hash_Table<BDDC_Node> _nodes;
 protected: //auxiliary memory
 	NodeID * _many_nodes;  // stored temporary children
 	NodeID ** _node_sets;
 	unsigned * _node_set_sizes;
 	Rough_BDDC_Node _aux_rnode;
 	QSorter _qsorter;
+	size_t _hash_memory;
 public:
 	/* NOTE:
 	* mode = 1: it is a BDDC file
@@ -246,12 +241,16 @@ public:
 	unsigned Add_Node( Rough_BDDC_Node & rnode );
 	unsigned Add_Decision_Node( Decision_Node & bnode ) { return Decompose_Decision( bnode ); }
 	unsigned Add_Decomposition_Node( Rough_BDDC_Node & rnode );
-	BDDC Decompose_Infty( OBDD_Manager & bdd_manager, unsigned root );
+	Diagram Decompose_Infty( OBDD_Manager & bdd_manager, Diagram & bdd );
 	void Decompose_Infty();
-	BDD Convert_Down_ROBDD( BDDC root, OBDD_Manager & bdd_manager );
+	Diagram Convert_Down_ROBDD( const Diagram & bddc, OBDD_Manager & bdd_manager );
+	Diagram Generate_OBDDC( NodeID root ) { assert( root < _nodes.Size() );  return Generate_Diagram( root ); }
 	void Display( ostream & out );
 	void Display_Stat( ostream & out );
+	void Display_dot( ostream & out );
 	void Display_New_Nodes( ostream & out, unsigned & old_size );
+	void Display_OBDDC( ostream & out, const Diagram & bddc );
+	void Display_OBDDC_dot( ostream & out, const Diagram & bddc );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Free_Auxiliary_Memory();
@@ -259,8 +258,6 @@ protected:
 	void Verify_OBDDC( unsigned root );
 	void Verify_Ordered_Decision( unsigned root );
 	void Verify_ROBDDC_Finest( unsigned root );
-	void Remove_Redundant_Nodes( vector<BDDC> & kept_nodes );
-
 protected:
 	NodeID Finest( Rough_BDDC_Node * p );
 	NodeID Finest_Exi( Rough_BDDC_Node * p );
@@ -299,25 +296,55 @@ protected:
 	NodeID Replace_Child_Rough( Rough_BDDC_Node & parent, NodeID child, NodeID new_child );
 	void Compute_Var_Num();
 	void Condition_Min_Change( NodeID n, NodeID & low, NodeID & high );
+public: // transformation
+	void Clear_Nodes();
+	void Shrink_Nodes() { _nodes.Shrink_To_Fit(); _hash_memory = _nodes.Memory(); }
+	void Swap_Nodes( OBDDC_Manager & other ) { _nodes.Swap( other._nodes); }
+	void Remove_Redundant_Nodes();
+	void Remove_Redundant_Nodes( vector<NodeID> & kept_nodes );
 public: // querying
 	unsigned Num_Nodes() const { return _nodes.Size(); }
-	unsigned Num_Nodes( BDDC root );
-	unsigned Num_Edges( BDDC root );
-	unsigned Min_Decomposition_Depth( BDDC root );
+	unsigned Num_Nodes( const Diagram & bddc ) { assert( Contain( bddc ) );  return Num_Nodes( bddc.Root() ); }
+	unsigned Num_Edges( const Diagram & bddc ) { assert( Contain( bddc ) );  return Num_Edges( bddc.Root() ); }
+	unsigned Min_Decomposition_Depth( const Diagram & bddc );
 	size_t Memory();
-	bool Entail_Clause( BDDC root, Clause & cl );
-	bool Entail_CNF( BDDC root, CNF_Formula * cnf );
-	BigInt Count_Models( BDDC root );
+	bool Entail_Clause( const Diagram & bddc, Clause & cl );
+	bool Entail_CNF( const Diagram & bddc, CNF_Formula * cnf );
+	bool Decide_SAT( const Diagram & bddc, const vector<Literal> & assignment );
+	bool Decide_Valid_With_Condition( const Diagram & bddc, const vector<Literal> & assignment );
+	BigInt Count_Models( const Diagram & bddc ) { assert( Contain( bddc ) );  return Count_Models( bddc.Root() ); }
+	BigFloat Count_Models( const Diagram & bddc, const vector<double> & weights );  // NOTE: weights[lit] + weights[~lit] == 1
+	BigInt Count_Models( const Diagram & bddc, const vector<Literal> & assignment );
+	BigInt Count_Models_With_Condition( const Diagram & bddc, const vector<Literal> & term );
+	BigFloat Count_Models_With_Condition( const Diagram & bddc, const vector<double> & weights, const vector<Literal> & term );
+	void Mark_Models( const Diagram & bddc, vector<BigFloat> & results );
+	void Probabilistic_Model( const Diagram & bddc, vector<float> & prob_values );
+	void Uniformly_Sample( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples );
+	void Mark_Models( const Diagram & bddc, const vector<double> & weights, vector<BigFloat> & results );
+	void Probabilistic_Model( const Diagram & bddc, const vector<double> & weights, vector<double> & prob_values );
+	void Uniformly_Sample( Random_Generator & rand_gen, const Diagram & bddc, const vector<double> & weights, vector<vector<bool>> & samples );
+	void Uniformly_Sample( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples, const vector<Literal> & assignment );
+	void Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples, const vector<Literal> & term );
+	void Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const Diagram & bddc, const vector<double> & weights, vector<vector<bool>> & samples, const vector<Literal> & term );
 protected:
-	bool Decide_Node_SAT_Under_Assignment( BDDC root );
-	bool Decide_Node_UNSAT_Under_Assignment( BDDC root );
-	void Verify_Node_UNSAT_Under_Assignment( BDDC root );
-	BigInt Count_Models_Opt( BDDC root );  // #Vars(root) <= num_vars
+	unsigned Num_Nodes( NodeID root );
+	unsigned Num_Edges( NodeID root );
+	bool Decide_Node_SAT_Under_Assignment( NodeID root );
+	bool Decide_Node_UNSAT_Under_Assignment( NodeID root );
+	void Verify_Node_UNSAT_Under_Assignment( NodeID root );
+	bool Decide_Valid_Under_Assignment( NodeID root );
+	BigInt Count_Models( NodeID root );
+	BigInt Count_Models_Under_Assignment( NodeID root, unsigned assignment_size );
+	void Mark_Models_Under_Assignment( NodeID root, const vector<double> & weights, vector<BigFloat> & results );
+	void Uniformly_Sample( Random_Generator & rand_gen, NodeID root, vector<bool> & sample, vector<BigFloat> & prob_values );
+	void Mark_Models_Under_Assignment( NodeID root, vector<BigFloat> & results );
+	void Uniformly_Sample_Under_Assignment( Random_Generator & rand_gen, NodeID root, vector<bool> & sample, vector<BigFloat> & prob_values );
 public: // transforming
-	unsigned Condition_Min( BDDC root, bool sign );
+	Diagram Condition_Min( const Diagram & bddc, bool sign );
+	Diagram Condition( const Diagram & bddc, const vector<Literal> & term );
 protected:
-	bool Verify_Equ( BDDC root, OBDDC_Manager & other, BDDC other_root );
-	void Verify_Entail_CNF( BDDC root, CNF_Formula & cnf );
+	bool Verify_Equ( NodeID root, OBDDC_Manager & other, NodeID other_root );
+	void Verify_Entail_CNF( NodeID root, CNF_Formula & cnf );
 
 protected:
 	void Real_Var_Num( unsigned n );
@@ -325,6 +352,7 @@ protected:
 protected:
 	bool Var_LT( unsigned u, unsigned v ) { return _var_order.Less_Than( u, v ); }
 	bool Var_LE( unsigned u, unsigned v ) { return _var_order.Less_Eq( u, v ); }
+	bool Contain( const Diagram & bddc ) { return bddc.Root() < _nodes.Size() && Diagram_Manager::Contain( bddc ); }
 	unsigned Push_Node( BDDC_Node node )  // node.ch will be push into _nodes
 	{
 		unsigned old_size = _nodes.Size();
@@ -367,7 +395,7 @@ protected:
 	}
 	void Sort_Children_Over_GLB( NodeID n, NodeID * target )  /// sort by comparing glb of subgraph
 	{
-		assert( _nodes[n].sym == BDDC_SYMBOL_CONJOIN );
+		assert( _nodes[n].sym == DECOMP_SYMBOL_CONJOIN );
 		unsigned i, j;
 		for ( i = 0; i < _nodes[n].ch_size; i++ ) {
 			target[i] = _nodes[n].ch[i];
@@ -384,7 +412,7 @@ protected:
 	}
 	void Sort_Children_Over_GLB_Reverse( unsigned n, NodeID * target )  /// sort by comparing glb of subgraph
 	{
-		assert( _nodes[n].sym == BDDC_SYMBOL_CONJOIN );
+		assert( _nodes[n].sym == DECOMP_SYMBOL_CONJOIN );
 		for ( unsigned i = 0; i < _nodes[n].ch_size; i++ ) {
 			target[i] = _nodes[n].ch[i];
 		}
@@ -400,7 +428,7 @@ protected:
 	}
 	unsigned Search_First_Non_Literal_Position( unsigned n )
 	{
-		assert( _nodes[n].sym == BDDC_SYMBOL_CONJOIN );
+		assert( _nodes[n].sym == DECOMP_SYMBOL_CONJOIN );
 		if ( Is_Fixed( _nodes[n].ch[_nodes[n].ch_size - 1] ) ) return _nodes[n].ch_size;
 		if ( !Is_Fixed( _nodes[n].ch[0] ) ) return 0;
 		unsigned i;
@@ -409,7 +437,7 @@ protected:
 	}
 	unsigned Search_First_Non_Literal_Position( BDDC_Node * node )
 	{
-		assert( node->sym == BDDC_SYMBOL_CONJOIN );
+		assert( node->sym == DECOMP_SYMBOL_CONJOIN );
 		if ( Is_Fixed( node->ch[node->ch_size - 1] ) ) return node->ch_size;
 		if ( !Is_Fixed( node->ch[0] ) ) return 0;
 		unsigned i;

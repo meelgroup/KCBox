@@ -21,7 +21,7 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
 public:
-	CDD Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur, Chain & vorder = Chain::default_empty_chain );  // Reset outside
+	CDDiagram Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur, Chain & vorder = Chain::default_empty_chain );  // Reset outside
 protected:
 	NodeID Make_Root_Node( CCDD_Manager & manager, NodeID node );
 	NodeID Make_Kernelized_Conjunction_Node( CCDD_Manager & manager, NodeID node );
@@ -86,13 +86,13 @@ public:
 		CNF_Formula cnf( fin );
 		fin.close();
 		CCDD_Manager manager( cnf.Max_Var() );
-		NodeID root = compiler.Compile( manager, cnf, AutomaticalHeur );
+		CDDiagram ccdd = compiler.Compile( manager, cnf, AutomaticalHeur );
 		ofstream fout( "result.cdd" );
 		manager.Display( fout );
 		fout.close();
 		Random_Generator rand_gen( 0 );
 		vector<vector<bool>> samples( 10 );
-		manager.Uniformly_Sample( rand_gen, root, samples );
+		manager.Uniformly_Sample( rand_gen, ccdd, samples );
 		for ( vector<bool> & sample: samples ) {
 			for ( Variable i = Variable::start; i <= manager.Max_Var(); i++ ) {
 				if ( sample[i] ) cout << i << " ";
@@ -132,27 +132,102 @@ public:
 			return;
 		}
 		CCDD_Manager manager( cnf.Max_Var() );
-		CDD root = compiler.Compile( manager, cnf, heur );
+		CDDiagram ccdd = compiler.Compile( manager, cnf, heur );
 		if ( parameters.CT || parameters.US.Exists() ) {
 			compiler._component_cache.Shrink_To_Fit();
-			manager.Remove_Redundant_Nodes( root );
+			manager.Remove_Redundant_Nodes();
+		}
+		if ( parameters.CO ) {
+			if ( !parameters.condition.Exists() ) {
+				cout << compiler.running_options.display_prefix << "Consistency: " << (ccdd.Root() != NodeID::bot) << endl;
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					bool sat = manager.Decide_SAT( ccdd, term );
+					cout << compiler.running_options.display_prefix << "Consistency: " << sat << endl;
+				}
+			}
+		}
+		if ( parameters.VA ) {
+			if ( !parameters.condition.Exists() ) {
+				cout << compiler.running_options.display_prefix << "Validity: " << (ccdd.Root() != NodeID::top) << endl;
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					bool valid = manager.Decide_Valid_With_Condition( ccdd, term );
+					cout << compiler.running_options.display_prefix << "Validity: " << valid << endl;
+				}
+			}
+		}
+		if ( parameters.CE ) {
+			ifstream fin2( parameters.CE );
+			vector<vector<Literal>> terms;
+			Read_Assignments( fin2, terms );
+			fin2.close();
+			for ( vector<Literal> & term: terms ) {
+				for ( Literal & lit: term ) {
+					lit = ~lit;
+				}
+				bool sat = manager.Decide_SAT( ccdd, term );
+				cout << compiler.running_options.display_prefix << "Entailment: " << !sat << endl;
+			}
+		}
+		if ( parameters.IM ) {
+			ifstream fin2( parameters.IM );
+			vector<vector<Literal>> terms;
+			Read_Assignments( fin2, terms );
+			fin2.close();
+			for ( vector<Literal> & term: terms ) {
+				bool valid = manager.Decide_Valid_With_Condition( ccdd, term );
+				cout << compiler.running_options.display_prefix << "Implicant: " << valid << endl;
+			}
 		}
 		if ( parameters.CT ) {
-			BigInt count = manager.Count_Models( root );
-			cout << compiler.running_options.display_prefix << compiler.running_options.display_prefix << "Number of models: " << count << endl;
+			if ( !parameters.condition.Exists() ) {
+				BigInt count = manager.Count_Models( ccdd );
+				cout << compiler.running_options.display_prefix << "Number of models: " << count << endl;
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					BigInt count = manager.Count_Models_With_Condition( ccdd, term );
+					cout << compiler.running_options.display_prefix << "Number of models: " << count << endl;
+				}
+			}
 		}
 		if ( parameters.US.Exists() ) {
 			Random_Generator rand_gen;
 			vector<vector<bool>> samples( parameters.US );
-			manager.Uniformly_Sample( rand_gen, root, samples );
 			const char * sample_file = "samples.txt";
 			ofstream fout( sample_file );
-			for ( vector<bool> & sample: samples ) {
-				for ( Variable i = Variable::start; i <= manager.Max_Var(); i++ ) {
-					if ( sample[i] ) fout << i << " ";
-					else fout << '-' << i << " ";
+			if ( !parameters.condition.Exists() ) {
+				manager.Uniformly_Sample( rand_gen, ccdd, samples );
+				Write_Assignments( fout, samples, manager.Max_Var() );
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					manager.Uniformly_Sample_With_Condition( rand_gen, ccdd, samples, term );
+					fout << "c assignment: ";
+					Write_Assignment( fout, term );
+					fout << endl;
+					Write_Assignments( fout, samples, manager.Max_Var() );
+					samples.resize( parameters.US );
 				}
-				fout << endl;
 			}
 			fout.close();
 			cout << compiler.running_options.display_prefix << "Samples saved to " << sample_file << endl;
@@ -161,6 +236,11 @@ public:
             ofstream fout( parameters.out_file );
             manager.Display( fout );
             fout.close();
+		}
+		if ( parameters.out_file_dot != nullptr ) {
+			ofstream fout( parameters.out_file_dot );
+			manager.Display_CDD_dot( fout, ccdd );
+			fout.close();
 		}
 	}
 	static void Test_Sampler( const char * infile, Sampler_Parameters & parameters, bool quiet )
@@ -183,25 +263,18 @@ public:
 		ifstream fin( infile );
 		CNF_Formula cnf( fin );
 		fin.close();
-		cerr << "here" << endl;
 		if ( cnf.Max_Var() == Variable::undef ) {
 			cerr << "ERROR: empty instance!" << endl;
 			return;
 		}
 		CCDD_Manager manager( cnf.Max_Var() );
-		CDD root = compiler.Compile( manager, cnf, AutomaticalHeur );
+		CDDiagram ccdd = compiler.Compile( manager, cnf, AutomaticalHeur );
 		compiler._component_cache.Shrink_To_Fit();
 		Random_Generator rand_gen;
 		vector<vector<bool>> samples( parameters.nsamples );
-		manager.Uniformly_Sample( rand_gen, root, samples );
+		manager.Uniformly_Sample( rand_gen, ccdd, samples );
 		ofstream fout( parameters.out_file );
-		for ( vector<bool> & sample: samples ) {
-			for ( Variable i = Variable::start; i <= manager.Max_Var(); i++ ) {
-				if ( sample[i] ) fout << i << " ";
-				else fout << '-' << i << " ";
-			}
-			fout << endl;
-		}
+		Write_Assignments( fout, samples, manager.Max_Var() );
 		fout.close();
 		cout << compiler.running_options.display_prefix << "Samples saved to " << parameters.out_file << endl;
 	}

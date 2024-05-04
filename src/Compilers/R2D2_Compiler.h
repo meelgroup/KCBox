@@ -20,7 +20,7 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
 public:
-	CDD Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur, Chain & vorder = Chain::default_empty_chain );
+	CDDiagram Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur, Chain & vorder = Chain::default_empty_chain );
 protected:
 	NodeID Make_Root_Node( R2D2_Manager & manager, NodeID node );
 	NodeID Make_Kernelized_Conjunction_Node( R2D2_Manager & manager, NodeID node );
@@ -38,11 +38,11 @@ protected:
 protected:
 	void Verify_Result_Component( Component & comp, R2D2_Manager & manager, NodeID result );
 	void Display_Statistics( unsigned option );
-	void Display_Result_Statistics( ostream & out, R2D2_Manager & manager, CDD cdd );
+	void Display_Result_Statistics( ostream & out, R2D2_Manager & manager, NodeID root );
 protected:
 	void Compile_With_SAT_Imp_Computing( R2D2_Manager & manager );  // employ SAT engine to compute implied literals
 public:
-	CDD Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocessor & preprocessor, Chain & vorder = Chain::default_empty_chain );
+	CDDiagram Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocessor & preprocessor, Chain & vorder = Chain::default_empty_chain );
 protected:
 	bool Is_Memory_Exhausted();
 public:
@@ -98,7 +98,7 @@ public:
 		compiler.running_options.removing_redundant_nodes_trigger *= parameters.memo / 4;
 		Heuristic heur = Parse_Heuristic( parameters.heur );
 		if ( Is_Linear_Ordering( heur ) == lbool(false) ) {
-			cerr << "ERROR: the heuristic is not supported yet!" << endl;
+			cerr << "ERROR: the heuristic is not linear!" << endl;
 			exit( 0 );
 		}
 		ifstream fin( infile );
@@ -110,15 +110,115 @@ public:
 			return;
 		}
 		R2D2_Manager manager( cnf.Max_Var() );
-		CDD root = compiler.Compile( manager, cnf, heur );
+		CDDiagram r2d2 = compiler.Compile( manager, cnf, heur );
+		if ( parameters.CT || parameters.US.Exists() ) {
+			compiler._component_cache.Shrink_To_Fit();
+			manager.Remove_Redundant_Nodes();
+		}
+		if ( parameters.CO ) {
+			if ( !parameters.condition.Exists() ) {
+				cout << compiler.running_options.display_prefix << "Consistency: " << (r2d2.Root() != NodeID::bot) << endl;
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					bool sat = manager.Decide_SAT( r2d2, term );
+					cout << compiler.running_options.display_prefix << "Consistency: " << sat << endl;
+				}
+			}
+		}
+		if ( parameters.VA ) {
+			if ( !parameters.condition.Exists() ) {
+				cout << compiler.running_options.display_prefix << "Validity: " << (r2d2.Root() != NodeID::top) << endl;
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					bool valid = manager.Decide_Valid_With_Condition( r2d2, term );
+					cout << compiler.running_options.display_prefix << "Validity: " << valid << endl;
+				}
+			}
+		}
+		if ( parameters.CE ) {
+			ifstream fin2( parameters.CE );
+			vector<vector<Literal>> terms;
+			Read_Assignments( fin2, terms );
+			fin2.close();
+			for ( vector<Literal> & term: terms ) {
+				for ( Literal & lit: term ) {
+					lit = ~lit;
+				}
+				bool sat = manager.Decide_SAT( r2d2, term );
+				cout << compiler.running_options.display_prefix << "Entailment: " << !sat << endl;
+			}
+		}
+		if ( parameters.IM ) {
+			ifstream fin2( parameters.IM );
+			vector<vector<Literal>> terms;
+			Read_Assignments( fin2, terms );
+			fin2.close();
+			for ( vector<Literal> & term: terms ) {
+				bool valid = manager.Decide_Valid_With_Condition( r2d2, term );
+				cout << compiler.running_options.display_prefix << "Implicant: " << valid << endl;
+			}
+		}
 		if ( parameters.CT ) {
-			BigInt count = manager.Count_Models( root );
-			cout << compiler.running_options.display_prefix << "Number of models: " << count << endl;
+			if ( !parameters.condition.Exists() ) {
+				BigInt count = manager.Count_Models( r2d2 );
+				cout << compiler.running_options.display_prefix << compiler.running_options.display_prefix << "Number of models: " << count << endl;
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					BigInt count = manager.Count_Models_With_Condition( r2d2, term );
+					cout << compiler.running_options.display_prefix << "Number of models: " << count << endl;
+				}
+			}
+		}
+		if ( parameters.US.Exists() ) {
+			Random_Generator rand_gen;
+			vector<vector<bool>> samples( parameters.US );
+			const char * sample_file = "samples.txt";
+			ofstream fout( sample_file );
+			if ( !parameters.condition.Exists() ) {
+				manager.Uniformly_Sample( rand_gen, r2d2, samples );
+				Write_Assignments( fout, samples, manager.Max_Var() );
+			}
+			else {
+				ifstream fin2( parameters.condition );
+				vector<vector<Literal>> terms;
+				Read_Assignments( fin2, terms );
+				fin2.close();
+				for ( vector<Literal> & term: terms ) {
+					manager.Uniformly_Sample_With_Condition( rand_gen, r2d2, samples, term );
+					fout << "c assignment: ";
+					Write_Assignment( fout, term );
+					fout << endl;
+					Write_Assignments( fout, samples, manager.Max_Var() );
+					samples.resize( parameters.US );
+				}
+			}
+			fout.close();
+			cout << compiler.running_options.display_prefix << "Samples saved to " << sample_file << endl;
 		}
 		if ( parameters.out_file != nullptr ) {
             ofstream fout( parameters.out_file );
             manager.Display( fout );
             fout.close();
+		}
+		if ( parameters.out_file_dot != nullptr ) {
+			ofstream fout( parameters.out_file_dot );
+			manager.Display_CDD_dot( fout, r2d2 );
+			fout.close();
 		}
 	}
 };

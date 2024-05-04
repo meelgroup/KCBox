@@ -123,10 +123,10 @@ template<typename T> extern void Merge_Many_Sorted_Arrays( Array<T> arrays[], un
 template<typename T> struct SList_Node
 {
 	T data;
-	SList_Node * next;
+	SList_Node<T> * next;
 	unsigned infor;
 	SList_Node(): infor( UNSIGNED_UNDEF ) {}
-	SList_Node( T value, SList_Node * p ): data( value ), next( p ), infor( UNSIGNED_UNDEF ) {}
+	SList_Node( T value, SList_Node<T> * p ): data( value ), next( p ), infor( UNSIGNED_UNDEF ) {}
 };
 
 template<typename T> class SList
@@ -262,6 +262,7 @@ public:
 #ifndef _LIST_SAFE_MODE_
 		if ( head->next == NULL ) {
 			cerr << "ERROR[SList]: Empty list!" << endl;
+			exit( 1 );
 		}
 #endif
 		SList_Node<T> * tmp = head->next;
@@ -275,6 +276,7 @@ public:
 #ifndef _LIST_SAFE_MODE_
 		if ( itr == NULL ) {
 			cerr << "ERROR[SList]: Invalid current node!" << endl;
+			exit( 1 );
 		}
 #endif
 		SList_Node<T> * tmp;
@@ -292,6 +294,7 @@ public:
 #ifndef _LIST_SAFE_MODE_
 		if ( itr->next == NULL ) {
 			cerr << "ERROR[SList]: Invalid current node!" << endl;
+			exit( 1 );
 		}
 #endif
 		SList_Node<T> * tmp = itr->next;
@@ -389,6 +392,96 @@ public:
 	{
 		if ( _head == _tail ) return;
 		_head = _head->next;
+	}
+};
+
+template<typename T> struct DLList_Node
+{
+	T data;
+	DLList_Node<T> * prev;
+	DLList_Node<T> * next;
+	unsigned infor;
+	DLList_Node(): infor( UNSIGNED_UNDEF ) {}
+	DLList_Node( T value, DLList_Node<T> * p, DLList_Node<T> * n ): data( value ), prev( p ), next( n ), infor( UNSIGNED_UNDEF ) {}
+};
+
+template<typename T> class CDLList
+{
+protected:
+	DLList_Node<T> * head;
+public:
+	CDLList()
+	{
+		head = new DLList_Node<T>;
+		head->next = head->prev = head;
+	}
+	~CDLList()
+	{
+		for ( DLList_Node<T> * itr = head->next; itr != head;  ) {
+			DLList_Node<T> * tmp = itr;
+			itr = itr->next;
+			delete tmp;
+		}
+		delete head;
+	}
+	unsigned Size() const
+	{
+		DLList_Node<T> * tmp = head;
+		unsigned size = 0;
+		for ( ; tmp->next != head; tmp = tmp->next ) size++;
+		return size;
+	}
+	DLList_Node<T> * Head() { return head; }
+	DLList_Node<T> * Front() { return head->next; }
+	DLList_Node<T> * Back() { return head->prev; }
+	DLList_Node<T> * Prev( DLList_Node<T> * itr ) { return itr->prev; }
+	DLList_Node<T> * Next( DLList_Node<T> * itr ) { return itr->next; }
+	bool Empty() { return head->next == head; }
+	DLList_Node<T> * Insert_Front( T value )
+	{
+		DLList_Node<T> * tmp = new DLList_Node<T>( value, head, head->next );
+		head->next->prev = tmp;
+		head->next = tmp;
+		return tmp;
+	}
+	DLList_Node<T> * Insert_Back( T value )
+	{
+		DLList_Node<T> * tmp = new DLList_Node<T>( value, head->prev, head );
+		head->prev->next = tmp;
+		head->prev = tmp;
+		return tmp;
+	}
+	void Delete_Front()
+	{
+		if ( head->next == head ) {
+			cerr << "ERROR[CDLList]: Empty list!" << endl;
+			exit( 1 );
+		}
+		DLList_Node<T> * tmp = head->next;
+		head->next = tmp->next;
+		head->next->prev = head;
+		delete tmp;
+	}
+	DLList_Node<T> * Insert_After( DLList_Node<T> * itr, T value )
+	{
+		if ( itr == nullptr ) {
+			cerr << "ERROR[CDLList]: Invalid current node!" << endl;
+			exit( 1 );
+		}
+		DLList_Node<T> * tmp = new DLList_Node<T>( value, itr, itr->next );
+		itr->next->prev = tmp;
+		itr->next = tmp;
+		return tmp;
+	}
+	void Delete( DLList_Node<T> * itr )
+	{
+		if ( itr == nullptr ) {
+			cerr << "ERROR[CDLList]: Invalid node!" << endl;
+			exit( 1 );
+		}
+		itr->next->prev = itr->prev;
+		itr->prev->next = itr->next;
+		delete itr;
 	}
 };
 
@@ -1010,6 +1103,9 @@ struct Binary_Map_Node
 	T1 left;
 	T2 right;
 	TR result;
+	Binary_Map_Node() {}
+	Binary_Map_Node( T1 l, T2 r ): left( l ), right( r ) {}
+	Binary_Map_Node( T1 l, T2 r, TR rsl ): left( l ), right( r ), result( rsl ) {}
 	bool operator == ( Binary_Map_Node<T1, T2, TR> & other ) const
 	{
 		return ( left == other.left ) + ( right == other.right ) == 2;
@@ -1026,6 +1122,28 @@ class Binary_Map: public Hash_Table<Binary_Map_Node<T1, T2, TR>>
 public:
 	Binary_Map(): Hash_Table<Binary_Map_Node<T1, T2, TR>>() {}
 	Binary_Map( unsigned num_entries ): Hash_Table<Binary_Map_Node<T1, T2, TR>>( num_entries ) {}
+	TR Map( T1 left, T2 right )
+	{
+		Binary_Map_Node<T1, T2, TR> node( left, right );
+		size_t loc = this->Location( node );  /// without "this->": no declarations were found by argument-dependent lookup at the point of instantiation
+		assert( loc != SIZET_UNDEF );
+		return (*this)[loc].result;
+	}
+};
+
+template<class T1, class T2, class TR>
+class Large_Binary_Map: public Large_Hash_Table<Binary_Map_Node<T1, T2, TR>>
+{
+public:
+	Large_Binary_Map(): Large_Hash_Table<Binary_Map_Node<T1, T2, TR>>() {}
+	Large_Binary_Map( unsigned num_entries ): Large_Hash_Table<Binary_Map_Node<T1, T2, TR>>( num_entries ) {}
+	TR Map( T1 left, T2 right )
+	{
+		Binary_Map_Node<T1, T2, TR> node( left, right );
+		size_t loc = this->Location( node );  /// without "this->": no declarations were found by argument-dependent lookup at the point of instantiation
+		assert( loc != SIZET_UNDEF );
+		return (*this)[loc].result;
+	}
 };
 
 template<class T1, class T2, class T3, class TR>

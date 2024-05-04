@@ -58,7 +58,7 @@ protected:
 	NodeID Search_Node_With_Imp( Search_Graph<NodeID> & graph, NodeID * children, unsigned num );
 protected:
 	void Display_Statistics( unsigned option );
-	void Display_Result_Statistics( ostream & out, CDD_Manager & manager, CDD cdd );
+	void Display_Result_Statistics( ostream & out, CDD_Manager & manager, NodeID root );
 	void Display_Memory_Status( ostream & out );
 	void Display_Result_Stack( ostream & out );
 protected:

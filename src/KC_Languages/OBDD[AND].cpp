@@ -67,7 +67,7 @@ _nodes( LARGE_HASH_TABLE )
 		else cerr << "ERROR[BDDC]: wrong BDDC-file format, the " << u << "th node is invalid!" << endl;
 		while ( BLANK_CHAR( *p ) ) p++;
 		if ( *p == 'C' ) {
-			node.sym = BDDC_SYMBOL_CONJOIN;
+			node.sym = DECOMP_SYMBOL_CONJOIN;
 			p++;
 			Exactly_Read_Unsigneds( p, arr );
 			node.ch_size = arr.size() - 1;
@@ -142,7 +142,7 @@ void OBDDC_Manager::Rename( unsigned map[] )
 	unsigned i, j;
 	_var_order.Rename( map );
 	for ( i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
-		if ( _nodes[i].sym == BDDC_SYMBOL_CONJOIN ) {
+		if ( _nodes[i].sym == DECOMP_SYMBOL_CONJOIN ) {
 			unsigned tmp = _nodes[i].ch[_nodes[i].ch_size - 1];
 			_nodes[i].ch[_nodes[i].ch_size - 1] = UNSIGNED_UNDEF;
 			for ( j = 0; _nodes[i].ch[j] < _num_fixed_nodes; j++ ) {
@@ -204,7 +204,7 @@ OBDDC_Manager * OBDDC_Manager::Copy_BDDC_Standard_Order( unsigned root )
 		else {
 			BDDC_Node node;
 			node.sym = top.sym;
-			if ( top.sym == BDDC_SYMBOL_CONJOIN ) {
+			if ( top.sym == DECOMP_SYMBOL_CONJOIN ) {
 				node.ch = new NodeID [top.ch_size];
 				node.ch_size = top.ch_size;
 				for ( unsigned i = 0; i < top.ch_size; i++ ) {
@@ -328,7 +328,7 @@ void OBDDC_Manager::Verify_ROBDDC_Finest( unsigned root )
                 cerr << "ERROR[BDDC]: The " << topn << "th node is conjunctively decomposable, because it has a false child!" << endl;
                 assert( top->ch[0] != top->ch[1] );
 			}
-			else if ( _nodes[top->ch[0]].sym == BDDC_SYMBOL_CONJOIN && _nodes[top->ch[1]].sym == BDDC_SYMBOL_CONJOIN ) {
+			else if ( _nodes[top->ch[0]].sym == DECOMP_SYMBOL_CONJOIN && _nodes[top->ch[1]].sym == DECOMP_SYMBOL_CONJOIN ) {
 				unsigned num_shared = Intersection( _nodes[top->ch[0]].ch, _nodes[top->ch[0]].ch_size, \
 					_nodes[top->ch[1]].ch, _nodes[top->ch[1]].ch_size, _many_nodes );
 				if ( num_shared > 0 ) {
@@ -336,12 +336,12 @@ void OBDDC_Manager::Verify_ROBDDC_Finest( unsigned root )
                     assert( num_shared == 0 );
 				}
 			}
-			else if ( _nodes[top->ch[1]].sym == BDDC_SYMBOL_CONJOIN && \
+			else if ( _nodes[top->ch[1]].sym == DECOMP_SYMBOL_CONJOIN && \
 				Search_Exi_Nonempty( _nodes[top->ch[1]].ch, _nodes[top->ch[1]].ch_size, top->ch[0] ) ) {
                 cerr << "ERROR[BDDC]: The " << topn << "th node is decomposable, because left is a part of right!" << endl;
                 assert( false );
 			}
-			else if ( _nodes[top->ch[0]].sym == BDDC_SYMBOL_CONJOIN && \
+			else if ( _nodes[top->ch[0]].sym == DECOMP_SYMBOL_CONJOIN && \
 				Search_Exi_Nonempty( _nodes[top->ch[0]].ch, _nodes[top->ch[0]].ch_size, top->ch[1] ) ) {
                 cerr << "ERROR[BDDC]: The " << topn << "th node is decomposable, because right is a part of left!" << endl;
                 assert( false );
@@ -358,10 +358,10 @@ void OBDDC_Manager::Verify_ROBDDC_Finest( unsigned root )
 		else {
 			unsigned i;
 			unsigned tmp = _nodes[top->ch[top->ch_size - 1]].sym;
-			_nodes[top->ch[top->ch_size - 1]].sym = BDDC_SYMBOL_CONJOIN;
-			for ( i = 0; _nodes[top->ch[i]].sym != BDDC_SYMBOL_CONJOIN; i++ );
+			_nodes[top->ch[top->ch_size - 1]].sym = DECOMP_SYMBOL_CONJOIN;
+			for ( i = 0; _nodes[top->ch[i]].sym != DECOMP_SYMBOL_CONJOIN; i++ );
 			_nodes[top->ch[top->ch_size - 1]].sym = tmp;
-			if ( _nodes[top->ch[i]].sym == BDDC_SYMBOL_CONJOIN ) {
+			if ( _nodes[top->ch[i]].sym == DECOMP_SYMBOL_CONJOIN ) {
 				cerr << "ERROR[BDDC]: The " << topn << "th node is not finest!" << endl;
 				cerr << topn << ": ";
 				top->Display( cerr );
@@ -398,11 +398,11 @@ void OBDDC_Manager::Add_Fixed_Nodes()
 	* Previously, _nodes must be empty
 	*/
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_FALSE;
+	node.sym = BDD_SYMBOL_FALSE;
 	node.ch = NULL;
 	node.ch_size = 0;
 	_nodes.Hit( node );
-	node.sym = BDDC_SYMBOL_TRUE;
+	node.sym = BDD_SYMBOL_TRUE;
 	_nodes.Hit( node );
 	/* NOTE:
 	* We add <x, 1, 0> and <x, 0, 1> here
@@ -427,6 +427,7 @@ void OBDDC_Manager::Allocate_and_Init_Auxiliary_Memory()
 	_node_sets = new NodeID * [_max_var + 1];
 	_node_set_sizes = new unsigned [_max_var + 1];
 	_aux_rnode.Reset_Max_Var( _max_var );
+	_hash_memory = _nodes.Memory();
 	if ( debug_options.activate_running_time ) {
 		running_time.Init();
 	}
@@ -445,7 +446,7 @@ unsigned OBDDC_Manager::Add_Node( Rough_BDDC_Node & rnode )
 	unsigned old_size = _nodes.Size();
     if ( debug_options.display_Decompose_Infty ) {
         cout << "rnode => ";
-        if ( rnode.sym == BDDC_SYMBOL_CONJOIN ) cout << "C";
+        if ( rnode.sym == DECOMP_SYMBOL_CONJOIN ) cout << "C";
         else cout << rnode.sym;
         for ( unsigned i = 0; i < rnode.ch_size; i++ ) {
             cout << ' ' << rnode.ch[i];
@@ -479,14 +480,14 @@ NodeID OBDDC_Manager::Decompose_Decision( Decision_Node & bnode )
     else if ( Is_Const( bnode.low ) && Is_Const( bnode.high ) ) tmp_link = NodeID::literal( bnode.var, bnode.high == NodeID::top );
     else if ( bnode.low == NodeID::bot ) tmp_link = Extract_Leaf_Left_No_Check( &bnode );
     else if ( bnode.high == NodeID::bot ) tmp_link = Extract_Leaf_Right_No_Check( &bnode );
-    else if ( BOTH_X( _nodes[bnode.low].sym, _nodes[bnode.high].sym, BDDC_SYMBOL_CONJOIN ) ) {
+    else if ( BOTH_X( _nodes[bnode.low].sym, _nodes[bnode.high].sym, DECOMP_SYMBOL_CONJOIN ) ) {
         tmp_link = Extract_Share_Semi_Check( &bnode );
     }
-    else if ( _nodes[bnode.high].sym == BDDC_SYMBOL_CONJOIN && \
+    else if ( _nodes[bnode.high].sym == DECOMP_SYMBOL_CONJOIN && \
         Search_Exi_Nonempty( _nodes[bnode.high].ch, _nodes[bnode.high].ch_size, bnode.low ) ) {
         tmp_link = Extract_Part_Left_No_Check( &bnode );
     }
-    else if ( _nodes[bnode.low].sym == BDDC_SYMBOL_CONJOIN && \
+    else if ( _nodes[bnode.low].sym == DECOMP_SYMBOL_CONJOIN && \
         Search_Exi_Nonempty( _nodes[bnode.low].ch, _nodes[bnode.low].ch_size, bnode.high ) ) {
         tmp_link = Extract_Part_Right_No_Check( &bnode );
     }
@@ -496,27 +497,27 @@ NodeID OBDDC_Manager::Decompose_Decision( Decision_Node & bnode )
 
 unsigned OBDDC_Manager::Add_Decomposition_Node( Rough_BDDC_Node & rnode )
 {
-	assert( rnode.sym == BDDC_SYMBOL_CONJOIN );
+	assert( rnode.sym == DECOMP_SYMBOL_CONJOIN );
 	if ( rnode.ch_size == 0 ) return NodeID::top;
 	else if ( rnode.ch_size == 1 ) return rnode.ch[0];
     else return Decompose_Conjunction( rnode );
 }
 
-BDDC OBDDC_Manager::Decompose_Infty( OBDD_Manager & bdd_manager, unsigned root )
+Diagram OBDDC_Manager::Decompose_Infty( OBDD_Manager & bdd_manager, Diagram & bdd )
 {
 	assert( _max_var == bdd_manager.Max_Var() );
-	if ( root < _num_fixed_nodes ) return root;
+	if ( bdd.Root() < _num_fixed_nodes ) return Generate_Diagram( bdd.Root() );
 	/* NOTE:
 	* Under the release mode, the procedure sometimes has a bug when using the statement such as '_nodes[u].infor.mark = f();',
 	* where f will update _nodes.data. We will use tmp_link to rewrite 'tmp_link = f(); _nodes[u].infor.mark = tmp_link;'
 	*/
 	unsigned i, tmp_link, old_size = _nodes.Size();
 	Rough_BDDC_Node rnode( _max_var );
-	vector<unsigned> node_links( root + 1, UNSIGNED_UNDEF );
+	vector<unsigned> node_links( bdd.Root() + 1, UNSIGNED_UNDEF );
 	for ( i = 0; i < _num_fixed_nodes; i++ ) {
 		node_links[ i ] = i;
 	}
-	_node_stack[0] = root;
+	_node_stack[0] = bdd.Root();
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack ) {
@@ -554,35 +555,36 @@ BDDC OBDDC_Manager::Decompose_Infty( OBDD_Manager & bdd_manager, unsigned root )
 		}
 	}
 //	Display( cout );
-	BDDC new_root = node_links[root];
+	NodeID new_root = node_links[bdd.Root()];
+	Diagram bddc = Generate_Diagram( new_root );
 	if ( debug_options.verify_Decompose_Infty ) {
 		Verify_ROBDDC_Finest( new_root );
-		BigInt model_num1 = bdd_manager.Count_Models( root );
-		BigInt model_num2 = Count_Models( new_root );
+		BigInt model_num1 = bdd_manager.Count_Models( bdd );
+		BigInt model_num2 = Count_Models( bddc );
 //		model_num3.Display_DEC( cout );
-		EPCCL_Theory * cnf = bdd_manager.Convert_EPCCL( root );
+		EPCCL_Theory * cnf = bdd_manager.Convert_EPCCL( bdd );
 //		cnf->Display( cout );
 		assert( model_num1 == model_num2 );
-		assert( Entail_CNF( new_root, cnf ) );
+		assert( Entail_CNF( bddc, cnf ) );
 		delete cnf;
 	}
-	return new_root;
+	return bddc;
 }
 
 NodeID OBDDC_Manager::Decompose_Conjunction( Rough_BDDC_Node & rnode )
 {
     unsigned i, tmp_link;
     unsigned tmp = _nodes[rnode.ch[rnode.ch_size - 1]].sym;  // NOTE: Search NodeID::bot
-    _nodes[rnode.ch[rnode.ch_size - 1]].sym = BDDC_SYMBOL_FALSE;
-    for ( i = 0; _nodes[rnode.ch[i]].sym != BDDC_SYMBOL_FALSE; i++ );
+    _nodes[rnode.ch[rnode.ch_size - 1]].sym = BDD_SYMBOL_FALSE;
+    for ( i = 0; _nodes[rnode.ch[i]].sym != BDD_SYMBOL_FALSE; i++ );
     _nodes[rnode.ch[rnode.ch_size - 1]].sym = tmp;
-    if ( _nodes[rnode.ch[i]].sym == BDDC_SYMBOL_FALSE )
+    if ( _nodes[rnode.ch[i]].sym == BDD_SYMBOL_FALSE )
         tmp_link = NodeID::bot;
     else {
         _aux_rnode.sym = rnode.sym;
         _aux_rnode.ch_size = 0;
         for ( i = 0; i < rnode.ch_size; i++ ) {
-            if ( _nodes[rnode.ch[i]].sym != BDDC_SYMBOL_TRUE ) {
+            if ( _nodes[rnode.ch[i]].sym != BDD_SYMBOL_TRUE ) {
                 _aux_rnode.ch[_aux_rnode.ch_size++] = rnode.ch[i];
             }
         }
@@ -600,16 +602,16 @@ NodeID OBDDC_Manager::Decompose_Conjunction( BDDC_Node * itr )
 {
     unsigned i, tmp_link;
     unsigned tmp = _nodes[_nodes[itr->ch[itr->ch_size - 1]].infor.mark].sym;  // NOTE: Search NodeID::bot
-    _nodes[_nodes[itr->ch[itr->ch_size - 1]].infor.mark].sym = BDDC_SYMBOL_FALSE;
-    for ( i = 0; _nodes[_nodes[itr->ch[i]].infor.mark].sym != BDDC_SYMBOL_FALSE; i++ );
+    _nodes[_nodes[itr->ch[itr->ch_size - 1]].infor.mark].sym = BDD_SYMBOL_FALSE;
+    for ( i = 0; _nodes[_nodes[itr->ch[i]].infor.mark].sym != BDD_SYMBOL_FALSE; i++ );
     _nodes[_nodes[itr->ch[itr->ch_size - 1]].infor.mark].sym = tmp;
-    if ( _nodes[_nodes[itr->ch[i]].infor.mark].sym == BDDC_SYMBOL_FALSE )
+    if ( _nodes[_nodes[itr->ch[i]].infor.mark].sym == BDD_SYMBOL_FALSE )
         tmp_link = NodeID::bot;
     else {
         _aux_rnode.sym = itr->sym;
         _aux_rnode.ch_size = 0;
         for ( i = 0; i < itr->ch_size; i++ ) {
-            if ( _nodes[_nodes[itr->ch[i]].infor.mark].sym != BDDC_SYMBOL_TRUE ) {
+            if ( _nodes[_nodes[itr->ch[i]].infor.mark].sym != BDD_SYMBOL_TRUE ) {
                 _aux_rnode.ch[_aux_rnode.ch_size++] = _nodes[itr->ch[i]].infor.mark;
             }
         }
@@ -625,13 +627,13 @@ NodeID OBDDC_Manager::Decompose_Conjunction( BDDC_Node * itr )
 
 NodeID OBDDC_Manager::Finest( Rough_BDDC_Node * p )
 {
-	assert( p->sym == BDDC_SYMBOL_CONJOIN );
+	assert( p->sym == DECOMP_SYMBOL_CONJOIN );
 	unsigned i, j;
 	unsigned tmp = _nodes[p->ch[p->ch_size - 1]].sym;
-	_nodes[p->ch[p->ch_size - 1]].sym = BDDC_SYMBOL_CONJOIN;
-	for ( i = 0; _nodes[p->ch[i]].sym != BDDC_SYMBOL_CONJOIN; i++ );
+	_nodes[p->ch[p->ch_size - 1]].sym = DECOMP_SYMBOL_CONJOIN;
+	for ( i = 0; _nodes[p->ch[i]].sym != DECOMP_SYMBOL_CONJOIN; i++ );
 	_nodes[p->ch[p->ch_size - 1]].sym = tmp;
-	if ( _nodes[p->ch[i]].sym != BDDC_SYMBOL_CONJOIN ) return Push_Node( *p );
+	if ( _nodes[p->ch[i]].sym != DECOMP_SYMBOL_CONJOIN ) return Push_Node( *p );
 	else {
 		_node_sets[0] = _many_nodes;
 		_node_set_sizes[0] = i;
@@ -640,10 +642,10 @@ NodeID OBDDC_Manager::Finest( Rough_BDDC_Node * p )
 		_node_set_sizes[1] = _nodes[p->ch[i]].ch_size;
 		unsigned cluster_size = 2;
 		BDDC_Node node;
-		node.sym = BDDC_SYMBOL_CONJOIN;
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = _nodes[p->ch[i]].ch_size;
 		for ( i++; i < p->ch_size; i++ ) {
-			if ( _nodes[p->ch[i]].sym == BDDC_SYMBOL_CONJOIN ) {
+			if ( _nodes[p->ch[i]].sym == DECOMP_SYMBOL_CONJOIN ) {
 				node.ch_size += _nodes[p->ch[i]].ch_size;
 				_node_sets[cluster_size] = _nodes[p->ch[i]].ch;
 				_node_set_sizes[cluster_size++] = _nodes[p->ch[i]].ch_size;
@@ -660,9 +662,9 @@ NodeID OBDDC_Manager::Finest( Rough_BDDC_Node * p )
 
 NodeID OBDDC_Manager::Finest_Exi( Rough_BDDC_Node * p )
 {
-	assert( p->sym == BDDC_SYMBOL_CONJOIN );
+	assert( p->sym == DECOMP_SYMBOL_CONJOIN );
 	unsigned i;
-	for ( i = 0; _nodes[p->ch[i]].sym != BDDC_SYMBOL_CONJOIN; i++ ) {
+	for ( i = 0; _nodes[p->ch[i]].sym != DECOMP_SYMBOL_CONJOIN; i++ ) {
 		_many_nodes[i] = p->ch[i];
 	}
     _node_sets[0] = _many_nodes;
@@ -671,10 +673,10 @@ NodeID OBDDC_Manager::Finest_Exi( Rough_BDDC_Node * p )
     _node_set_sizes[1] = _nodes[p->ch[i]].ch_size;
     unsigned cluster_size = 2;
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch_size = _nodes[p->ch[i]].ch_size;
     for ( i++; i < p->ch_size; i++ ) {
-        if ( _nodes[p->ch[i]].sym == BDDC_SYMBOL_CONJOIN ) {
+        if ( _nodes[p->ch[i]].sym == DECOMP_SYMBOL_CONJOIN ) {
             node.ch_size += _nodes[p->ch[i]].ch_size;
             _node_sets[cluster_size] = _nodes[p->ch[i]].ch;
             _node_set_sizes[cluster_size++] = _nodes[p->ch[i]].ch_size;
@@ -694,8 +696,8 @@ NodeID OBDDC_Manager::Extract_Leaf_Left_No_Check( Decision_Node * p )
 	assert( p->low == NodeID::bot && Is_Internal( p->high ) );
 	BDDC_Node node;
 	Literal lit( p->var, true );
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[p->high].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[p->high].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[p->high].ch_size + 1;
 		node.ch = new NodeID [node.ch_size];
 		Insert( _nodes[p->high].ch, _nodes[p->high].ch_size, NodeID::literal( lit ), node.ch );
@@ -721,8 +723,8 @@ NodeID OBDDC_Manager::Extract_Leaf_Right_No_Check( Decision_Node * p )
 	assert( Is_Internal( p->low ) && p->high == NodeID::bot );
 	BDDC_Node node;
 	Literal lit( p->var, false );
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[p->low].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[p->low].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[p->low].ch_size + 1;
 		node.ch = new NodeID [node.ch_size];
 		Insert( _nodes[p->low].ch, _nodes[p->low].ch_size, NodeID::literal( lit ), node.ch );
@@ -744,7 +746,7 @@ NodeID OBDDC_Manager::Extract_Leaf_Right_No_Check( Decision_Node * p )
 
 NodeID OBDDC_Manager::Extract_Share_Semi_Check( Decision_Node * p )
 {
-	assert( _nodes[p->low].sym == BDDC_SYMBOL_CONJOIN && _nodes[p->high].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[p->low].sym == DECOMP_SYMBOL_CONJOIN && _nodes[p->high].sym == DECOMP_SYMBOL_CONJOIN );
 	unsigned num_shared = Intersection( _nodes[p->low].ch, _nodes[p->low].ch_size, \
 		_nodes[p->high].ch, _nodes[p->high].ch_size, _many_nodes );
 	if ( num_shared == 0 ) return Push_Node( *p );
@@ -765,7 +767,7 @@ NodeID OBDDC_Manager::Extract_Share_Semi_Check( Decision_Node * p )
 		node.ch[1] = Remove_Children( p->high, _many_nodes, num_shared );
 	}
 	NodeID n = Push_Node( node );
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch = new NodeID [num_shared + 1];
 	node.ch_size = num_shared + 1;
 	Insert( _many_nodes, num_shared, n, node.ch );
@@ -774,7 +776,7 @@ NodeID OBDDC_Manager::Extract_Share_Semi_Check( Decision_Node * p )
 
 NodeID OBDDC_Manager::Extract_Part_Left_No_Check( Decision_Node * p )
 {
-	assert( Is_Internal( p->low ) && _nodes[p->high].sym == BDDC_SYMBOL_CONJOIN );
+	assert( Is_Internal( p->low ) && _nodes[p->high].sym == DECOMP_SYMBOL_CONJOIN );
 	BDDC_Node node;
 	node.sym = p->var;
 	node.ch = new NodeID [2];
@@ -783,7 +785,7 @@ NodeID OBDDC_Manager::Extract_Part_Left_No_Check( Decision_Node * p )
 	if ( _nodes[p->high].ch_size == 2 ) node.ch[1] = _nodes[p->high].ch[0] + _nodes[p->high].ch[1] - p->low;  // NOTE: For integers, {x, y} \ {x} = x + y - x
 	else node.ch[1] = Remove_Child_No_Check_GE_3( p->high, p->low );
 	NodeID n = Push_Node( node );
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch = new NodeID [2];
 	if ( n < p->low ) {
 		node.ch[0] = n;
@@ -798,7 +800,7 @@ NodeID OBDDC_Manager::Extract_Part_Left_No_Check( Decision_Node * p )
 
 NodeID OBDDC_Manager::Extract_Part_Right_No_Check( Decision_Node * p )
 {
-	assert( _nodes[p->low].sym == BDDC_SYMBOL_CONJOIN && Is_Internal( p->high ) );
+	assert( _nodes[p->low].sym == DECOMP_SYMBOL_CONJOIN && Is_Internal( p->high ) );
 	BDDC_Node node;
 	node.sym = p->var;
 	node.ch = new NodeID [2];
@@ -807,7 +809,7 @@ NodeID OBDDC_Manager::Extract_Part_Right_No_Check( Decision_Node * p )
 	else node.ch[0] = Remove_Child_No_Check_GE_3( p->low, p->high );
 	node.ch[1] = NodeID::top;
 	NodeID n = Push_Node( node );
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch = new NodeID [2];
 	if ( n < p->high ) {
 		node.ch[0] = n;
@@ -826,8 +828,8 @@ NodeID OBDDC_Manager::Extract_Leaf_Left_No_Check( BDDC_Node * p )
 	assert( p->ch[0] == NodeID::bot && Is_Internal( p->ch[1] ) );
 	BDDC_Node node;
 	Literal lit( p->Var(), true );
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[p->ch[1]].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[p->ch[1]].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[p->ch[1]].ch_size + 1;
 		node.ch = new NodeID [node.ch_size];
 		Insert( _nodes[p->ch[1]].ch, _nodes[p->ch[1]].ch_size, NodeID::literal( lit ), node.ch );
@@ -853,8 +855,8 @@ NodeID OBDDC_Manager::Extract_Leaf_Right_No_Check( BDDC_Node * p )
 	assert( Is_Internal( p->ch[0] ) && p->ch[1] == NodeID::bot );
 	BDDC_Node node;
 	Literal lit( p->Var(), false );
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[p->ch[0]].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[p->ch[0]].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[p->ch[0]].ch_size + 1;
 		node.ch = new NodeID [node.ch_size];
 		Insert( _nodes[p->ch[0]].ch, _nodes[p->ch[0]].ch_size, NodeID::literal( lit ), node.ch );
@@ -876,7 +878,7 @@ NodeID OBDDC_Manager::Extract_Leaf_Right_No_Check( BDDC_Node * p )
 
 NodeID OBDDC_Manager::Extract_Share_Semi_Check( BDDC_Node * p )
 {
-	assert( _nodes[p->ch[0]].sym == BDDC_SYMBOL_CONJOIN && _nodes[p->ch[1]].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[p->ch[0]].sym == DECOMP_SYMBOL_CONJOIN && _nodes[p->ch[1]].sym == DECOMP_SYMBOL_CONJOIN );
 	unsigned num_shared = Intersection( _nodes[p->ch[0]].ch, _nodes[p->ch[0]].ch_size, \
 		_nodes[p->ch[1]].ch, _nodes[p->ch[1]].ch_size, _many_nodes );
 	if ( num_shared == 0 ) return Push_Node( *p );
@@ -897,7 +899,7 @@ NodeID OBDDC_Manager::Extract_Share_Semi_Check( BDDC_Node * p )
 		node.ch[1] = Remove_Children( p->ch[1], _many_nodes, num_shared );
 	}
 	NodeID n = Push_Node( node );
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch = new NodeID [num_shared + 1];
 	node.ch_size = num_shared + 1;
 	Insert( _many_nodes, num_shared, n, node.ch );
@@ -906,7 +908,7 @@ NodeID OBDDC_Manager::Extract_Share_Semi_Check( BDDC_Node * p )
 
 NodeID OBDDC_Manager::Extract_Part_Left_No_Check( BDDC_Node * p )
 {
-	assert( Is_Internal( p->ch[0] ) && _nodes[p->ch[1]].sym == BDDC_SYMBOL_CONJOIN );
+	assert( Is_Internal( p->ch[0] ) && _nodes[p->ch[1]].sym == DECOMP_SYMBOL_CONJOIN );
 	BDDC_Node node;
 	node.sym = p->sym;
 	node.ch = new NodeID [2];
@@ -915,7 +917,7 @@ NodeID OBDDC_Manager::Extract_Part_Left_No_Check( BDDC_Node * p )
 	if ( _nodes[p->ch[1]].ch_size == 2 ) node.ch[1] = _nodes[p->ch[1]].ch[0] + _nodes[p->ch[1]].ch[1] - p->ch[0];  // NOTE: For integers, {x, y} \ {x} = x + y - x
 	else node.ch[1] = Remove_Child_No_Check_GE_3( p->ch[1], p->ch[0] );
 	NodeID n = Push_Node( node );
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch = new NodeID [2];
 	if ( n < p->ch[0] ) {
 		node.ch[0] = n;
@@ -930,7 +932,7 @@ NodeID OBDDC_Manager::Extract_Part_Left_No_Check( BDDC_Node * p )
 
 NodeID OBDDC_Manager::Extract_Part_Right_No_Check( BDDC_Node * p )
 {
-	assert( _nodes[p->ch[0]].sym == BDDC_SYMBOL_CONJOIN && Is_Internal( p->ch[1] ) );
+	assert( _nodes[p->ch[0]].sym == DECOMP_SYMBOL_CONJOIN && Is_Internal( p->ch[1] ) );
 	BDDC_Node node;
 	node.sym = p->sym;
 	node.ch = new NodeID [2];
@@ -939,7 +941,7 @@ NodeID OBDDC_Manager::Extract_Part_Right_No_Check( BDDC_Node * p )
 	else node.ch[0] = Remove_Child_No_Check_GE_3( p->ch[0], p->ch[1] );
 	node.ch[1] = NodeID::top;
 	NodeID n = Push_Node( node );
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch = new NodeID [2];
 	if ( n < p->ch[1] ) {
 		node.ch[0] = n;
@@ -952,13 +954,14 @@ NodeID OBDDC_Manager::Extract_Part_Right_No_Check( BDDC_Node * p )
 	return Push_Node( node );
 }
 
-BDD OBDDC_Manager::Convert_Down_ROBDD( BDDC root, OBDD_Manager & bdd_manager )
+Diagram OBDDC_Manager::Convert_Down_ROBDD( const Diagram & bddc, OBDD_Manager & bdd_manager )
 {
+	assert( Contain( bddc ) );
 	unsigned i;
 	for ( i = 0; i < _num_fixed_nodes; i++ ) {
 		_nodes[i].infor.mark = i;
 	}
-	_node_stack[0] = root;
+	_node_stack[0] = bddc.Root();
 	_node_mark_stack[0] = true;
 	Decision_Node * b_stack = new Decision_Node [2 * _max_var + 4];  // recording the results of Condition_Min_Change
 	unsigned num_node_stack = 1;
@@ -1041,33 +1044,34 @@ BDD OBDDC_Manager::Convert_Down_ROBDD( BDDC root, OBDD_Manager & bdd_manager )
 			}
 		}
 	}
-	BDD new_root = _nodes[root].infor.mark;
+	NodeID new_root = _nodes[bddc.Root()].infor.mark;
+	Diagram new_bdd = bdd_manager.Generate_OBDD( new_root );
 	delete [] b_stack;
 	for ( i = 0; i < _num_fixed_nodes; i++ ) {
 		_nodes[i].infor.mark = UNSIGNED_UNDEF;
 	}
-	for ( ; i <=  root; i++ ) {
+	for ( ; i <=  bddc.Root(); i++ ) {
 		_nodes[i].infor.mark = UNSIGNED_UNDEF;
 	}
 	if ( debug_options.verify_Convert_Down ) {
-		bdd_manager.Verify_ROBDD( new_root );
-		BigInt model_num1 = Count_Models( root );
+		bdd_manager.Verify_ROBDD( new_bdd );
+		BigInt model_num1 = Count_Models( bddc );
 //		model_num1.Display_DEC( cout );
-		BigInt model_num2 = bdd_manager.Count_Models( new_root );
+		BigInt model_num2 = bdd_manager.Count_Models( new_bdd );
 //		model_num2.Display_DEC( cout );
 		assert( model_num1 == model_num2 );
 //		this->Copy_Standard_Order()->Display( cout );
-		EPCCL_Theory * cnf = bdd_manager.Convert_EPCCL( new_root );
+		EPCCL_Theory * cnf = bdd_manager.Convert_EPCCL( new_bdd );
 //		cnf->Display( cout );
-		assert( Entail_CNF( root, cnf ) );
+		assert( Entail_CNF( bddc, cnf ) );
 		delete cnf;
 	}
-	return new_root;
+	return new_bdd;
 }
 
 NodeID OBDDC_Manager::Add_Child( NodeID parent, NodeID child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN  );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN  );
 	assert( child > 1 );
 	BDDC_Node node;
 	node.sym = _nodes[parent].sym;
@@ -1079,7 +1083,7 @@ NodeID OBDDC_Manager::Add_Child( NodeID parent, NodeID child )
 
 NodeID OBDDC_Manager::Add_Children( NodeID parent, NodeID * children, unsigned num_ch )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	BDDC_Node node;
 	node.sym = _nodes[parent].sym;
 	node.ch_size = _nodes[parent].ch_size + num_ch;
@@ -1090,7 +1094,7 @@ NodeID OBDDC_Manager::Add_Children( NodeID parent, NodeID * children, unsigned n
 
 NodeID OBDDC_Manager::Remove_Child( NodeID parent, NodeID child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN || _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN || _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	if ( _nodes[parent].ch_size == 2 ) {
 		if ( EITHOR_X( _nodes[parent].ch[0], _nodes[parent].ch[1], child ) )
 			return _nodes[parent].ch[0] + _nodes[parent].ch[1] - child;  // NOTE: For integers, {x, y} \ {x} = x + y - x
@@ -1112,7 +1116,7 @@ NodeID OBDDC_Manager::Remove_Child( NodeID parent, NodeID child )
 
 NodeID OBDDC_Manager::Remove_Child_No_Check( NodeID parent, NodeID child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	if ( _nodes[parent].ch_size == 2 ) return _nodes[parent].ch[0] + _nodes[parent].ch[1] - child;  // NOTE: For integers, {x, y} \ {x} = x + y - x
 	else {
 		BDDC_Node node;
@@ -1126,7 +1130,7 @@ NodeID OBDDC_Manager::Remove_Child_No_Check( NodeID parent, NodeID child )
 
 NodeID OBDDC_Manager::Remove_Child_No_Check_GE_3( NodeID parent, NodeID child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( _nodes[parent].ch_size >= 3 );
 	BDDC_Node node;
 	node.sym = _nodes[parent].sym;
@@ -1138,7 +1142,7 @@ NodeID OBDDC_Manager::Remove_Child_No_Check_GE_3( NodeID parent, NodeID child )
 
 NodeID OBDDC_Manager::Remove_Child_No_Check_Change( NodeID parent, NodeID child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	if ( _nodes[parent].ch_size == 2 ) return _nodes[parent].ch[0] + _nodes[parent].ch[1] - child;  // NOTE: For integers, {x, y} \ {x} = x + y - x
 	else {
 		BDDC_Node node;
@@ -1153,7 +1157,7 @@ NodeID OBDDC_Manager::Remove_Child_No_Check_Change( NodeID parent, NodeID child 
 
 NodeID OBDDC_Manager::Remove_Child_No_Check_Rough( Rough_BDDC_Node & parent, NodeID child )
 {
-	assert( parent.sym == BDDC_SYMBOL_CONJOIN );
+	assert( parent.sym == DECOMP_SYMBOL_CONJOIN );
 	if ( parent.ch_size == 2 ) return parent.ch[0] + parent.ch[1] - child;  // NOTE: For integers, {x, y} \ {x} = x + y - x
 	else {
 		BDDC_Node node;
@@ -1167,7 +1171,7 @@ NodeID OBDDC_Manager::Remove_Child_No_Check_Rough( Rough_BDDC_Node & parent, Nod
 
 NodeID OBDDC_Manager::Remove_Children( NodeID parent, NodeID * children, unsigned num_ch )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	if ( _nodes[parent].ch_size == num_ch ) return NodeID::top;
 	else if ( _nodes[parent].ch_size == num_ch + 1 ) {
 		unsigned i;
@@ -1187,14 +1191,14 @@ NodeID OBDDC_Manager::Remove_Children( NodeID parent, NodeID * children, unsigne
 
 NodeID OBDDC_Manager::Replace_Child( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	if ( Is_Const( new_child ) ) {
 		if ( new_child == NodeID::bot ) return NodeID::bot;
 		else return Remove_Child_No_Check( parent, child );
 	}
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[new_child].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[new_child].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[parent].ch_size + _nodes[new_child].ch_size - 1;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_Many( _nodes[parent].ch, _nodes[parent].ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
@@ -1209,12 +1213,12 @@ NodeID OBDDC_Manager::Replace_Child( NodeID parent, NodeID child, NodeID new_chi
 
 NodeID OBDDC_Manager::Replace_Child_Nonconstant( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( new_child != NodeID::bot );
 	if ( Is_Const( new_child ) ) return Remove_Child_No_Check( parent, child );
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[new_child].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[new_child].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[parent].ch_size + _nodes[new_child].ch_size - 1;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_Many( _nodes[parent].ch, _nodes[parent].ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
@@ -1229,11 +1233,11 @@ NodeID OBDDC_Manager::Replace_Child_Nonconstant( NodeID parent, NodeID child, No
 
 NodeID OBDDC_Manager::Replace_Child_Internal( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( Is_Internal( new_child ) );
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
-	if ( _nodes[new_child].sym == BDDC_SYMBOL_CONJOIN ) {
+	node.sym = DECOMP_SYMBOL_CONJOIN;
+	if ( _nodes[new_child].sym == DECOMP_SYMBOL_CONJOIN ) {
 		node.ch_size = _nodes[parent].ch_size + _nodes[new_child].ch_size - 1;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_Many( _nodes[parent].ch, _nodes[parent].ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
@@ -1248,10 +1252,10 @@ NodeID OBDDC_Manager::Replace_Child_Internal( NodeID parent, NodeID child, NodeI
 
 NodeID OBDDC_Manager::Replace_Child_Internal_Same( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
-	assert( _nodes[new_child].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
+	assert( _nodes[new_child].sym == DECOMP_SYMBOL_CONJOIN );
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch_size = _nodes[parent].ch_size + _nodes[new_child].ch_size - 1;
 	node.ch = new NodeID [node.ch_size];
 	Replace_One_By_Many( _nodes[parent].ch, _nodes[parent].ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
@@ -1260,10 +1264,10 @@ NodeID OBDDC_Manager::Replace_Child_Internal_Same( NodeID parent, NodeID child, 
 
 NodeID OBDDC_Manager::Replace_Child_Internal_Different( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( _nodes[new_child].sym <= _max_var );
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch_size = _nodes[parent].ch_size;
 	node.ch = new NodeID [node.ch_size];
 	Replace_One_By_One( _nodes[parent].ch, _nodes[parent].ch_size, child, new_child, node.ch );
@@ -1272,7 +1276,7 @@ NodeID OBDDC_Manager::Replace_Child_Internal_Different( NodeID parent, NodeID ch
 
 NodeID OBDDC_Manager::Replace_Child_Nonconstant_Change( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( new_child != NodeID::bot );
 	BDDC_Node node;
 	NodeID new_parent;
@@ -1280,14 +1284,14 @@ NodeID OBDDC_Manager::Replace_Child_Nonconstant_Change( NodeID parent, NodeID ch
 		new_parent = Remove_Child_No_Check_Change( parent, child );
 	}
 	else if ( _nodes[parent].sym == _nodes[new_child].sym ) {
-		node.sym = BDDC_SYMBOL_CONJOIN;
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = _nodes[parent].ch_size + _nodes[new_child].ch_size - 1;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_Many( _nodes[parent].ch, _nodes[parent].ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
 		new_parent = Push_Node( node );
 	}
 	else {
-		node.sym = BDDC_SYMBOL_CONJOIN;
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = _nodes[parent].ch_size;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_One( _nodes[parent].ch, _nodes[parent].ch_size, child, new_child, node.ch );
@@ -1298,19 +1302,19 @@ NodeID OBDDC_Manager::Replace_Child_Nonconstant_Change( NodeID parent, NodeID ch
 
 NodeID OBDDC_Manager::Replace_Child_Internal_Change( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( Is_Internal( new_child ) );
 	BDDC_Node node;
 	NodeID new_parent;
-	if ( _nodes[new_child].sym == BDDC_SYMBOL_CONJOIN ) {
-		node.sym = BDDC_SYMBOL_CONJOIN;
+	if ( _nodes[new_child].sym == DECOMP_SYMBOL_CONJOIN ) {
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = _nodes[parent].ch_size + _nodes[new_child].ch_size - 1;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_Many( _nodes[parent].ch, _nodes[parent].ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
 		new_parent = Push_Node( node );
 	}
 	else {
-		node.sym = BDDC_SYMBOL_CONJOIN;
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = _nodes[parent].ch_size;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_One( _nodes[parent].ch, _nodes[parent].ch_size, child, new_child, node.ch );
@@ -1321,10 +1325,10 @@ NodeID OBDDC_Manager::Replace_Child_Internal_Change( NodeID parent, NodeID child
 
 NodeID OBDDC_Manager::Replace_Child_Internal_Different_Change( NodeID parent, NodeID child, NodeID new_child )
 {
-	assert( _nodes[parent].sym == BDDC_SYMBOL_CONJOIN );
+	assert( _nodes[parent].sym == DECOMP_SYMBOL_CONJOIN );
 	assert( _nodes[new_child].sym <= _max_var );
 	BDDC_Node node;
-	node.sym = BDDC_SYMBOL_CONJOIN;
+	node.sym = DECOMP_SYMBOL_CONJOIN;
 	node.ch_size = _nodes[parent].ch_size;
 	node.ch = new NodeID [node.ch_size];
 	Replace_One_By_One( _nodes[parent].ch, _nodes[parent].ch_size, child, new_child, node.ch );
@@ -1334,21 +1338,21 @@ NodeID OBDDC_Manager::Replace_Child_Internal_Different_Change( NodeID parent, No
 
 NodeID OBDDC_Manager::Replace_Child_Rough( Rough_BDDC_Node & parent, NodeID child, NodeID new_child )
 {
-	assert( parent.sym == BDDC_SYMBOL_CONJOIN );
+	assert( parent.sym == DECOMP_SYMBOL_CONJOIN );
 	BDDC_Node node;
 	if ( Is_Const( new_child ) ) {
 		if ( new_child == NodeID::bot ) return NodeID::bot;
 		else return Remove_Child_No_Check_Rough( parent, child );
 	}
-	else if ( _nodes[new_child].sym == BDDC_SYMBOL_CONJOIN ) {
-		node.sym = BDDC_SYMBOL_CONJOIN;
+	else if ( _nodes[new_child].sym == DECOMP_SYMBOL_CONJOIN ) {
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = parent.ch_size + _nodes[new_child].ch_size - 1;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_Many( parent.ch, parent.ch_size, child, _nodes[new_child].ch, _nodes[new_child].ch_size, node.ch );
 		return Push_Node( node );
 	}
 	else {
-		node.sym = BDDC_SYMBOL_CONJOIN;
+		node.sym = DECOMP_SYMBOL_CONJOIN;
 		node.ch_size = parent.ch_size;
 		node.ch = new NodeID [node.ch_size];
 		Replace_One_By_One( parent.ch, parent.ch_size, child, new_child, node.ch );
@@ -1356,7 +1360,7 @@ NodeID OBDDC_Manager::Replace_Child_Rough( Rough_BDDC_Node & parent, NodeID chil
 	}
 }
 
-unsigned OBDDC_Manager::Num_Nodes( BDDC root )
+unsigned OBDDC_Manager::Num_Nodes( NodeID root )
 {
 	if ( root < 2 ) return 1;
 	else if ( root < _num_fixed_nodes ) return 3;
@@ -1364,7 +1368,7 @@ unsigned OBDDC_Manager::Num_Nodes( BDDC root )
 	_node_stack[0] = root;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack > 0 ) {
-	    BDDC top = _node_stack[--num_node_stack];
+	    NodeID top = _node_stack[--num_node_stack];
 	    BDDC_Node & topn = _nodes[top];
 		if ( Is_Const( top ) ) continue;
 		if ( !_nodes[topn.ch[0]].infor.visited ) {
@@ -1393,7 +1397,7 @@ unsigned OBDDC_Manager::Num_Nodes( BDDC root )
 	return node_size;
 }
 
-unsigned OBDDC_Manager::Num_Edges( BDDC root )
+unsigned OBDDC_Manager::Num_Edges( NodeID root )
 {
 	if ( root < 2 ) return 0;
 	else if ( root < _num_fixed_nodes ) return 2;
@@ -1402,7 +1406,7 @@ unsigned OBDDC_Manager::Num_Edges( BDDC root )
 	unsigned num_node_stack = 1;
 	unsigned result = 0;
 	while ( num_node_stack > 0 ) {
-	    BDDC top = _node_stack[--num_node_stack];
+	    NodeID top = _node_stack[--num_node_stack];
 	    BDDC_Node & topn = _nodes[top];
 		if ( Is_Const( top ) ) continue;
 		result += topn.ch_size;
@@ -1436,13 +1440,14 @@ size_t OBDDC_Manager::Memory()
 	return Diagram_Manager::Memory() + 3 * _max_var * sizeof(unsigned) + _nodes.Memory();
 }
 
-unsigned OBDDC_Manager::Min_Decomposition_Depth( BDDC root )  // NOTE: the minimum depth of all decomposition _nodes.
+unsigned OBDDC_Manager::Min_Decomposition_Depth( const Diagram & bddc )  // NOTE: the minimum depth of all decomposition _nodes.
 {
-	if ( root < _num_fixed_nodes ) return _max_var;
+	assert( Contain( bddc ) );
+	if ( bddc.Root() < _num_fixed_nodes ) return _max_var;
 	unsigned i;
 	_nodes[0].infor.mark = _max_var;
 	_nodes[1].infor.mark = _max_var;
-	_path[0] = root;
+	_path[0] = bddc.Root();
 	_path_mark[0] = 0;
 	unsigned path_len = 1;
 	while ( path_len ) {
@@ -1468,7 +1473,7 @@ unsigned OBDDC_Manager::Min_Decomposition_Depth( BDDC root )  // NOTE: the minim
 			_visited_nodes.push_back( _path[--path_len] );
 		}
 	}
-	unsigned result = _nodes[root].infor.mark;
+	unsigned result = _nodes[bddc.Root()].infor.mark;
 	_nodes[0].infor.mark = UNSIGNED_UNDEF;
 	_nodes[1].infor.mark = UNSIGNED_UNDEF;
 	for ( i = 0; i < _visited_nodes.size(); i++ ) {
@@ -1478,9 +1483,67 @@ unsigned OBDDC_Manager::Min_Decomposition_Depth( BDDC root )  // NOTE: the minim
 	return result;
 }
 
-void OBDDC_Manager::Remove_Redundant_Nodes( vector<BDDC> & kept_nodes )
+void OBDDC_Manager::Clear_Nodes()
 {
-//	Display( cout );
+	for ( unsigned u = _num_fixed_nodes; u < _nodes.Size(); u++ ) {
+		delete [] _nodes[u].ch;
+	}
+	_nodes.Resize( _num_fixed_nodes );
+}
+
+void OBDDC_Manager::Remove_Redundant_Nodes()
+{
+	DLList_Node<NodeID> * itr;
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		_nodes[itr->data].infor.visited = true;
+	}
+	for ( unsigned i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
+		if ( _nodes[i].infor.visited ) {
+			_nodes[_nodes[i].ch[0]].infor.visited = true;
+			_nodes[_nodes[i].ch[1]].infor.visited = true;
+			for ( unsigned j = 2; j < _nodes[i].ch_size; j++ ) {
+				_nodes[_nodes[i].ch[j]].infor.visited = true;
+			}
+		}
+	}
+	for ( unsigned i = 0; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.mark = i;
+	}
+	unsigned num_remove = 0;
+	for ( unsigned i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
+		if ( _nodes[i].infor.visited ) {
+			_nodes[i].infor.mark = i - num_remove;
+			_nodes[i - num_remove].sym = _nodes[i].sym;
+			_nodes[i - num_remove].ch = _nodes[i].ch;
+			_nodes[i - num_remove].ch_size = _nodes[i].ch_size;
+			_nodes[i - num_remove].ch[0] = _nodes[_nodes[i].ch[0]].infor.mark;
+			_nodes[i - num_remove].ch[1] = _nodes[_nodes[i].ch[1]].infor.mark;
+			for ( unsigned j = 2; j < _nodes[i].ch_size; j++ ) {
+				_nodes[i - num_remove].ch[j] = _nodes[_nodes[i].ch[j]].infor.mark;
+			}
+		}
+		else {
+			num_remove++;
+			delete [] _nodes[i].ch;
+		}
+	}
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		itr->data = _nodes[itr->data].infor.mark;
+	}
+	unsigned new_size = _nodes.Size() - num_remove;
+	_nodes.Resize( new_size );
+	for ( unsigned i = 0; i < _nodes.Size(); i++ ) {
+		_nodes[i].infor.Init();
+	}
+	Shrink_Nodes();
+}
+
+void OBDDC_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
+{
+	DLList_Node<NodeID> * itr;
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		_nodes[itr->data].infor.visited = true;
+	}
 	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
 		_nodes[kept_nodes[i]].infor.visited = true;
 	}
@@ -1520,6 +1583,9 @@ void OBDDC_Manager::Remove_Redundant_Nodes( vector<BDDC> & kept_nodes )
 			delete [] _nodes[i].ch;
 		}
 	}
+	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
+		itr->data = _nodes[itr->data].infor.mark;
+	}
 	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
 		assert( _nodes[kept_nodes[i]].infor.mark != UNSIGNED_UNDEF );
 		kept_nodes[i] = _nodes[kept_nodes[i]].infor.mark;
@@ -1527,12 +1593,14 @@ void OBDDC_Manager::Remove_Redundant_Nodes( vector<BDDC> & kept_nodes )
 	unsigned new_size = _nodes.Size() - num_remove;
 	_nodes.Resize( new_size );
 	for ( i = 0; i < _nodes.Size(); i++ ) _nodes[i].infor.Init();
+	_hash_memory = _nodes.Memory();
 }
 
-bool Is_Equivalent( OBDDC_Manager & manager1, BDDC root1, OBDDC_Manager & manager2, BDDC root2 )
+bool Is_Equivalent( OBDDC_Manager & manager1, Diagram bddc1, OBDDC_Manager & manager2, Diagram bddc2 )
 {
-	if ( root1 < manager1._num_fixed_nodes && root1 == root2 ) return true;
-	else if ( root1 < manager1._num_fixed_nodes || root2 < manager2._num_fixed_nodes ) return false;
+	assert( manager1.Contain( bddc1 ) && manager2.Contain( bddc2 ) );
+	if ( bddc1.Root() < manager1._num_fixed_nodes && bddc1.Root() == bddc2.Root() ) return true;
+	else if ( bddc1.Root() < manager1._num_fixed_nodes || bddc2.Root() < manager2._num_fixed_nodes ) return false;
 	unsigned i;
 	for ( i = 0; i < manager1._num_fixed_nodes; i++ ) {
 		manager1._nodes[i].infor.mark = i;
@@ -1541,8 +1609,8 @@ bool Is_Equivalent( OBDDC_Manager & manager1, BDDC root1, OBDDC_Manager & manage
 	for ( i = 0; i < manager1._num_fixed_nodes; i++ ) {
 		manager2._nodes[i].infor.visited = true;
 	}
-	manager1._node_stack[0] = root1;
-	manager2._node_stack[0] = root2;
+	manager1._node_stack[0] = bddc1.Root();
+	manager2._node_stack[0] = bddc2.Root();
 	unsigned num_n_stack = 1;
 	bool result;
 	for ( result = true; num_n_stack > 0; result = true ) { // it may break when num_n_stack == 0
@@ -1609,7 +1677,7 @@ bool Is_Equivalent( OBDDC_Manager & manager1, BDDC root1, OBDDC_Manager & manage
 	return result;
 }
 
-bool OBDDC_Manager::Verify_Equ( BDDC root, OBDDC_Manager & other, BDDC other_root )
+bool OBDDC_Manager::Verify_Equ( NodeID root, OBDDC_Manager & other, NodeID other_root )
 {
 	if ( _max_var != other._max_var ) return false;
 	unsigned i;
@@ -1690,210 +1758,9 @@ bool OBDDC_Manager::Verify_Equ( BDDC root, OBDDC_Manager & other, BDDC other_roo
 	return path_len == 0;
 }
 
-BigInt OBDDC_Manager::Count_Models( BDDC root )
+bool OBDDC_Manager::Entail_Clause( const Diagram & bddc, Clause &cl )
 {
-	unsigned num_vars = NumVars( _max_var );
-	if ( Is_Fixed( root ) ) {
-	    if ( root == NodeID::bot ) return 0;
-		BigInt result = 1;
-        result.Mul_2exp( num_vars );
-        result.Div_2exp( root != NodeID::top );
-		return result;
-	}
-    NodeID n;
-	BigInt * results = new BigInt [root + 1];
-	results[0] = 0;
-    _nodes[NodeID::bot].infor.visited = true;
-	results[1] = 1;
-	results[1].Mul_2exp( num_vars );
-    _nodes[NodeID::top].infor.visited = true;
-	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-        n = NodeID::literal( i, false );
-		results[n] = 1;
-        results[n].Mul_2exp( num_vars - 1 );
-        _nodes[n].infor.visited = true;
-        n = NodeID::literal( i, true );
-		results[n] = 1;
-        results[n].Mul_2exp( num_vars - 1 );
-        _nodes[n].infor.visited = true;
-	}
-	_node_stack[0] = root;
-	_node_mark_stack[0] = true;
-	unsigned num_node_stack = 1;
-	while ( num_node_stack ) {
-	    BDDC top = _node_stack[num_node_stack - 1];
-		BDDC_Node & topn = _nodes[top];
-		assert( topn.ch_size >= 0 );
-		if ( topn.infor.visited ) {
-			num_node_stack--;
-		}
-		else if ( topn.sym <= _max_var ) {
-			if ( _node_mark_stack[num_node_stack - 1] ) {
-				_node_mark_stack[num_node_stack - 1] = false;
-				_node_stack[num_node_stack] = topn.ch[0];
-				_node_mark_stack[num_node_stack++] = true;
-				_node_stack[num_node_stack] = topn.ch[1];
-				_node_mark_stack[num_node_stack++] = true;
-			}
-			else {
-				num_node_stack--;
-				results[top] = results[topn.ch[0]];
-				results[top] += results[topn.ch[1]];
-				results[top].Div_2exp( 1 );
-				if ( DEBUG_OFF ) {
-					cerr << "results[" << topn.ch[0] << "] = " << results[topn.ch[0]] << endl;
-					cerr << "results[" << topn.ch[1] << "] = " << results[topn.ch[1]] << endl;
-					cerr << "results[" << top << "] = " << results[top] << endl;
-				}
-				topn.infor.visited = true;
-				_visited_nodes.push_back( top );
-			}
-		}
-		else {
-			if ( _node_mark_stack[num_node_stack - 1] ) {
-				_node_mark_stack[num_node_stack - 1] = false;
-				_node_stack[num_node_stack] = topn.ch[0];
-				_node_mark_stack[num_node_stack++] = true;
-				_node_stack[num_node_stack] = topn.ch[1];
-				_node_mark_stack[num_node_stack++] = true;
-				for ( unsigned i = 2; i < topn.ch_size; i++ ) {
-                    _node_stack[num_node_stack] = topn.ch[i];
-                    _node_mark_stack[num_node_stack++] = true;
-				}
-			}
-			else {
-				num_node_stack--;
-                results[top] = results[topn.ch[0]];
-                results[top] *= results[topn.ch[1]];
-                results[top].Div_2exp( num_vars );
-                for ( unsigned i = 2; i < topn.ch_size; i++ ) {
-                    results[top] *= results[topn.ch[i]];
-                    results[top].Div_2exp( num_vars );
-                }
-				topn.infor.visited = true;
-				_visited_nodes.push_back( top );
-			}
-		}
-	}
-    _nodes[NodeID::bot].infor.visited = false;
-    _nodes[NodeID::top].infor.visited = false;
-	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-        n = NodeID::literal( i, false );
-        _nodes[n].infor.visited = false;
-        n = NodeID::literal( i, true );
-        _nodes[n].infor.visited = false;
-	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
-	}
-	_visited_nodes.clear();
-	BigInt result = results[root];
-	delete [] results;
-	return result;
-}
-
-BigInt OBDDC_Manager::Count_Models_Opt( BDDC root )
-{
-	unsigned num_vars = NumVars( _max_var );
-	BigInt result;
-	if ( Is_Fixed( root ) ) {
-	    if ( root == NodeID::bot ) return 0;
-        result.Assign_2exp( num_vars - ( root != NodeID::top ) );
-		return result;
-	}
-	_node_stack[0] = root;
-	_node_mark_stack[0] = true;
-	unsigned num_node_stack = 1;
-	BigInt * results = new BigInt [root + 1];
-	results[NodeID::bot] = 0;
-	_nodes[NodeID::bot].infor.mark = _max_var;
-	results[NodeID::top] = 1;
-	_nodes[NodeID::top].infor.mark = _max_var;
-	while ( num_node_stack ) {
-	    BDDC top = _node_stack[num_node_stack - 1];
-		BDDC_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
-		assert( topn.ch_size >= 0 );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
-			num_node_stack--;
-		}
-		else if ( topn.sym <= _max_var ) {
-			if ( _node_mark_stack[num_node_stack - 1] ) {
-				_node_mark_stack[num_node_stack - 1] = false;
-				_node_stack[num_node_stack] = topn.ch[0];
-				_node_mark_stack[num_node_stack++] = true;
-				_node_stack[num_node_stack] = topn.ch[1];
-				_node_mark_stack[num_node_stack++] = true;
-			}
-			else {
-				num_node_stack--;
-				BDDC_Node & low = _nodes[topn.ch[0]];
-				BDDC_Node & high = _nodes[topn.ch[1]];
-				if ( low.infor.mark < high.infor.mark ) {
-					results[top] = results[topn.ch[1]];
-					results[top].Mul_2exp( high.infor.mark - low.infor.mark );
-					results[top] += results[topn.ch[0]];
-					topn.infor.mark = low.infor.mark - 1;
-				}
-				else {
-					results[top] = results[topn.ch[0]];
-					results[top].Mul_2exp( low.infor.mark - high.infor.mark );
-					results[top] += results[topn.ch[1]];
-					topn.infor.mark = high.infor.mark - 1;
-				}
-				if ( DEBUG_OFF ) {
-					cerr << "results[" << topn.ch[0] << "] = " << results[topn.ch[0]] << " * 2 ^ " << _nodes[topn.ch[0]].infor.mark << endl;
-					cerr << "results[" << topn.ch[1] << "] = " << results[topn.ch[1]] << " * 2 ^ " << _nodes[topn.ch[1]].infor.mark << endl;
-					cerr << "results[" << top << "] = " << results[top] << " * 2 ^ " << topn.infor.mark << endl;
-				}
-				_visited_nodes.push_back( top );
-			}
-		}
-		else {
-			unsigned loc = Search_First_Non_Literal_Position( top );
-			if ( loc == topn.ch_size ) {
-				num_node_stack--;
-				results[top] = 1;
-				topn.infor.mark = num_vars - topn.ch_size;
-				_visited_nodes.push_back( top );
-			}
-			else if ( _node_mark_stack[num_node_stack - 1] ) {
-				_node_mark_stack[num_node_stack - 1] = false;
-				_node_stack[num_node_stack] = topn.ch[loc];
-				_node_mark_stack[num_node_stack++] = true;
-				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
-					_node_stack[num_node_stack] = topn.ch[i];
-					_node_mark_stack[num_node_stack++] = true;
-				}
-			}
-			else {
-				num_node_stack--;
-				results[top] = results[topn.ch[loc]];
-				topn.infor.mark = _nodes[topn.ch[loc]].infor.mark;
-                for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
-                    results[top] *= results[topn.ch[i]];
-                    topn.infor.mark += _nodes[topn.ch[i]].infor.mark;
-                }
-                topn.infor.mark -= ( topn.ch_size - loc - 1 ) * num_vars + loc;
-				_visited_nodes.push_back( top );
-			}
-		}
-	}
-	result = results[root];
-	result.Mul_2exp( _nodes[root].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
-	}
-	_visited_nodes.clear();
-	delete [] results;
-	return result;
-}
-
-bool OBDDC_Manager::Entail_Clause( BDDC root, Clause &cl )
-{
+	assert( Contain( bddc ) );
 	unsigned i;
 	Label_Value( cl.Last_Lit() );  // ToDo: Check this line! It seems problematic
 	for ( i = 0; !Lit_SAT( cl[i] ); i++ ) {
@@ -1904,7 +1771,7 @@ bool OBDDC_Manager::Entail_Clause( BDDC root, Clause &cl )
 	if ( Lit_SAT( cl[i] ) ) result = true;
 	else {
 		_assignment[cl[i].Var()] = cl[i].NSign();
-		result = !Decide_Node_SAT_Under_Assignment( root );
+		result = !Decide_Node_SAT_Under_Assignment( bddc.Root() );
 	}
 	for ( ; i != (unsigned) -1; i-- ) {
 		_assignment[cl[i].Var()] = lbool::unknown;
@@ -1912,16 +1779,35 @@ bool OBDDC_Manager::Entail_Clause( BDDC root, Clause &cl )
 	return result;
 }
 
-bool OBDDC_Manager::Entail_CNF( BDDC root, CNF_Formula * cnf )
+bool OBDDC_Manager::Entail_CNF( const Diagram & bddc, CNF_Formula * cnf )
 {
 	vector<Clause>::iterator itr = cnf->Clause_Begin(), end = cnf->Clause_End();
 	for ( ; itr < end; itr++ ) {
-		if ( !Entail_Clause( root, *itr ) ) return false;
+		if ( !Entail_Clause( bddc, *itr ) ) return false;
 	}
 	return true;
 }
 
-void OBDDC_Manager::Verify_Entail_CNF( BDDC root, CNF_Formula & cnf )
+bool OBDDC_Manager::Decide_SAT( const Diagram & bddc, const vector<Literal> & assignment )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) return false;
+	unsigned i;
+	Label_Value( ~assignment.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( assignment[i] ); i++ ) {
+		_assignment[assignment[i].Var()] = assignment[i].Sign();
+	}
+	Un_Label_Value( assignment.back() );
+	bool result;
+	if ( Lit_UNSAT( assignment[i] ) ) result = 0;
+	else {
+		_assignment[assignment[i].Var()] = assignment[i].Sign();
+		result = Decide_Node_SAT_Under_Assignment( bddc.Root() );
+	}
+	return result;
+}
+
+void OBDDC_Manager::Verify_Entail_CNF( NodeID root, CNF_Formula & cnf )
 {
 	unsigned i;
 	vector<Clause>::iterator itr = cnf.Clause_Begin(), end = cnf.Clause_End();
@@ -1937,7 +1823,7 @@ void OBDDC_Manager::Verify_Entail_CNF( BDDC root, CNF_Formula & cnf )
 	}
 }
 
-bool OBDDC_Manager::Decide_Node_SAT_Under_Assignment( BDDC root )
+bool OBDDC_Manager::Decide_Node_SAT_Under_Assignment( NodeID root )
 {
 	if ( Is_Const( root ) ) return root == NodeID::top;
 	if ( debug_options.display_Decide_Node_SAT_Under_Assignment ) {
@@ -2084,7 +1970,7 @@ bool OBDDC_Manager::Decide_Node_SAT_Under_Assignment( BDDC root )
 	return result;
 }
 
-void OBDDC_Manager::Verify_Node_UNSAT_Under_Assignment( BDDC n )
+void OBDDC_Manager::Verify_Node_UNSAT_Under_Assignment( NodeID n )
 {
 	if ( Is_Const( n ) ) {
 		assert( n == NodeID::bot );
@@ -2226,7 +2112,7 @@ void OBDDC_Manager::Verify_Node_UNSAT_Under_Assignment( BDDC n )
 			else if ( top->sym <= _max_var ) {
 				if ( _assignment[top->sym] >= 0 ) {
 					if ( _path_mark[path_len - 1] == 0 ) {
-						lit_vec.push_back( Literal( Variable( top->sym ), _assignment[top->sym] ) );
+						lit_vec.push_back( Literal( top->Var(), _assignment[top->sym] ) );
 						_path[path_len] = top->ch[_assignment[top->sym]];
 						_path_mark[path_len - 1]++;
 						_path_mark[path_len++] = 0;
@@ -2236,13 +2122,13 @@ void OBDDC_Manager::Verify_Node_UNSAT_Under_Assignment( BDDC n )
 				else {
 					if ( _path_mark[path_len - 1] == 0 ) {
 						if ( _nodes[top->ch[0]].infor.mark == 1 ) {
-							lit_vec.push_back( Literal( Variable( top->sym ), false ) );
+							lit_vec.push_back( Literal( top->Var(), false ) );
 							_path[path_len] = top->ch[0];
 							_path_mark[path_len - 1]++;
 							_path_mark[path_len++] = 0;
 						}
 						else {
-							lit_vec.push_back( Literal( Variable( top->sym ), true ) );
+							lit_vec.push_back( Literal( top->Var(), true ) );
 							_path[path_len] = top->ch[1];
 							_path_mark[path_len - 1]++;
 							_path_mark[path_len++] = 0;
@@ -2278,6 +2164,1424 @@ void OBDDC_Manager::Verify_Node_UNSAT_Under_Assignment( BDDC n )
 	_visited_nodes.clear();
 }
 
+bool OBDDC_Manager::Decide_Valid_With_Condition( const Diagram & bddc, const vector<Literal> & term )
+{
+	assert( Contain( bddc ) );
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+	}
+	Un_Label_Value( term.back() );
+	bool result;
+	if ( Lit_UNSAT( term[i] ) ) {
+		cerr << "ERROR[OBDDC_Manager]: an inconsistent term with conditioning!" << endl;
+		exit(0);
+	}
+	else {
+		_assignment[term[i].Var()] = term[i].Sign();
+		result = Decide_Valid_Under_Assignment( bddc.Root() );
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[term[i].Var()] = lbool::unknown;
+	}
+	return result;
+}
+
+bool OBDDC_Manager::Decide_Valid_Under_Assignment( NodeID root )
+{
+	if ( Is_Const( root ) ) return root == NodeID::top;
+	_nodes[0].infor.mark = 0;
+	_nodes[1].infor.mark = 1;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( Var_Decided( i ) ) {
+			_nodes[i + i].infor.mark = ( _assignment[i] == false );
+			_nodes[i + i + 1].infor.mark = ( _assignment[i] == true );
+		}
+		else {
+			_nodes[i + i].infor.mark = 0;
+			_nodes[i + i + 1].infor.mark = 0;
+		}
+	}
+	_path[0] = root;
+	_path_mark[0] = 0;
+	unsigned path_len = 1;
+	while ( path_len ) {
+		BDDC_Node & topn = _nodes[_path[path_len - 1]];
+		if ( topn.sym <= _max_var ) {
+			if ( Var_Decided( topn.Var() ) ) {
+				if ( _nodes[topn.ch[_assignment[topn.sym]]].infor.mark == UNSIGNED_UNDEF ) {
+					_path[path_len] = topn.ch[_assignment[topn.sym]];
+					_path_mark[path_len++] = 0;
+				}
+				else {
+					topn.infor.mark = _nodes[topn.ch[_assignment[topn.sym]]].infor.mark;
+					_visited_nodes.push_back( _path[--path_len] );
+				}
+			}
+			else {
+				switch ( _path_mark[path_len - 1] ) {
+					case 0:
+						if ( EITHOR_ZERO( _nodes[topn.ch[0]].infor.mark, _nodes[topn.ch[1]].infor.mark ) ) {
+							topn.infor.mark = 0;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else if ( BOTH_X( _nodes[topn.ch[0]].infor.mark, _nodes[topn.ch[1]].infor.mark, 1 ) ) {
+							topn.infor.mark = 1;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else if ( _nodes[topn.ch[0]].infor.mark == 1 ) {
+							_path[path_len] = topn.ch[1];
+							_path_mark[path_len - 1] += 2;
+							_path_mark[path_len++] = 0;
+						}
+						else {
+							_path[path_len] = topn.ch[0];
+							_path_mark[path_len - 1]++;
+							_path_mark[path_len++] = 0;
+						}
+						break;
+					case 1:
+						if ( _nodes[topn.ch[0]].infor.mark == 0 ) {
+							topn.infor.mark = 0;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else if ( _nodes[topn.ch[1]].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+							topn.infor.mark = _nodes[topn.ch[1]].infor.mark;
+							_visited_nodes.push_back( _path[--path_len] );
+						}
+						else {
+							_path[path_len] = topn.ch[1];
+							_path_mark[path_len - 1]++;
+							_path_mark[path_len++] = 0;
+						}
+						break;
+					case 2:
+						topn.infor.mark = _nodes[topn.ch[1]].infor.mark;
+						_visited_nodes.push_back( _path[--path_len] );
+						break;
+				}
+			}
+		}
+		else {
+			if ( _path_mark[path_len - 1] == 0 ) {
+				unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
+				for ( i = 0; _nodes[topn.ch[i]].infor.mark != 0; i++ );
+				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
+				if ( _nodes[topn.ch[i]].infor.mark == 0 ) {
+					topn.infor.mark = 0;
+					_visited_nodes.push_back( _path[path_len - 1] );
+					path_len--;
+				}
+				else {
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
+					for ( i = 0; _nodes[topn.ch[i]].infor.mark == 1; i++ );
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
+					if ( _nodes[topn.ch[i]].infor.mark == 1 ) {
+						topn.infor.mark = 1;
+						_visited_nodes.push_back( _path[--path_len] );
+					}
+					else {
+						_path[path_len] = topn.ch[i];
+						_path_mark[path_len - 1] = i + 1;
+						_path_mark[path_len++] = 0;
+					}
+				}
+			}
+			else if ( _path_mark[path_len - 1] < topn.ch_size ) {
+				if ( _nodes[topn.ch[_path_mark[path_len - 1] - 1]].infor.mark == 0 ) {
+					topn.infor.mark = 0;
+					_visited_nodes.push_back( _path[--path_len] );
+				}
+				else {
+					unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
+					for ( i = _path_mark[path_len - 1]; _nodes[topn.ch[i]].infor.mark == 1; i++ );
+					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
+					if ( _nodes[topn.ch[i]].infor.mark == 1 ) {
+						topn.infor.mark = 1;
+						_visited_nodes.push_back( _path[--path_len] );
+					}
+					else {
+						_path[path_len] = topn.ch[i];
+						_path_mark[path_len - 1] = i + 1;
+						_path_mark[path_len++] = 0;
+					}
+				}
+			}
+			else {
+				topn.infor.mark = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+				_visited_nodes.push_back( _path[--path_len ] );
+			}
+		}
+	}
+	bool result = _nodes[root].infor.mark == 1;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+	}
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	}
+	_visited_nodes.clear();
+	return result;
+}
+
+BigInt OBDDC_Manager::Count_Models( NodeID root )
+{
+	unsigned num_vars = NumVars( _max_var );
+	BigInt result;
+	if ( Is_Fixed( root ) ) {
+	    if ( root == NodeID::bot ) return 0;
+        result.Assign_2exp( num_vars - ( root != NodeID::top ) );
+		return result;
+	}
+	_node_stack[0] = root;
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	BigInt * results = new BigInt [root + 1];
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.mark = _max_var;
+	results[NodeID::top] = 1;
+	_nodes[NodeID::top].infor.mark = _max_var;
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+//	    cerr << top << ": ";
+//	    topn.Display( cerr );
+		assert( topn.ch_size >= 0 );
+		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+			num_node_stack--;
+		}
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				num_node_stack--;
+				BDDC_Node & low = _nodes[topn.ch[0]];
+				BDDC_Node & high = _nodes[topn.ch[1]];
+				if ( low.infor.mark < high.infor.mark ) {
+					results[top] = results[topn.ch[1]];
+					results[top].Mul_2exp( high.infor.mark - low.infor.mark );
+					results[top] += results[topn.ch[0]];
+					topn.infor.mark = low.infor.mark - 1;
+				}
+				else {
+					results[top] = results[topn.ch[0]];
+					results[top].Mul_2exp( low.infor.mark - high.infor.mark );
+					results[top] += results[topn.ch[1]];
+					topn.infor.mark = high.infor.mark - 1;
+				}
+				if ( DEBUG_OFF ) {
+					cerr << "results[" << topn.ch[0] << "] = " << results[topn.ch[0]] << " * 2 ^ " << _nodes[topn.ch[0]].infor.mark << endl;
+					cerr << "results[" << topn.ch[1] << "] = " << results[topn.ch[1]] << " * 2 ^ " << _nodes[topn.ch[1]].infor.mark << endl;
+					cerr << "results[" << top << "] = " << results[top] << " * 2 ^ " << topn.infor.mark << endl;
+				}
+				_visited_nodes.push_back( top );
+			}
+		}
+		else {
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( loc == topn.ch_size ) {
+				num_node_stack--;
+				results[top] = 1;
+				topn.infor.mark = num_vars - topn.ch_size;
+				_visited_nodes.push_back( top );
+			}
+			else if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[loc];
+				_node_mark_stack[num_node_stack++] = true;
+				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				num_node_stack--;
+				results[top] = results[topn.ch[loc]];
+				topn.infor.mark = _nodes[topn.ch[loc]].infor.mark;
+                for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+                    results[top] *= results[topn.ch[i]];
+                    topn.infor.mark += _nodes[topn.ch[i]].infor.mark;
+                }
+                topn.infor.mark -= ( topn.ch_size - loc - 1 ) * num_vars + loc;
+				_visited_nodes.push_back( top );
+			}
+		}
+	}
+	result = results[root];
+	result.Mul_2exp( _nodes[root].infor.mark );
+    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	}
+	_visited_nodes.clear();
+	delete [] results;
+	return result;
+}
+
+BigFloat OBDDC_Manager::Count_Models( const Diagram & bddc, const vector<double> & weights )
+{
+	assert( Contain( bddc ) );
+	unsigned num_vars = NumVars( _max_var );
+	BigFloat result;
+	if ( Is_Fixed( bddc.Root() ) ) {
+	    if ( bddc.Root() == NodeID::bot ) return 0;
+        result.Assign_2exp( num_vars - ( bddc.Root() != NodeID::top ) );
+		return result;
+	}
+	_node_stack[0] = bddc.Root();
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	BigFloat * results = new BigFloat [bddc.Root() + 1];
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.visited = true;
+	results[NodeID::top] = 1;
+	_nodes[NodeID::top].infor.visited = true;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		results[i] = weights[Node2Literal( i )];
+		_nodes[i].infor.visited = true;
+	}
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.infor.visited ) num_node_stack--;
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				Literal lo( topn.Var(), false ), hi( topn.Var(), true );
+				results[top].Weighted_Sum( weights[lo], results[topn.ch[0]], weights[hi], results[topn.ch[1]] );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				for ( unsigned i = Search_First_Non_Literal_Position( top ); i < topn.ch_size; i++ ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				results[top] = results[topn.ch[0]];
+				results[top] *= results[topn.ch[1]];
+				for ( unsigned i = 2; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+				}
+                topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+	}
+	result = results[bddc.Root()];
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
+	}
+	delete [] results;
+	return result;
+}
+
+BigInt OBDDC_Manager::Count_Models( const Diagram & bddc, const vector<Literal> & assignment )
+{
+	assert( Contain( bddc ) );
+	unsigned i, size = 0;
+	Label_Value( ~assignment.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( assignment[i] ); i++ ) {
+		size += !Lit_SAT( assignment[i] );
+		_assignment[assignment[i].Var()] = assignment[i].Sign();
+	}
+	Un_Label_Value( assignment.back() );
+	BigInt result;
+	if ( Lit_UNSAT( assignment[i] ) ) result = 0;
+	else {
+		size += !Lit_SAT( assignment[i] );
+		_assignment[assignment[i].Var()] = assignment[i].Sign();
+		result = Count_Models_Under_Assignment( bddc.Root(), size );
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[assignment[i].Var()] = lbool::unknown;
+	}
+	return result;
+}
+
+BigInt OBDDC_Manager::Count_Models_Under_Assignment( NodeID root, unsigned assignment_size )
+{
+	unsigned num_vars = NumVars( _max_var ) - assignment_size;
+	BigInt result;
+	if ( Is_Const( root ) ) {
+	    if ( root == NodeID::bot ) result = 0;
+	    else result.Assign_2exp( num_vars );
+		return result;
+	}
+	_node_stack[0] = root;
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	BigInt * results = new BigInt [root + 1];
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.mark = num_vars;
+	results[NodeID::top] = 1;
+	_nodes[NodeID::top].infor.mark = num_vars;
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+//	    cerr << top << ": ";
+//	    topn.Display( cerr );
+		assert( topn.ch_size >= 0 );
+		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+			num_node_stack--;
+		}
+		else if ( topn.sym <= _max_var ) {
+			if ( Var_Decided( topn.Var() ) ) {
+				NodeID child = topn.ch[_assignment[topn.sym]];
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = child;
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					results[top] = results[child];
+					topn.infor.mark = _nodes[child].infor.mark;
+					_visited_nodes.push_back( top );
+					if ( DEBUG_OFF ) {
+						cerr << "results[" << child << "] = " << results[child] << " * 2 ^ " << _nodes[child].infor.mark << endl;
+						cerr << "results[" << top << "] = " << results[top] << " * 2 ^ " << topn.infor.mark << endl;
+					}
+				}
+			}
+			else {
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = topn.ch[0];
+					_node_mark_stack[num_node_stack++] = true;
+					_node_stack[num_node_stack] = topn.ch[1];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					num_node_stack--;
+					BDDC_Node & low = _nodes[topn.ch[0]];
+					BDDC_Node & high = _nodes[topn.ch[1]];
+					if ( low.infor.mark < high.infor.mark ) {
+						results[top] = results[topn.ch[1]];
+						results[top].Mul_2exp( high.infor.mark - low.infor.mark );
+						results[top] += results[topn.ch[0]];
+						topn.infor.mark = low.infor.mark - 1;
+					}
+					else {
+						results[top] = results[topn.ch[0]];
+						results[top].Mul_2exp( low.infor.mark - high.infor.mark );
+						results[top] += results[topn.ch[1]];
+						topn.infor.mark = high.infor.mark - 1;
+					}
+					if ( DEBUG_OFF ) {
+						cerr << "results[" << topn.ch[0] << "] = " << results[topn.ch[0]] << " * 2 ^ " << _nodes[topn.ch[0]].infor.mark << endl;
+						cerr << "results[" << topn.ch[1] << "] = " << results[topn.ch[1]] << " * 2 ^ " << _nodes[topn.ch[1]].infor.mark << endl;
+						cerr << "results[" << top << "] = " << results[top] << " * 2 ^ " << topn.infor.mark << endl;
+					}
+					_visited_nodes.push_back( top );
+				}
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				unsigned i;
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					num_node_stack--;
+					results[top] = 0;
+					topn.infor.mark = num_vars;
+					_visited_nodes.push_back( top );
+				}
+				else {
+					_node_mark_stack[num_node_stack - 1] = false;
+					for ( ; i < topn.ch_size; i++ ) {
+						_node_stack[num_node_stack] = topn.ch[i];
+						_node_mark_stack[num_node_stack++] = true;
+					}
+				}
+			}
+			else {
+				num_node_stack--;
+				unsigned num_sat = 0;
+				for ( unsigned i = 0; i < loc; i++ ) {
+					num_sat += Lit_SAT( Node2Literal( topn.ch[i] ) );
+				}
+				if ( loc == topn.ch_size ) {
+					results[top] = 1;
+					topn.infor.mark = num_vars - ( loc - num_sat );
+				}
+				else {
+					results[top] = results[topn.ch[loc]];
+					topn.infor.mark = _nodes[topn.ch[loc]].infor.mark;
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						results[top] *= results[topn.ch[i]];
+						topn.infor.mark += _nodes[topn.ch[i]].infor.mark;
+					}
+					topn.infor.mark -= ( topn.ch_size - loc - 1 ) * num_vars;
+					topn.infor.mark -= loc - num_sat;
+				}
+				if ( DEBUG_OFF ) {
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						cerr << "results[" << topn.ch[i] << "] = " << results[topn.ch[i]] << " * 2 ^ " << _nodes[topn.ch[i]].infor.mark << endl;
+					}
+					cerr << "results[" << top << "] = " << results[top] << " * 2 ^ " << topn.infor.mark << endl;
+				}
+				assert( topn.infor.mark <= num_vars );
+				_visited_nodes.push_back( top );
+			}
+		}
+	}
+	result = results[root];
+	result.Mul_2exp( _nodes[root].infor.mark );
+    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	}
+	_visited_nodes.clear();
+	delete [] results;
+	return result;
+}
+
+BigInt OBDDC_Manager::Count_Models_With_Condition( const Diagram & bddc, const vector<Literal> & term )
+{
+	assert( Contain( bddc ) );
+	unsigned i, size = 0;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		size += !Lit_SAT( term[i] );
+		_assignment[term[i].Var()] = term[i].Sign();
+	}
+	Un_Label_Value( term.back() );
+	BigInt result;
+	if ( Lit_UNSAT( term[i] ) ) {
+		cerr << "ERROR[OBDDC_Manager]: an inconsistent term with conditioning!" << endl;
+		exit(0);
+	}
+	else {
+		size += !Lit_SAT( term[i] );
+		_assignment[term[i].Var()] = term[i].Sign();
+		result = Count_Models_Under_Assignment( bddc.Root(), size );
+		result.Mul_2exp( size );
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[term[i].Var()] = lbool::unknown;
+	}
+	return result;
+}
+
+BigFloat OBDDC_Manager::Count_Models_With_Condition( const Diagram & bddc, const vector<double> & weights, const vector<Literal> & term )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) return 0;
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+	}
+	Un_Label_Value( term.back() );
+	if ( Lit_UNSAT( term[i] ) ) {
+		cerr << "ERROR[OBDDC_Manager]: an inconsistent term with conditioning!" << endl;
+		exit(0);
+	}
+	_assignment[term[i].Var()] = term[i].Sign();
+	vector<BigFloat> results( bddc.Root() + 1 );
+	Mark_Models_Under_Assignment( bddc.Root(), weights, results );
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[term[i].Var()] = lbool::unknown;
+	}
+	return results[bddc.Root()];
+}
+
+void OBDDC_Manager::Mark_Models_Under_Assignment( NodeID root, const vector<double> & weights, vector<BigFloat> & results )
+{
+	_node_stack[0] = root;
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.visited = true;
+	results[NodeID::top] = 1;
+	_nodes[NodeID::top].infor.visited = true;
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+//	    cerr << top << ": ";
+//	    topn.Display( cerr );
+		assert( topn.ch_size >= 0 );
+		if ( topn.infor.visited ) num_node_stack--;
+		else if ( topn.sym <= _max_var ) {
+			if ( Var_Decided( topn.Var() ) ) {
+				NodeID child = topn.ch[_assignment[topn.sym]];
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = child;
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					num_node_stack--;
+					results[top] = results[child];
+					topn.infor.visited = true;
+					_visited_nodes.push_back( top );
+				}
+			}
+			else {
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = topn.ch[0];
+					_node_mark_stack[num_node_stack++] = true;
+					_node_stack[num_node_stack] = topn.ch[1];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					num_node_stack--;
+					Literal lo( topn.Var(), false ), hi( topn.Var(), true );
+					results[top].Weighted_Sum( weights[lo], results[topn.ch[0]], weights[hi], results[topn.ch[1]] );
+					topn.infor.visited = true;
+					_visited_nodes.push_back( top );
+				}
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				unsigned i;
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					num_node_stack--;
+					results[top] = 0;
+					topn.infor.visited = true;
+					_visited_nodes.push_back( top );
+				}
+				else {
+					_node_mark_stack[num_node_stack - 1] = false;
+					for ( ; i < topn.ch_size; i++ ) {
+						_node_stack[num_node_stack] = topn.ch[i];
+						_node_mark_stack[num_node_stack++] = true;
+					}
+				}
+			}
+			else {
+				num_node_stack--;
+				results[top] = 1;
+				for ( unsigned i = 0; i < loc; i++ ) {
+					Literal lit = Node2Literal( topn.ch[i] );
+					if ( !Lit_SAT( lit ) ) results[top] *= weights[lit];
+				}
+				for ( unsigned i = loc; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+				}
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+			}
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.visited = false;
+	}
+	_visited_nodes.clear();
+}
+
+void OBDDC_Manager::Mark_Models( const Diagram & bddc, vector<BigFloat> & results )
+{
+	assert( Contain( bddc ) );
+	_node_stack[0] = bddc.Root();
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	unsigned num_vars = NumVars( _max_var );
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.visited = true;
+	results[NodeID::top].Assign_2exp( num_vars );
+	_nodes[NodeID::top].infor.visited = true;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		results[i].Assign_2exp( num_vars - 1 );
+		_nodes[i].infor.visited = true;
+	}
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.infor.visited ) num_node_stack--;
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				results[top] = results[topn.ch[0]];
+				results[top] += results[topn.ch[1]];
+				results[top].Div_2exp( 1 );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else {
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( loc == topn.ch_size ) {
+				results[top].Assign_2exp( num_vars - topn.ch_size );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+			else if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[loc];
+				_node_mark_stack[num_node_stack++] = true;
+				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				results[top] = results[topn.ch[loc]];
+				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+					results[top].Div_2exp( num_vars );
+				}
+				results[top].Div_2exp( loc );
+                topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.visited = false;
+	}
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
+	}
+}
+
+void OBDDC_Manager::Probabilistic_Model( const Diagram & bddc, vector<float> & prob_values )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) {
+		cerr << "ERROR[OBDDC_Manager]: invalid probabilistic model!" << endl;
+		assert( bddc.Root() != NodeID::bot );
+	}
+	else if ( bddc.Root() == NodeID::top ) return;
+	_node_stack[0] = bddc.Root();
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	unsigned num_vars = NumVars( _max_var );
+	BigFloat * results = new BigFloat [bddc.Root() + 1];
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.visited = true;
+	results[NodeID::top].Assign_2exp( num_vars );
+	_nodes[NodeID::top].infor.visited = true;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		results[i].Assign_2exp( num_vars - 1 );
+		prob_values[i] = Node2Literal( i ).Sign();
+		_nodes[i].infor.visited = true;
+	}
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.infor.visited ) num_node_stack--;
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				results[top] = results[topn.ch[0]];
+				results[top] += results[topn.ch[1]];
+				results[top].Div_2exp( 1 );
+				prob_values[top] = Normalize( results[topn.ch[0]], results[topn.ch[1]] );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else {
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( loc == topn.ch_size ) {
+				results[top].Assign_2exp( num_vars - topn.ch_size );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+			else if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[loc];
+				_node_mark_stack[num_node_stack++] = true;
+				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				results[top] = results[topn.ch[loc]];
+				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+					results[top].Div_2exp( num_vars );
+				}
+				results[top].Div_2exp( loc );
+                topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.visited = false;
+	}
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
+	}
+	delete [] results;
+}
+
+void OBDDC_Manager::Uniformly_Sample( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) {
+		samples.clear();
+		return;
+	}
+	vector<BigFloat> model_values( bddc.Root() + 1 );
+	Mark_Models( bddc, model_values );
+	for ( vector<bool> & current_sample: samples ) {
+		Uniformly_Sample( rand_gen, bddc.Root(), current_sample, model_values );
+	}
+}
+
+void OBDDC_Manager::Uniformly_Sample( Random_Generator & rand_gen, NodeID root, vector<bool> & sample, vector<BigFloat> & counts )
+{
+	sample.resize( _max_var + 1 );
+	_path[0] = root;
+	_path_mark[0] = true;
+	unsigned path_len = 1;
+	while ( path_len > 0 ) {
+		NodeID top = _path[path_len - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.sym <= _max_var ) {
+			if ( top < _num_fixed_nodes ) {
+				Literal lit = Node2Literal( top );
+				sample[lit.Var()] = lit.Sign();
+				_var_seen[lit.Var()] = true;
+				path_len--;
+			}
+			else if ( _path_mark[path_len - 1] ) {
+				double prob = Normalize( counts[topn.ch[0]], counts[topn.ch[1]] );
+				bool b = rand_gen.Generate_Bool( prob );
+				sample[topn.sym] = b;
+				_var_seen[topn.sym] = true;
+				_path_mark[path_len - 1] = false;
+				_path[path_len] = topn.ch[b];
+				_path_mark[path_len++] = true;
+			}
+			else path_len--;
+		}
+		else if ( topn.sym == DECOMP_SYMBOL_CONJOIN ) {
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( _path_mark[path_len - 1] ) {
+				_path_mark[path_len - 1] = false;
+				for ( unsigned i = loc; i < topn.ch_size; i++ ) {
+					_path[path_len] = topn.ch[i];
+					_path_mark[path_len++] = true;
+				}
+			}
+			else {
+				for ( unsigned i = 0; i < loc; i++ ) {
+					Literal imp = Node2Literal( topn.ch[i] );
+					sample[imp.Var()] = imp.Sign();
+					_var_seen[imp.Var()] = true;
+				}
+				path_len--;
+			}
+		}
+		else path_len--;
+	}
+	for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+		if ( !_var_seen[x] ) {
+			sample[x] = rand_gen.Generate_Bool( 0.5 );
+		}
+		else _var_seen[x] = false;
+	}
+}
+
+void OBDDC_Manager::Mark_Models( const Diagram & bddc, const vector<double> & weights, vector<BigFloat> & results )
+{
+	assert( Contain( bddc ) );
+	_node_stack[0] = bddc.Root();
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.visited = true;
+	results[NodeID::top] = 1;
+	_nodes[NodeID::top].infor.visited = true;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		results[i] = weights[Node2Literal( i )];
+		_nodes[i].infor.visited = true;
+	}
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.infor.visited ) num_node_stack--;
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				Literal lo( topn.Var(), false ), hi( topn.Var(), true );
+				results[top].Weighted_Sum( weights[lo], results[topn.ch[0]], weights[hi], results[topn.ch[1]] );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				for ( unsigned i = Search_First_Non_Literal_Position( top ); i < topn.ch_size; i++ ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				results[top] = results[topn.ch[0]];
+				results[top] *= results[topn.ch[1]];
+				for ( unsigned i = 2; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+				}
+                topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.visited = false;
+	}
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
+	}
+}
+
+void OBDDC_Manager::Probabilistic_Model( const Diagram & bddc, const vector<double> & weights, vector<double> & prob_values )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) {
+		cerr << "ERROR[OBDDC_Manager]: invalid probabilistic model!" << endl;
+		assert( bddc.Root() != NodeID::bot );
+	}
+	else if ( bddc.Root() == NodeID::top ) return;
+	_node_stack[0] = bddc.Root();
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	BigFloat * results = new BigFloat [bddc.Root() + 1];
+	results[NodeID::bot] = 0;
+	_nodes[NodeID::bot].infor.visited = true;
+	results[NodeID::top] = 1;
+	_nodes[NodeID::top].infor.visited = true;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		results[i] = weights[Node2Literal( i )];
+		_nodes[i].infor.visited = true;
+	}
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.infor.visited ) num_node_stack--;
+		else if ( topn.sym <= _max_var ) {
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				_node_stack[num_node_stack] = topn.ch[0];
+				_node_mark_stack[num_node_stack++] = true;
+				_node_stack[num_node_stack] = topn.ch[1];
+				_node_mark_stack[num_node_stack++] = true;
+			}
+			else {
+				Literal lo( topn.Var(), false ), hi( topn.Var(), true );
+				results[top].Weighted_Sum( weights[lo], results[topn.ch[0]], weights[hi], results[topn.ch[1]] );
+				BigFloat right_result = results[topn.ch[1]];
+				right_result *= weights[hi];
+				prob_values[top] = Ratio( right_result, results[top] );
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				_node_mark_stack[num_node_stack - 1] = false;
+				for ( unsigned i = Search_First_Non_Literal_Position( top ); i < topn.ch_size; i++ ) {
+					_node_stack[num_node_stack] = topn.ch[i];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+			}
+			else {
+				results[top] = results[topn.ch[0]];
+				results[top] *= results[topn.ch[1]];
+				for ( unsigned i = 2; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+				}
+                topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+				num_node_stack--;
+			}
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
+	for ( unsigned i = 2; i < _num_fixed_nodes; i++ ) {
+		_nodes[i].infor.visited = false;
+	}
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
+	}
+	delete [] results;
+}
+
+void OBDDC_Manager::Uniformly_Sample( Random_Generator & rand_gen, const Diagram & bddc, const vector<double> & weights, vector<vector<bool>> & samples )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) {
+		samples.clear();
+		return;
+	}
+	vector<BigFloat> model_values( bddc.Root() + 1 );
+	Mark_Models( bddc, weights, model_values );
+	for ( vector<bool> & current_sample: samples ) {
+		Uniformly_Sample( rand_gen, bddc.Root(), current_sample, model_values );
+	}
+}
+
+void OBDDC_Manager::Uniformly_Sample( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples, const vector<Literal> & assignment )
+{
+	assert( Contain( bddc ) );
+	unsigned i;
+	Label_Value( ~assignment.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( assignment[i] ); i++ ) {
+		_assignment[assignment[i].Var()] = assignment[i].Sign();
+	}
+	Un_Label_Value( assignment.back() );
+	BigInt result;
+	if ( !Lit_UNSAT( assignment[i] ) ) {
+		_assignment[assignment[i].Var()] = assignment[i].Sign();
+		vector<BigFloat> model_values( bddc.Root() + 1 );
+		Mark_Models_Under_Assignment( bddc.Root(), model_values );
+		if ( model_values[bddc.Root()] == 0 ) samples.clear();
+		for ( vector<bool> & current_sample: samples ) {
+			Uniformly_Sample( rand_gen, bddc.Root(), current_sample, model_values );
+		}
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[assignment[i].Var()] = lbool::unknown;
+	}
+}
+
+void OBDDC_Manager::Mark_Models_Under_Assignment( NodeID root, vector<BigFloat> & results )
+{
+	unsigned num_vars = NumVars( _max_var );
+	results[NodeID::bot] = 0;
+	results[NodeID::top].Assign_2exp( num_vars );
+	if ( Is_Const( root ) ) return;
+	_nodes[NodeID::bot].infor.visited = true;
+	_nodes[NodeID::top].infor.visited = true;
+	_node_stack[0] = root;
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+//	    cerr << top << ": ";
+//	    topn.Display( cerr );
+		assert( topn.ch_size >= 0 );
+		if ( topn.infor.visited ) {
+			num_node_stack--;
+		}
+		else if ( topn.sym <= _max_var ) {
+			if ( Var_Decided( topn.Var() ) ) {
+				NodeID child = topn.ch[_assignment[topn.sym]];
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = child;
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					results[top] = results[child];
+					topn.infor.visited = true;
+					_visited_nodes.push_back( top );
+					if ( DEBUG_OFF ) {
+						cerr << "results[" << child << "] = " << results[child] << endl;
+						cerr << "results[" << top << "] = " << results[top] << endl;
+					}
+				}
+			}
+			else {
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = topn.ch[0];
+					_node_mark_stack[num_node_stack++] = true;
+					_node_stack[num_node_stack] = topn.ch[1];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					num_node_stack--;
+					results[top] = results[topn.ch[0]];
+					results[top] += results[topn.ch[1]];
+					results[top].Div_2exp( 1 );
+					topn.infor.visited = true;
+					_visited_nodes.push_back( top );
+					if ( DEBUG_OFF ) {
+						cerr << "results[" << topn.ch[0] << "] = " << results[topn.ch[0]] << endl;
+						cerr << "results[" << topn.ch[1] << "] = " << results[topn.ch[1]] << endl;
+						cerr << "results[" << top << "] = " << results[top] << endl;
+					}
+				}
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				unsigned i;
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					num_node_stack--;
+					results[top] = 0;
+					topn.infor.visited = true;
+					_visited_nodes.push_back( top );
+				}
+				else {
+					_node_mark_stack[num_node_stack - 1] = false;
+					for ( ; i < topn.ch_size; i++ ) {
+						_node_stack[num_node_stack] = topn.ch[i];
+						_node_mark_stack[num_node_stack++] = true;
+					}
+				}
+			}
+			else {
+				num_node_stack--;
+				unsigned num_sat = 0;
+				for ( unsigned i = 0; i < loc; i++ ) {
+					num_sat += Lit_SAT( Node2Literal( topn.ch[i] ) );
+				}
+				if ( loc == topn.ch_size ) {
+					results[top].Assign_2exp( num_vars - ( loc - num_sat ) );
+				}
+				else {
+					results[top] = results[topn.ch[loc]];
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						results[top] *= results[topn.ch[i]];
+						results[top].Div_2exp( num_vars );
+					}
+					results[top].Div_2exp( loc - num_sat );
+				}
+				if ( DEBUG_OFF ) {
+					for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+						cerr << "results[" << topn.ch[i] << "] = " << results[topn.ch[i]] << endl;
+					}
+					cerr << "results[" << top << "] = " << results[top] << endl;
+				}
+				topn.infor.visited = true;
+				_visited_nodes.push_back( top );
+			}
+		}
+	}
+    _nodes[NodeID::bot].infor.visited = false;
+    _nodes[NodeID::top].infor.visited = false;
+	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.visited = false;
+	}
+	_visited_nodes.clear();
+}
+
+void OBDDC_Manager::Uniformly_Sample_Under_Assignment( Random_Generator & rand_gen, NodeID root, vector<bool> & sample, vector<BigFloat> & counts )
+{
+	sample.resize( _max_var + 1 );
+	_path[0] = root;
+	_path_mark[0] = true;
+	unsigned path_len = 1;
+	while ( path_len > 0 ) {
+		NodeID top = _path[path_len - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( topn.sym <= _max_var ) {
+			if ( top < _num_fixed_nodes ) {
+				Literal lit = Node2Literal( top );
+				assert( !Lit_UNSAT( lit ) );
+				sample[lit.Var()] = lit.Sign();
+				_var_seen[lit.Var()] = true;
+				path_len--;
+			}
+			else if ( _path_mark[path_len - 1] ) {
+				bool b;
+				if ( Var_Decided( topn.Var() ) ) b = ( _assignment[topn.Var()] == true );
+				else {
+					double prob = Normalize( counts[topn.ch[0]], counts[topn.ch[1]] );
+					b = rand_gen.Generate_Bool( prob );
+				}
+				sample[topn.sym] = b;
+				_var_seen[topn.sym] = true;
+				_path_mark[path_len - 1] = false;
+				_path[path_len] = topn.ch[b];
+				_path_mark[path_len++] = true;
+			}
+			else path_len--;
+		}
+		else if ( topn.sym == DECOMP_SYMBOL_CONJOIN ) {
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( _path_mark[path_len - 1] ) {
+				_path_mark[path_len - 1] = false;
+				for ( unsigned i = loc; i < topn.ch_size; i++ ) {
+					_path[path_len] = topn.ch[i];
+					_path_mark[path_len++] = true;
+				}
+			}
+			else {
+				for ( unsigned i = 0; i < loc; i++ ) {
+					Literal imp = Node2Literal( topn.ch[i] );
+					sample[imp.Var()] = imp.Sign();
+					_var_seen[imp.Var()] = true;
+				}
+				path_len--;
+			}
+		}
+		else path_len--;
+	}
+	for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+		if ( !_var_seen[x] ) {
+			if ( Var_Decided( x ) ) sample[x] = ( _assignment[x] == true );
+			else sample[x] = rand_gen.Generate_Bool( 0.5 );
+		}
+		else _var_seen[x] = false;
+	}
+}
+
+void OBDDC_Manager::Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples, const vector<Literal> & term )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) {
+		samples.clear();
+		return;
+	}
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+	}
+	Un_Label_Value( term.back() );
+	BigInt result;
+	if ( !Lit_UNSAT( term[i] ) ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+		vector<BigFloat> model_values( bddc.Root() + 1 );
+		Mark_Models_Under_Assignment( bddc.Root(), model_values );
+		if ( model_values[bddc.Root()] == 0 ) samples.clear();
+		for ( vector<bool> & current_sample: samples ) {
+			Uniformly_Sample( rand_gen, bddc.Root(), current_sample, model_values );
+			for ( unsigned j = 0; j <= i; j++ ) {
+				current_sample[term[j].Var()] = rand_gen.Generate_Bool( 0.5 );
+			}
+		}
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[term[i].Var()] = lbool::unknown;
+	}
+}
+
+void OBDDC_Manager::Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const Diagram & bddc, const vector<double> & weights, vector<vector<bool>> & samples, const vector<Literal> & term )
+{
+	assert( Contain( bddc ) );
+	if ( bddc.Root() == NodeID::bot ) {
+		samples.clear();
+		return;
+	}
+	unsigned i;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( i = 0; !Lit_UNSAT( term[i] ); i++ ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+	}
+	Un_Label_Value( term.back() );
+	BigInt result;
+	if ( !Lit_UNSAT( term[i] ) ) {
+		_assignment[term[i].Var()] = term[i].Sign();
+		vector<BigFloat> model_values( bddc.Root() + 1 );
+		Mark_Models_Under_Assignment( bddc.Root(), weights, model_values );
+		if ( model_values[bddc.Root()] == 0 ) samples.clear();
+		for ( vector<bool> & current_sample: samples ) {
+			Uniformly_Sample( rand_gen, bddc.Root(), current_sample, model_values );
+			for ( unsigned j = 0; j <= i; j++ ) {
+				current_sample[term[j].Var()] = rand_gen.Generate_Bool( 0.5 );
+			}
+		}
+	}
+	for ( ; i != (unsigned) -1; i-- ) {
+		_assignment[term[i].Var()] = lbool::unknown;
+	}
+}
+
+Diagram OBDDC_Manager::Condition( const Diagram & bddc, const vector<Literal> & term )
+{
+	assert( Contain( bddc ) );
+	unsigned ii, size = 0;
+	Label_Value( ~term.back() );  // ToDo: Check this line! It seems problematic
+	for ( ii = 0; !Lit_UNSAT( term[ii] ); ii++ ) {
+		size += !Lit_SAT( term[ii] );
+		_assignment[term[ii].Var()] = term[ii].Sign();
+	}
+	Un_Label_Value( term.back() );
+	if ( Lit_UNSAT( term[ii] ) ) {
+		for ( ii--; ii != (unsigned) -1; ii-- ) {
+			_assignment[term[ii].Var()] = lbool::unknown;
+		}
+		return Generate_Diagram( NodeID::bot );
+	}
+	if ( Is_Const( bddc.Root() ) ) {
+		for ( ii--; ii != (unsigned) -1; ii-- ) {
+			_assignment[term[ii].Var()] = lbool::unknown;
+		}
+		return bddc;
+	}
+	_assignment[term[ii].Var()] = term[ii].Sign();
+	_node_stack[0] = bddc.Root();
+	_node_mark_stack[0] = true;
+	unsigned num_node_stack = 1;
+	_nodes[NodeID::bot].infor.mark = NodeID::bot;
+	_nodes[NodeID::top].infor.mark = NodeID::top;
+	while ( num_node_stack ) {
+	    NodeID top = _node_stack[num_node_stack - 1];
+		BDDC_Node & topn = _nodes[top];
+//	    cerr << top << ": ";
+//	    topn.Display( cerr );
+		assert( topn.ch_size >= 0 );
+		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+			num_node_stack--;
+		}
+		else if ( topn.sym <= _max_var ) {
+			if ( Var_Decided( topn.Var() ) ) {
+				NodeID child = topn.ch[_assignment[topn.sym]];
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = child;
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					topn.infor.mark = _nodes[child].infor.mark;
+					_visited_nodes.push_back( top );
+				}
+			}
+			else {
+				if ( _node_mark_stack[num_node_stack - 1] ) {
+					_node_mark_stack[num_node_stack - 1] = false;
+					_node_stack[num_node_stack] = topn.ch[0];
+					_node_mark_stack[num_node_stack++] = true;
+					_node_stack[num_node_stack] = topn.ch[1];
+					_node_mark_stack[num_node_stack++] = true;
+				}
+				else {
+					num_node_stack--;
+					BDDC_Node & low = _nodes[topn.ch[0]];
+					BDDC_Node & high = _nodes[topn.ch[1]];
+					Decision_Node bnode( topn.sym, low.infor.mark, high.infor.mark );
+					topn.infor.mark = Add_Decision_Node( bnode );
+					_visited_nodes.push_back( top );
+				}
+			}
+		}
+		else {
+			assert( topn.sym == DECOMP_SYMBOL_CONJOIN );
+			unsigned loc = Search_First_Non_Literal_Position( top );
+			if ( _node_mark_stack[num_node_stack - 1] ) {
+				unsigned i;
+				for ( i = 0; i < loc; i++ ) {
+					if ( Lit_UNSAT( Node2Literal( topn.ch[i] ) ) ) break;
+				}
+				if ( i < loc ) {
+					num_node_stack--;
+					topn.infor.mark = NodeID::bot;
+					_visited_nodes.push_back( top );
+				}
+				else {
+					_node_mark_stack[num_node_stack - 1] = false;
+					for ( ; i < topn.ch_size; i++ ) {
+						_node_stack[num_node_stack] = topn.ch[i];
+						_node_mark_stack[num_node_stack++] = true;
+					}
+				}
+			}
+			else {
+				num_node_stack--;
+				_aux_rnode.sym = DECOMP_SYMBOL_CONJOIN;
+				_aux_rnode.ch_size = 0;
+				unsigned i;
+				for ( i = 0; i < loc; i++ ) {
+					_aux_rnode.ch[_aux_rnode.ch_size] = topn.ch[i];
+					_aux_rnode.ch_size += Lit_Undecided( Node2Literal( topn.ch[i] ) );
+				}
+				for ( ; i < topn.ch_size; i++ ) {
+					BDDC_Node & child = _nodes[topn.ch[i]];
+					if ( child.infor.mark == NodeID::bot ) break;
+					_aux_rnode.ch[_aux_rnode.ch_size] = child.infor.mark;
+					_aux_rnode.ch_size += child.infor.mark != NodeID::top;
+				}
+				if ( i < topn.ch_size ) topn.infor.mark = NodeID::bot;
+				else topn.infor.mark = Add_Decomposition_Node( _aux_rnode );
+				_visited_nodes.push_back( top );
+			}
+		}
+	}
+	NodeID result = _nodes[bddc.Root()].infor.mark;
+    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.mark = UNSIGNED_UNDEF;
+	}
+	_visited_nodes.clear();
+	for ( ; ii != (unsigned) -1; ii-- ) {
+		_assignment[term[ii].Var()] = lbool::unknown;
+	}
+	return Generate_Diagram( result );
+}
+
 void OBDDC_Manager::Display( ostream & out )
 {
 	out << "Variable order:";
@@ -2290,7 +3594,7 @@ void OBDDC_Manager::Display( ostream & out )
 	out << "1:\t" << "T 0" << endl;
 	for ( unsigned u = 2; u < _nodes.Size(); u++ ) {
 		out << u << ":\t";
-		if ( _nodes[u].sym == BDDC_SYMBOL_CONJOIN ) out << "C";
+		if ( _nodes[u].sym == DECOMP_SYMBOL_CONJOIN ) out << "C";
 		else out << _nodes[u].sym;
 		for ( unsigned i = 0; i < _nodes[u].ch_size; i++ ) {
 			out << ' ' << _nodes[u].ch[i];
@@ -2313,12 +3617,130 @@ void OBDDC_Manager::Display_Stat( ostream & out )
 	}
 }
 
+void OBDDC_Manager::Display_dot( ostream & out )
+{
+	out << "digraph DD {" << endl;
+	out << "size = \"7.5,10\"" << endl
+		<< "center = true" << endl;
+	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
+	out << "  node_1 [label=T,shape=square]" << endl;
+	for ( unsigned i = 2; i < _nodes.Size(); i++ ) {
+		if ( _nodes[i].sym == DECOMP_SYMBOL_CONJOIN ) {
+			out << "  node_" << i << "[label=∧,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else {
+			out << "  node_" << i << "[label=" << _nodes[i].sym << ",shape=circle] " << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[0] << " [style = dotted]" << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[1] << " [style = solid]" << endl;
+		}
+	}
+	out << "}" << endl;
+}
+
 void OBDDC_Manager::Display_New_Nodes( ostream & out, unsigned & old_size )
 {
 	for ( ; old_size < _nodes.Size(); old_size++ ) {
 		out << old_size << ":\t";
 		_nodes[old_size].Display( out );
 	}
+}
+
+void OBDDC_Manager::Display_OBDDC( ostream & out, const Diagram & bddc )
+{
+	if ( Is_Fixed( bddc.Root() ) ) {
+		out << bddc.Root() << ":\t";
+		_nodes[bddc.Root()].Display( out );
+		return;
+	}
+	_nodes[NodeID::bot].infor.visited = true;
+	_nodes[NodeID::top].infor.visited = true;
+	_path[0] = bddc.Root();
+	_path_mark[0] = 0;
+	unsigned path_len = 1;
+	while ( path_len > 0 ) {
+		NodeID top = _path[path_len - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( _path_mark[path_len - 1] == topn.ch_size ) {
+			path_len--;
+			continue;
+		}
+		NodeID child = topn.ch[_path_mark[path_len - 1]];
+		BDDC_Node & childn = _nodes[child];
+		_path_mark[path_len - 1]++;  // path_len will change in the following statement
+		if ( !childn.infor.visited ) {
+			_path[path_len] = child;
+			_path_mark[path_len++] = 0;
+			childn.infor.visited = true;
+		}
+	}
+	for ( unsigned i = 0; i < bddc.Root(); i++ ) {
+		if ( _nodes[i].infor.visited ) {
+			out << i << ":\t";
+			_nodes[i].Display( out );
+			_nodes[i].infor.visited = false;
+		}
+	}
+	out << bddc.Root() << ":\t";
+	_nodes[bddc.Root()].Display( out );
+	_nodes[bddc.Root()].infor.visited = false;
+}
+
+void OBDDC_Manager::Display_OBDDC_dot( ostream & out, const Diagram & bddc )
+{
+	out << "digraph DD {" << endl;
+	out << "size = \"7.5,10\"" << endl
+		<< "center = true" << endl;
+	if ( Is_Fixed( bddc.Root() ) ) {
+		if ( bddc.Root() == NodeID::bot ) out << "  node_0 [label=F,shape=square]" << endl;  //⊥
+		else out << "  node_1 [label=T,shape=square]" << endl;
+		out << "}" << endl;
+		return;
+	}
+	_nodes[NodeID::bot].infor.visited = true;
+	_nodes[NodeID::top].infor.visited = true;
+	_path[0] = bddc.Root();
+	_path_mark[0] = 0;
+	_nodes[bddc.Root()].infor.visited = true;
+	unsigned path_len = 1;
+	while ( path_len > 0 ) {
+		NodeID top = _path[path_len - 1];
+		BDDC_Node & topn = _nodes[top];
+		if ( _path_mark[path_len - 1] == topn.ch_size ) {
+			path_len--;
+			continue;
+		}
+		NodeID child = topn.ch[_path_mark[path_len - 1]];
+		BDDC_Node & childn = _nodes[child];
+		_path_mark[path_len - 1]++;  // path_len will change in the following statement
+		if ( !childn.infor.visited ) {
+			_path[path_len] = child;
+			_path_mark[path_len++] = 0;
+			childn.infor.visited = true;
+		}
+	}
+	_nodes[NodeID::bot].infor.visited = false;
+	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
+	_nodes[NodeID::top].infor.visited = false;
+	out << "  node_1 [label=T,shape=square]" << endl;
+	for ( unsigned i = 2; i <= bddc.Root(); i++ ) {
+		if ( !_nodes[i].infor.visited ) continue;
+		_nodes[i].infor.visited = false;
+		if ( _nodes[i].sym == DECOMP_SYMBOL_CONJOIN ) {
+			out << "  node_" << i << "[label=∧,shape=circle] " << endl;
+			for ( unsigned j = 0; j < _nodes[i].ch_size; j++ ) {
+				out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[j] << " [style = solid]" << endl;
+			}
+		}
+		else {
+			out << "  node_" << i << "[label=" << _nodes[i].sym << ",shape=circle] " << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[0] << " [style = dotted]" << endl;
+			out << "  node_" << i << " -> " << "node_" << _nodes[i].ch[1] << " [style = solid]" << endl;
+		}
+	}
+	out << "}" << endl;
 }
 
 

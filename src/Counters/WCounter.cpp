@@ -1016,6 +1016,7 @@ void WCounter::Terminate_Counting()
 void WCounter::Count_With_SAT_Imp_Computing( double timeout )
 {
 	StopWatch stop_watch, tmp_watch;
+	stop_watch.Start();
 	Variable var;
     BigFloat cached_result;
 	Move_Models( _models_stack[0], _models_stack[1] );

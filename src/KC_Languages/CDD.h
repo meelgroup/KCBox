@@ -31,7 +31,7 @@ struct Rough_CDD_Node
 	void Display( ostream & out )
 	{
 		if ( sym == CDD_SYMBOL_FALSE ) out << "F 0";
-		else if ( sym == BDDC_SYMBOL_TRUE ) out << "T 0";
+		else if ( sym == CDD_SYMBOL_TRUE ) out << "T 0";
 		else {
 			if ( sym == CDD_SYMBOL_DECOMPOSE ) out << "D";
 			else if ( sym == CDD_SYMBOL_KERNELIZE ) out << "K";
@@ -143,12 +143,27 @@ struct Simple_CDD_Node  // used to copy key infor in CDD_Node when cannot use CD
 	}
 };
 
-typedef NodeID CDD;
 typedef SortedSet<Variable> VarSet;
 typedef SortedSet<Literal> LitSet;
 
+class CDDiagram: public Diagram
+{
+	friend class CDD_Manager;
+protected:
+	CDDiagram( NodeID root, CDLList<NodeID> * roots ): Diagram( root, roots ) {}
+public:
+	CDDiagram(): Diagram() {}
+	CDDiagram( const CDDiagram & another ): Diagram( another ) {}
+	CDDiagram & operator = ( const CDDiagram & another )
+	{
+		Diagram::operator=( another );
+		return *this;
+	}
+};
+
 class CDD_Manager: public Diagram_Manager
 {
+	friend class CDD_Compiler;
 protected:
 	Large_Hash_Table<CDD_Node> _nodes;
 protected:  // auxiliary memory
@@ -164,12 +179,14 @@ public:
 	void Enlarge_Max_Var( Variable max_var );
 	size_t Hash_Memory() const { return _hash_memory; }
 	void Display( ostream & out );
+	void Display_dot( ostream & out );
 	void Display_Nodes( ostream & out );
 	void Display_Stat( ostream & out );
 	void Display_Nodes_Stat( ostream & out );
 	void Display_New_Nodes( ostream & out, unsigned & old_size );
 	void Display_Nodes( ostream & out, NodeID * nodes, unsigned size );
-	void Display_CDD( ostream & out, CDD root );
+	void Display_CDD( ostream & out, const CDDiagram & cdd );
+	void Display_CDD_dot( ostream & out, const CDDiagram & cdd );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Add_Fixed_Nodes();
@@ -177,16 +194,24 @@ protected:
 	void Free_Auxiliary_Memory();
 public: // querying
 	unsigned Num_Nodes() const { return _nodes.Size(); }
-	unsigned Min_Decomposition_Depth( CDD root );
 public: // querying
 	const CDD_Node & Node( NodeID n ) { return _nodes[n]; }
-	unsigned Num_Nodes( CDD root );
-	unsigned Num_Edges( CDD root );
+	unsigned Num_Nodes( const CDDiagram & cdd ) { assert( Contain( cdd ) );  return Num_Nodes( cdd.Root() ); }
+	unsigned Num_Edges( const CDDiagram & cdd ) { assert( Contain( cdd ) );  return Num_Edges( cdd.Root() ); }
+	bool Decide_Valid_With_Condition( const CDDiagram & cdd, const vector<Literal> & assignment );
+protected:
+	unsigned Num_Nodes( NodeID root );
+	unsigned Num_Edges( NodeID root );
+	bool Decide_Valid_Under_Assignment( NodeID root );
 public: // transformation
+	void Clear_Nodes();
 	void Shrink_Nodes() { _nodes.Shrink_To_Fit(); _hash_memory = _nodes.Memory(); }
 	void Swap_Nodes( CDD_Manager & other ) { _nodes.Swap( other._nodes); }
-	void Remove_Redundant_Nodes( CDD & kept_root );
-	void Remove_Redundant_Nodes( vector<CDD> & kept_nodes );
+	void Remove_Redundant_Nodes();
+	void Remove_Redundant_Nodes( vector<NodeID> & kept_nodes );
+protected:
+	bool Contain( const CDDiagram & cdd ) { return cdd.Root() < _nodes.Size() && Diagram_Manager::Contain( cdd ); }
+	CDDiagram Generate_CDD( NodeID n ) { return CDDiagram( n, &_allocated_nodes ); }
 protected:  // basic functions
 	unsigned & Node_Mark( NodeID n ) { return _nodes[n].infor.mark; }
 	NodeID Push_Node( CDD_Node & node )  // node.ch will be push into _nodes

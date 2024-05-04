@@ -74,7 +74,7 @@ bool CDD_Compiler::Create_Init_Level()
 	_active_comps[1] = 0;
 	_num_levels = 2;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) tmp_watch.Start();
-	if ( _current_kdepth == 1 ) {
+	if ( _current_kdepth <= 1 ) {
 		assert( _component_cache.Size() == 0 );
 		_component_cache.Init( _max_var, _old_num_long_clauses, NodeID::undef );
 		Component_Cache_Add_Original_Clauses();
@@ -536,10 +536,10 @@ void CDD_Compiler::Display_Result_Stack( ostream & out )
 	}
 }
 
-void CDD_Compiler::Display_Result_Statistics( ostream & out, CDD_Manager & manager, CDD cdd )
+void CDD_Compiler::Display_Result_Statistics( ostream & out, CDD_Manager & manager, NodeID root )
 {
-	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( cdd ) << endl;
-	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( cdd ) << endl;
+	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( root ) << endl;
+	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( root ) << endl;
 }
 
 bool CDD_Compiler::Is_Memory_Exhausted()

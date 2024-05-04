@@ -66,7 +66,7 @@ size_t Partial_CCDD_Manager::Memory()
 	return mem;
 }
 
-void Partial_CCDD_Manager::Verify_Decomposability( CDD root )
+void Partial_CCDD_Manager::Verify_Decomposability( NodeID root )
 {
 	if ( root < _num_fixed_nodes ) return;
 	vector<DynamicSet<Variable>> var_sets( _nodes.Size() );
@@ -281,10 +281,10 @@ void Partial_CCDD_Manager::Verify_Node( NodeID n )
 	}
 }
 
-CDD Partial_CCDD_Manager::Complete_Lower_Bound( CDD root, CCDD_Manager & manager )
+CDDiagram Partial_CCDD_Manager::Complete_Lower_Bound( NodeID root, CCDD_Manager & manager )
 {
 	assert( _max_var == manager.Max_Var() );
-	if ( root < _num_fixed_nodes ) return root;
+	if ( root < _num_fixed_nodes ) return manager.Generate_CCDD( root );
 	_node_stack[0] = root;
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
@@ -365,10 +365,10 @@ CDD Partial_CCDD_Manager::Complete_Lower_Bound( CDD root, CCDD_Manager & manager
 		_nodes[n].infor.mark = UNSIGNED_UNDEF;
 	}
 	_visited_nodes.clear();
-	return result;
+	return manager.Generate_CCDD( result );
 }
 
-unsigned Partial_CCDD_Manager::Num_Nodes( CDD root )
+unsigned Partial_CCDD_Manager::Num_Nodes( NodeID root )
 {
 	if ( root < _num_fixed_nodes ) return 1;
 	_node_stack[0] = root;
@@ -398,7 +398,7 @@ unsigned Partial_CCDD_Manager::Num_Nodes( CDD root )
 	return node_size;
 }
 
-unsigned Partial_CCDD_Manager::Num_Edges( CDD root )
+unsigned Partial_CCDD_Manager::Num_Edges( NodeID root )
 {
 	if ( root < _num_fixed_nodes ) return 0;
 	_node_stack[0] = root;
@@ -429,7 +429,7 @@ unsigned Partial_CCDD_Manager::Num_Edges( CDD root )
 	return result;
 }
 
-unsigned Partial_CCDD_Manager::Num_Nodes( unsigned type, CDD root )
+unsigned Partial_CCDD_Manager::Num_Nodes( unsigned type, NodeID root )
 {
 	if ( root < _num_fixed_nodes ) return 1;
 	_node_stack[0] = root;
@@ -465,7 +465,7 @@ unsigned Partial_CCDD_Manager::Num_Nodes( unsigned type, CDD root )
 	return result;
 }
 
-unsigned Partial_CCDD_Manager::Decision_Depth( CDD root )
+unsigned Partial_CCDD_Manager::Decision_Depth( NodeID root )
 {
 	if ( root < _num_fixed_nodes ) return 0;
 	_path[0] = root;
@@ -511,7 +511,7 @@ unsigned Partial_CCDD_Manager::Decision_Depth( CDD root )
 	return result;
 }
 
-CDD Partial_CCDD_Manager::Add_Decision_Node( Partial_Decision_Node & bnode, unsigned cloc )
+NodeID Partial_CCDD_Manager::Add_Decision_Node( Partial_Decision_Node & bnode, unsigned cloc )
 {
 	if ( !_counting_mode ) return Push_Node( bnode, cloc );
 	if ( Is_Node_Known( bnode.Low() ) && Is_Node_Known( bnode.High() ) ) {
@@ -582,7 +582,7 @@ NodeID Partial_CCDD_Manager::Add_Kernelization_Node( Rough_Partial_CDD_Node & rn
 	return Push_Node( rnode.ch[0], rnode.imp, cloc );
 }
 
-CDD Partial_CCDD_Manager::Update_Decision_Child( NodeID parent, bool sign, NodeID new_child )
+NodeID Partial_CCDD_Manager::Update_Decision_Child( NodeID parent, bool sign, NodeID new_child )
 {
 	assert( _nodes[parent].sym <= _max_var && _nodes[parent].ch_size == 2 && _nodes[parent].imp_size == 0 );
 	assert( 0 < _nodes[parent].estimate && _nodes[parent].estimate < 1 );
@@ -603,7 +603,7 @@ CDD Partial_CCDD_Manager::Update_Decision_Child( NodeID parent, bool sign, NodeI
 	return Push_Node( new_node );
 }
 
-CDD Partial_CCDD_Manager::Update_Kernelization_Child( NodeID parent, NodeID new_child )
+NodeID Partial_CCDD_Manager::Update_Kernelization_Child( NodeID parent, NodeID new_child )
 {
 	assert( _nodes[parent].sym == SEARCH_KERNELIZED && _nodes[parent].ch_size == 1 && _nodes[parent].imp_size % 2 == 0 );
 	assert( _nodes[new_child].sym != SEARCH_CONFLICTED && _nodes[new_child].sym != SEARCH_UNKNOWN );
@@ -634,7 +634,7 @@ bool Partial_CCDD_Manager::Sample_Adaptive( Random_Generator & rand_gen, NodeID 
 	return rand_gen.Generate_Bool( node.estimate );
 }
 
-void Partial_CCDD_Manager::Remove_Redundant_Nodes( vector<CDD> & kept_nodes )
+void Partial_CCDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 {
 //	Display( cout );
 	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
@@ -733,7 +733,7 @@ void Partial_CCDD_Manager::Display_New_Nodes( ostream & out, unsigned & old_size
 	}
 }
 
-void Partial_CCDD_Manager::Display_Partial_CCDD( ostream & out, CDD root )
+void Partial_CCDD_Manager::Display_Partial_CCDD( ostream & out, NodeID root )
 {
 	if ( Is_Fixed( root ) ) {
 		_nodes[root].Display( out, root );
@@ -772,7 +772,7 @@ void Partial_CCDD_Manager::Display_Partial_CCDD( ostream & out, CDD root )
 	_nodes[root].infor.visited = false;
 }
 
-void Partial_CCDD_Manager::Display_Partial_CCDD_With_Weights( ostream & out, CDD root )
+void Partial_CCDD_Manager::Display_Partial_CCDD_With_Weights( ostream & out, NodeID root )
 {
 	if ( Is_Fixed( root ) ) {
 		_nodes[root].Display_Weight( out, root );

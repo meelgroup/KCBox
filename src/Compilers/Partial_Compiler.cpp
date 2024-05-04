@@ -66,7 +66,7 @@ size_t Partial_CCDD_Compiler::Memory()
 	return mem;
 }
 
-CDD Partial_CCDD_Compiler::Partially_Compile( Partial_CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur )
+NodeID Partial_CCDD_Compiler::Partially_Compile( Partial_CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur )
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( !running_options.display_compiling_process ) {
@@ -99,7 +99,7 @@ CDD Partial_CCDD_Compiler::Partially_Compile( Partial_CCDD_Manager & manager, CN
 	Store_Lit_Equivalences( _call_stack[0] );
 	if ( Non_Unary_Clauses_Empty() ) {
 		Recycle_Models( _models_stack[0] );
-		CDD result = Make_Root_Node( manager, NodeID::top );
+		NodeID result = Make_Root_Node( manager, NodeID::top );
 		Un_BCP( _dec_offsets[--_num_levels] );
 		_call_stack[0].Clear_Lit_Equivalences();
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
@@ -145,7 +145,7 @@ CDD Partial_CCDD_Compiler::Partially_Compile( Partial_CCDD_Manager & manager, CN
 			}
 		}
 	}
-	CDD result = Make_Root_Node( manager, _rsl_stack[0] );
+	NodeID result = Make_Root_Node( manager, _rsl_stack[0] );
 	Set_Current_Level_Kernelized( false );
 	Backtrack();
 	_call_stack[0].Clear_Lit_Equivalences();
@@ -1906,7 +1906,7 @@ void Partial_CCDD_Compiler::Display_Result_Stack( ostream & out )
 	}
 }
 
-void Partial_CCDD_Compiler::Display_Result_Statistics( ostream & out, Partial_CCDD_Manager & manager, CDD cdd )
+void Partial_CCDD_Compiler::Display_Result_Statistics( ostream & out, Partial_CCDD_Manager & manager, NodeID cdd )
 {
 	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( cdd ) << endl;
 	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( cdd ) << endl;
@@ -2457,7 +2457,7 @@ BigFloat Partial_CCDD_Compiler::Count_Models_Lower_Bound( CNF_Formula & cnf, Heu
 		}
 		cout << running_options.display_prefix;
 		if ( round <= num_rounds ) cout << "The exact model count: ";
-		else cout << "The final lower bound of model count (" << confidence * 100 << "\% confidence): ";
+		else cout << "The final lower bound of model count (" << confidence * 100 << "%% confidence): ";
 		cout << lower_approximation << endl;
 	}
 	return lower_approximation;

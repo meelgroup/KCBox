@@ -40,7 +40,7 @@ void RCDD_Compiler::Reset()
 	CDD_Compiler::Reset();
 }
 
-CDD RCDD_Compiler::Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+CDDiagram RCDD_Compiler::Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
 {
 	assert( Is_Linear_Ordering( heur ) );
 	StopWatch begin_watch, tmp_watch;
@@ -63,12 +63,12 @@ CDD RCDD_Compiler::Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 			}
 		}
 		Reset();
-		return NodeID::bot;
+		return manager.Generate_CCDD( NodeID::bot );
 	}
 	Store_Lit_Equivalences( _call_stack[0] );
 	if ( Non_Unary_Clauses_Empty() ) {
 		Recycle_Models( _models_stack[0] );
-		CDD result = Make_Root_Node( manager, NodeID::top );
+		NodeID result = Make_Root_Node( manager, NodeID::top );
 		Un_BCP( _dec_offsets[--_num_levels] );
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
 		if ( running_options.display_compiling_process ) {
@@ -79,7 +79,7 @@ CDD RCDD_Compiler::Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 			}
 		}
 		Reset();
-		return result;
+		return manager.Generate_CCDD( result );
 	}
 	Gather_Infor_For_Counting();
 	Choose_Running_Options( heur, vorder );
@@ -101,7 +101,7 @@ CDD RCDD_Compiler::Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 //	ofstream fout( "debug.cdd" );  // ToRemove
 //	manager.Display_Stat( fout );  // ToRemove
 //	fout.close();
-	CDD result = Make_Root_Node( manager, _rsl_stack[0] );
+	NodeID result = Make_Root_Node( manager, _rsl_stack[0] );
 	Set_Current_Level_Kernelized( false );
 	Backtrack();
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
@@ -123,7 +123,7 @@ CDD RCDD_Compiler::Compile( RCDD_Manager & manager, CNF_Formula & cnf, Heuristic
 		BigInt verified_count = Count_Verified_Models_sharpSAT( cnf );
 		assert( count == verified_count );
 	}
-	return result;
+	return manager.Generate_CCDD( result );
 }
 
 NodeID RCDD_Compiler::Make_Root_Node( RCDD_Manager & manager, NodeID node )
@@ -1092,7 +1092,7 @@ void RCDD_Compiler::Make_Nodes_With_Search_Graph( RCDD_Manager & manager, Search
 	graph._path_mark[0] = 0;
 	unsigned path_len = 1;
 	while ( path_len > 0 ) {
-		CDD top = graph._path[path_len - 1];
+		NodeID top = graph._path[path_len - 1];
 		Search_Node & topn = graph._nodes[top];
 		unsigned ch_size;
 		if ( topn.sym <= _max_var ) ch_size = 2;
@@ -1167,7 +1167,7 @@ void RCDD_Compiler::Verify_Result_Component( Component & comp, RCDD_Manager & ma
 	BigInt tmp_count = count;  // ToRemove
 	tmp_count.Div_2exp( _num_dec_stack );
 	if ( verified_count != count ) {
-		manager.Display_CDD( cerr, result );  // ToRemove
+		manager.Display_CDD( cerr, manager.Generate_CCDD( result ) );  // ToRemove
 		cerr << "NodeID: " << result << endl;
 		comp.Display( cerr );
 		Display_Decision_Stack( cerr, _num_levels - 1 );

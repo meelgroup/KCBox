@@ -3,11 +3,73 @@
 /// NOTE: unfinished
 
 #include "CDD.h"
-#include "RRCDD.h"
 #include "../Primitive_Types/Lit_Equivalency.h"
 
 
 namespace KCBox {
+
+
+class BigCount
+{
+	friend ostream & operator << ( ostream & fout, const BigCount & c );
+private:
+	BigInt _base;
+	unsigned _exp;
+public:
+	BigCount() {}
+	BigCount( unsigned base, unsigned exp ): _base( base ), _exp( exp ) {}
+	BigCount operator + ( const BigCount & other )
+	{
+		BigCount result;
+		if ( _exp < other._exp ) {
+			result._base = other._base;
+			result._base.Mul_2exp( other._exp - _exp );
+			result._base += _base;
+			result._exp = _exp;
+		}
+		else {
+			result._base = _base;
+			result._base.Mul_2exp( _exp - other._exp );
+			result._base += other._base;
+			result._exp = other._exp;
+		}
+		return result;
+	}
+	void operator += ( const BigCount & other )
+	{
+		if ( _exp < other._exp ) {
+			BigInt tmp = other._base;
+			tmp.Mul_2exp( other._exp - _exp );
+			_base += tmp;
+		}
+		else {
+			_base.Mul_2exp( _exp - other._exp );
+			_base += other._base;
+			_exp = other._exp;
+		}
+	}
+	void operator *= ( const BigCount & other )
+	{
+		_base *= other._base;
+		_exp += other._exp;
+	}
+	void Assign_2exp( const unsigned e ) { _base = 1;  _exp = e; }
+	void Mul_2exp( const unsigned e ) { _exp += e; }
+	void Div_2exp( const unsigned e )
+	{
+		if ( _exp >= e ) _exp -= e;
+		else {
+			_base.Div_2exp( e - _exp );
+			_exp = 0;
+		}
+	}
+	operator BigInt () const
+	{
+		BigInt i = _base;
+		i.Mul_2exp( _exp );
+		return i;
+	}
+};
 
 
 class CCDD_Manager: public CDD_Manager, public Linear_Order
@@ -47,31 +109,49 @@ public:
 	void Rename( unsigned map[] );
 	void Abandon_Rename( unsigned map[] );
 	void Enlarge_Max_Var( Chain & new_order );
-	void Load_Nodes( RCDD_Manager & other );
+	void Load_Nodes( CCDD_Manager & other );
+	CDDiagram Generate_CCDD( NodeID root ) { assert( root < _nodes.Size() );  return Generate_CDD( root ); }
 	void Display( ostream & out );
 	void Display_Stat( ostream & out );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Free_Auxiliary_Memory();
 public: // querying
-	bool Entail_Clause( CDD root, Clause & cl );
-	bool Entail_CNF( CDD root, CNF_Formula & cnf );
-	BigInt Count_Models( CDD root );
-	void Mark_Models( CDD root, vector<BigFloat> & results );
-	void Probabilistic_Model( CDD root, vector<float> & prob_values );
-	void Uniformly_Sample( Random_Generator & rand_gen, CDD root, vector<vector<bool>> & samples );
-	void Statistics( CDD root );
+	bool Entail_Clause( const CDDiagram & ccdd, Clause & cl );
+	bool Entail_CNF( const CDDiagram & ccdd, CNF_Formula & cnf );
+	bool Decide_SAT( const CDDiagram & ccdd, const vector<Literal> & assignment );
+	BigInt Count_Models( const CDDiagram & ccdd ) { assert( Contain( ccdd ) );  return Count_Models( ccdd.Root() ); }
+	BigInt Count_Models( const CDDiagram & ccdd, const vector<Literal> & assignment );
+	BigInt Count_Models_With_Condition( const CDDiagram & ccdd, const vector<Literal> & term );
+	void Mark_Models( const CDDiagram & ccdd, vector<BigFloat> & results );
+	void Probabilistic_Model( const CDDiagram & ccdd, vector<float> & prob_values );
+	void Uniformly_Sample( Random_Generator & rand_gen, const CDDiagram & ccdd, vector<vector<bool>> & samples );
+	void Uniformly_Sample( Random_Generator & rand_gen, const CDDiagram & ccdd, vector<vector<bool>> & samples, const vector<Literal> & assignment );
+	void Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const CDDiagram & ccdd, vector<vector<bool>> & samples, const vector<Literal> & term );
+	void Statistics( const CDDiagram & ccdd );
 protected:
+	bool Decide_SAT_Under_Assignment( NodeID root );
+	bool Decide_SAT_Under_Assignment_Small( NodeID root );
+	BigInt Count_Models( NodeID root );
+	BigInt Count_Models_Under_Assignment( NodeID root );
+	BigInt Count_Models_Under_Assignment_Small( NodeID root );
 	void Assign( Literal lit ) { if ( Lit_Undecided( lit ) ) { _assignment[lit.Var()] = lit.Sign(); _decision_stack[_num_decisions++] = lit; } }
+	SetID Propagate_New_Equ_Decisions( NodeID n, Hash_Cluster<Literal> & lit_cluster, SetID lits );
+	unsigned Num_Propagated_Equs( NodeID n );
 	SetID Pick_Less_Equ_Decisions( unsigned n, SetID pre_lits );  // select decisions whose variables less than the current decision node
 	bool Propagate_New_Equ_Decisions( unsigned n );
 	void Cancel_Current_Equ_Decisions();
+	void Add_Search_Level();
+	void Cancel_Search_Level();
+protected:
+	bool Probabilistic_Model( NodeID root, Large_Binary_Map<NodeID, SetID, double> & prob_values );
+	void Uniformly_Sample( Random_Generator & rand_gen, NodeID root, vector<bool> & sample, Large_Binary_Map<NodeID, SetID, double> & prob_values );
 public: // transformation
-	CDD Add_Node( Rough_CDD_Node & rnode );
-	CDD Add_Decision_Node( Decision_Node & bnode );
-	CDD Add_Decomposition_Node( Rough_CDD_Node & rnode );
-	CDD Add_Kernelization_Node( Rough_CDD_Node & rnode );
-	CDD Add_Equivalence_Node( int elit, int elit2 );  // literal in DAMICS
+	NodeID Add_Node( Rough_CDD_Node & rnode );
+	NodeID Add_Decision_Node( Decision_Node & bnode );
+	NodeID Add_Decomposition_Node( Rough_CDD_Node & rnode );
+	NodeID Add_Kernelization_Node( Rough_CDD_Node & rnode );
+	NodeID Add_Equivalence_Node( int elit, int elit2 );  // literal in DAMICS
 	unsigned Add_Equivalence_Nodes( const vector<Literal> & lit_equivalences, NodeID * nodes );
 	unsigned Add_Equivalence_Nodes( Literal * lit_pairs, unsigned num_pairs, NodeID * nodes );
 protected:
@@ -112,28 +192,23 @@ protected:
 	NodeID Replace_Child_Internal_Change( unsigned parent, unsigned child, unsigned new_child );
 	NodeID Replace_Child_Internal_Different_Change( unsigned parent, unsigned child, unsigned new_child ); // change infor.min_var and infor.num_var
 	NodeID Replace_Child_Rough( Rough_BDDC_Node & parent, unsigned child, unsigned new_child );
-protected: // called by Compiler
-//	CDD Add_Decision_Node_Nocheck( Decision_Node & bnode );
-//	CDD Add_Decomposition_Node_Nocheck( Rough_CDD_Node & rnode );
-//	CDD Add_Kernelization_Node_Nocheck( Rough_CDD_Node & rnode );
 protected:
-    void Condition_Min_Substitution( NodeID root, Decision_Node & bnode );
-    unsigned Finest_Last( Rough_CDD_Node & rnode );
+	unsigned Finest_Last( Rough_CDD_Node & rnode );
 public: // transforming
-	CDD Condition( CDD root, vector<int> elits );
+	CDDiagram Condition( const CDDiagram & ccdd, vector<int> elits );
 protected:
-	void Verify_CCDD( CDD root );
+	void Verify_CCDD( NodeID root );
 	void Verify_Node( NodeID n, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Decision_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Decomposition_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Kernelization_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Verify_Equivalence_Node( CDD_Node & node );
-	void Verify_Entail_CNF( CDD root, CNF_Formula & cnf );
-	void Verify_UNSAT_Under_Assignment( CDD root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
-	void Verify_Model( CDD root, const vector<bool> & sample );
+	void Verify_Entail_CNF( NodeID root, CNF_Formula & cnf );
+	void Verify_UNSAT_Under_Assignment( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	void Verify_Model( NodeID root, const vector<bool> & sample );
 	void Display_Var_Sets( ostream & out, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 protected:
-	void Compute_Var_Sets( CDD root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	void Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Compute_Vars( NodeID n, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	SetID Pick_Effective_Equ_Decisions( unsigned n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 protected:  // basic functions

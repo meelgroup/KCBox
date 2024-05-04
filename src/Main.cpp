@@ -3,8 +3,9 @@
 #include "Template_Library/Graph_Structures.h"
 #include "Primitive_Types/CNF_Formula.h"
 #include "Compilers/Integrated_Compiler.h"
-#include "Compilers/R2D2_Compiler.h"
+#include "Compilers/DNNF_Compiler.h"
 #include "Compilers/CCDD_Compiler.h"
+#include "Compilers/R2D2_Compiler.h"
 #include "Compilers/Partial_Compiler.h"
 #include "Counters/KCounter.h"
 #include "Counters/WCounter.h"
@@ -20,7 +21,7 @@ Counter_Parameters counter_parameters( "ExactMC" );
 
 Compiler_Parameters compiler_parameters( "Panini" );
 
-Sampler_Parameters sampler_parameters( "ExactUS" );
+Sampler_Parameters sampler_parameters( "FastUS" );
 
 Approx_Counter_Parameters approx_counter_parameters( "PartialKC" );
 
@@ -35,7 +36,7 @@ const int num_tools = sizeof(tools) / sizeof(Tool_Parameters *);
 struct Parameters
 {
 	char current_path[128];
-    char procedure_name[64];
+	char procedure_name[64];
 	const char * cnf_file;
 	const char * tool;
 	BoolOption quiet;
@@ -174,23 +175,28 @@ void Test_Counter()
 
 void Test_Compiler()
 {
-	if ( strcmp( compiler_parameters.lang, "OBDD" ) == 0 ) {
-        Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+	KC_Language lang = Parse_Language( compiler_parameters.lang );
+	switch ( lang ) {
+		case lang_OBDD:
+			Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			break;
+		case lang_OBDDC:
+			Compiler::Test_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			break;
+		case lang_DecDNNF:
+			DNNF_Compiler::Test_DecDNNF_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			break;
+		case lang_RRCDD:
+			R2D2_Compiler::Test_R2D2_Compiler( parameters.cnf_file, compiler_parameters );
+			break;
+		case lang_CCDD:
+			CCDD_Compiler::Test_CCDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			break;
+		default:
+			cerr << "ERROR: invalid language!" << endl;
+			Print_Usage();
+			exit( 1 );
 	}
-    else if ( strcmp( compiler_parameters.lang, "OBDD[AND]" ) == 0 ) {
-        Compiler::Test_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
-    }
-    else if ( strcmp( compiler_parameters.lang, "R2-D2" ) == 0 ) {
-        R2D2_Compiler::Test_R2D2_Compiler( parameters.cnf_file, compiler_parameters );
-    }
-    else if ( strcmp( compiler_parameters.lang, "CCDD" ) == 0 ) {
-		CCDD_Compiler::Test_CCDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
-    }
-    else {
-        cerr << "ERROR: invalid language!" << endl;
-        Print_Usage();
-        exit( 1 );
- 	}
 }
 
 void Test_Sampler()
@@ -207,9 +213,7 @@ void Test_Sampler()
 	}
 	else {
 		if ( !sampler_parameters.approx ) {
-			cerr << "ERROR: Weighted uniform not supported yet!" << endl;
-			Print_Usage();
-			exit( 1 );
+			DNNF_Compiler::Test_Sampler( parameters.cnf_file, sampler_parameters, parameters.quiet );
 		}
 		else {
 			cerr << "ERROR: Approximately uniform not supported yet!" << endl;
@@ -305,7 +309,8 @@ void Debug()
 //	Counter::Debug();
 //	KCounter::Debug();
 //	WCounter::Debug();
-	Partial_CCDD_Compiler::Debug();
+//	Partial_CCDD_Compiler::Debug();
+	OBDD_Manager::Debug();
 //	CDD_Manager::Debug_Uniqueness();
 //	CDD_Manager::Debug_Convert();
 //	CDD_Manager::Debug_Convert_Down();

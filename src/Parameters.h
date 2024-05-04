@@ -118,47 +118,79 @@ extern inline KC_Language Parse_Language( const char * lang )
 struct Compiler_Parameters: public Tool_Parameters
 {
 	StringOption lang;
-	StringOption out_file;
 	StringOption heur;
 	FloatOption memo;
-	BoolOption CT;
-	IntOption US;
-	StringOption condition;
 	IntOption kdepth;
+	StringOption out_file;
+	StringOption out_file_dot;
+	BoolOption CO;
+	BoolOption VA;
+	StringOption CE;
+	StringOption IM;
+	BoolOption CT;
+	BoolOption wCT;
+	IntOption US;
+	IntOption wUS;
+	StringOption condition;
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		lang( "--lang", "KC language OBDD, OBDD[AND], Decision-DNNF, R2-D2, or CCDD", "OBDD[AND]" ),
-		out_file( "--out", "the output file with compilation", nullptr ),
 		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
+		kdepth( "--kdepth", "maximum kernelization depth (only applicable for CCDD)", 128 ),
+		out_file( "--out", "the output file with compilation", nullptr ),
+		out_file_dot( "--out-dot", "the output file with compilation in .dot format", nullptr ),
+		CO( "--CO", "checking consistency", false ),
+		VA( "--VA", "checking validity", false ),
+		CE( "--CE", "checking clausal entailment with the file of clauses", nullptr ),
+		IM( "--IM", "checking implicant with the file of terms", nullptr ),
 		CT( "--CT", "performing model counting", false ),
+		wCT( "--wCT", "performing weighted model counting", false ),
 		US( "--US", "performing uniform sampling", 1 ),
-		condition( "--condition", "the assignment file for counting models with conditioning", nullptr ),
-		kdepth( "--kdepth", "maximum kernelization depth (not applicable for BDD and OBDD[AND])", 128 )
+		wUS( "--wUS", "performing uniform weighted sampling", 1 ),
+		condition( "--condition", "the assignment file for conditioning", nullptr )
 	{
 		Add_Option( &lang );
-		Add_Option( &out_file );
 		Add_Option( &heur );
 		Add_Option( &memo );
-		Add_Option( &CT );
-		Add_Option( &US );
-		Add_Option( &condition );
 		Add_Option( &kdepth );
+		Add_Option( &out_file );
+		Add_Option( &out_file_dot );
+		Add_Option( &CO );
+		Add_Option( &VA );
+		Add_Option( &CE );
+		Add_Option( &IM );
+		Add_Option( &CT );
+		Add_Option( &wCT );
+		Add_Option( &US );
+		Add_Option( &wUS );
+		Add_Option( &condition );
 	}
 	bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
 		KC_Language kclang = Parse_Language( lang );
 		if ( kclang == lang_invalid ) {
+			cerr << "ERROR: the language is not support!" << endl;
 			return false;
 		}
-		if ( kclang == lang_OBDD || kclang == lang_OBDDC || kclang == lang_DecDNNF ) {
-			if ( kdepth.Exists() ) return false;
+		if ( kclang != lang_CCDD && kdepth.Exists() ) {
+			cerr << "ERROR: --kdepth can only work with CCDD!" << endl;
 		}
-		if ( kclang != lang_CCDD ) {
-			if ( US.Exists() ) return false;
+		if ( !At_Most_One_Query() ) {
+			cerr << "ERROR: there are more than one query!" << endl;
 		}
-		if ( !CT.Exists() && condition.Exists() ) {
-			cerr << "ERROR: --condition must work with --CT!" << endl;
+		if ( Weighted_Query() ) {
+			if ( kclang == lang_CCDD || kclang == lang_RRCDD ) {
+				cerr << "ERROR: a weighted query must work with OBDD, OBDD[AND], or Decision-DNNF!" << endl;
+				return false;
+			}
+		}
+		if ( condition.Exists() && !Exactly_One_Query() ) {
+			cerr << "ERROR: --condition must work with a query!" << endl;
+			return false;
+		}
+		if ( condition.Exists() && ( CE.Exists() || IM.Exists() ) ) {
+			cerr << "ERROR: --condition cannot work with CE or IM!" << endl;
 			return false;
 		}
 		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
@@ -167,6 +199,16 @@ struct Compiler_Parameters: public Tool_Parameters
 			return false;
 		}
 		return true;
+	}
+	bool Weighted_Query() { return wCT.Exists() || wUS.Exists(); }
+protected:
+	bool At_Most_One_Query()
+	{
+		return CO.Exists() + VA.Exists() + CE.Exists() + IM.Exists() + CT.Exists() + wCT.Exists() + US.Exists() + wUS.Exists() <= 1;
+	}
+	bool Exactly_One_Query()
+	{
+		return CO.Exists() + VA.Exists() + CE.Exists() + IM.Exists() + CT.Exists() + wCT.Exists() + US.Exists() + wUS.Exists() == 1;
 	}
 };
 
@@ -197,7 +239,13 @@ struct Sampler_Parameters: public Tool_Parameters
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
 		if ( !weighted ) {
-			if ( format.Exists() ) return false;
+			if ( format.Exists() ) {
+				cerr << "ERROR: --format must work with --weighted!" << endl;
+				return false;
+			}
+		}
+		if ( approx ) {
+			cerr << "ERROR: --approx is not supported yet!" << endl;
 		}
 		return true;
 	}

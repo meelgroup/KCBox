@@ -45,7 +45,7 @@ size_t R2D2_Compiler::Memory()
 	return CDD_Compiler::Memory();
 }
 
-CDD R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+CDDiagram R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
 {
 	assert( Is_Linear_Ordering( heur ) );
 	StopWatch begin_watch, tmp_watch;
@@ -69,12 +69,12 @@ CDD R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic
 			}
 		}
 		Reset();
-		return NodeID::bot;
+		return manager.Generate_CCDD( NodeID::bot );
 	}
 	Store_Lit_Equivalences( _call_stack[0] );
 	if ( Non_Unary_Clauses_Empty() ) {
 		Recycle_Models( _models_stack[0] );
-		CDD result = Make_Root_Node( manager, NodeID::top );
+		NodeID result = Make_Root_Node( manager, NodeID::top );
 		_call_stack[0].Clear_Lit_Equivalences();
 		Un_BCP( _dec_offsets[--_num_levels] );
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
@@ -86,7 +86,7 @@ CDD R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic
 			}
 		}
 		Reset();
-		return result;
+		return manager.Generate_CCDD( result );
 	}
 	Gather_Infor_For_Counting();
 	Choose_Running_Options( heur, vorder );
@@ -105,7 +105,7 @@ CDD R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic
 //	ofstream fout( "debug.cdd" );  // ToRemove
 //	manager.Display_Stat( fout );  // ToRemove
 //	fout.close();
-	CDD result = Make_Root_Node( manager, _rsl_stack[0] );
+	NodeID result = Make_Root_Node( manager, _rsl_stack[0] );
 	Set_Current_Level_Kernelized( false );
 	_call_stack[0].Clear_Lit_Equivalences();
 	Backtrack();
@@ -128,7 +128,7 @@ CDD R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heuristic
 		BigInt verified_count = Count_Verified_Models_sharpSAT( cnf );
 		assert( count == verified_count );
 	}
-	return result;
+	return manager.Generate_CCDD( result );
 }
 
 NodeID R2D2_Compiler::Make_Root_Node( R2D2_Manager & manager, NodeID node )
@@ -635,7 +635,7 @@ bool R2D2_Compiler::Estimate_Hardness( Component & comp )
 	}
 }
 
-CDD R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocessor & preprocessor, Chain & vorder )
+CDDiagram R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocessor & preprocessor, Chain & vorder )
 {
 	StopWatch begin_watch, tmp_watch;
 	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Compiling..." << endl;
@@ -648,7 +648,7 @@ CDD R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocesso
 	Store_Lit_Equivalences( _call_stack[0] );
 	if ( Non_Unary_Clauses_Empty() ) {
 		Recycle_Models( _models_stack[0] );
-		CDD result = Make_Root_Node( manager, NodeID::top );
+		NodeID result = Make_Root_Node( manager, NodeID::top );
 		_call_stack[0].Clear_Lit_Equivalences();
 		Un_BCP( _dec_offsets[--_num_levels] );
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
@@ -660,7 +660,7 @@ CDD R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocesso
 			}
 		}
 		Reset();
-		return result;
+		return manager.Generate_CCDD( result );
 	}
 	Gather_Infor_For_Counting();
 	Choose_Running_Options( FixedLinearOrder, vorder );
@@ -675,7 +675,7 @@ CDD R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocesso
 		Compile_With_SAT_Imp_Computing( manager );
 	}
 	_num_rsl_stack--;
-	CDD result = Make_Root_Node( manager, _rsl_stack[0] );
+	NodeID result = Make_Root_Node( manager, _rsl_stack[0] );
 	Set_Current_Level_Kernelized( false );
 	_call_stack[0].Clear_Lit_Equivalences();
 	Backtrack();
@@ -689,7 +689,7 @@ CDD R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Preprocesso
 		}
 	}
 	Reset();
-	return result;
+	return manager.Generate_CCDD( result );
 }
 
 void R2D2_Compiler::Verify_Result_Component( Component & comp, R2D2_Manager & manager, NodeID result )
@@ -782,10 +782,10 @@ void R2D2_Compiler::Display_Statistics( unsigned option )
 	statistics.Init_Compiler();
 }
 
-void R2D2_Compiler::Display_Result_Statistics( ostream & out, R2D2_Manager & manager, CDD cdd )
+void R2D2_Compiler::Display_Result_Statistics( ostream & out, R2D2_Manager & manager, NodeID root )
 {
-	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( cdd ) << endl;
-	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( cdd ) << endl;
+	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( root ) << endl;
+	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( root ) << endl;
 //	out << "Number of models: " << manager.Count_Models( cdd ) << endl;
 //	OBDDC_Manager bddc_manager( _var_order, _max_var );
 //	manager.Convert_Down( cdd, bddc_manager );

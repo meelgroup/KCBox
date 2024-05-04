@@ -35,7 +35,7 @@ protected:
 	void Allocate_and_Init_Auxiliary_Memory( Variable max_var );
 	void Free_Auxiliary_Memory();
 public:
-	CDD Partially_Compile( Partial_CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur );  // Reset outside
+	NodeID Partially_Compile( Partial_CCDD_Manager & manager, CNF_Formula & cnf, Heuristic heur = AutomaticalHeur );  // Reset outside
 protected:
 	NodeID Make_Root_Node( Partial_CCDD_Manager & manager, NodeID node );
 	NodeID Make_Kernelized_Conjunction_Node( Partial_CCDD_Manager & manager, NodeID node );
@@ -102,7 +102,7 @@ protected:
 	void Verify_Result_Bound( Component & comp, BigFloat result );
 	void Verify_Result_Component( Component & comp, double count );
 	void Display_Statistics( unsigned option );
-	void Display_Result_Statistics( ostream & out, Partial_CCDD_Manager & manager, CDD cdd );
+	void Display_Result_Statistics( ostream & out, Partial_CCDD_Manager & manager, NodeID root );
 	void Display_Memory_Status( ostream & out );
 	void Display_Result_Stack( ostream & out );
 public:

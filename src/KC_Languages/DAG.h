@@ -16,6 +16,7 @@ struct Node_Infor
 	bool visited;
 	unsigned mark;
 	Node_Infor(): visited( false ), mark( UNSIGNED_UNDEF ) {}
+	Node_Infor( const Node_Infor & infor ): visited( infor.visited ), mark( infor.mark ) {}
 	void Init()
 	{
 		visited = false;
@@ -83,6 +84,59 @@ public:
 typedef SortedSet<Variable> VarSet;
 typedef SortedSet<Literal> LitSet;
 
+class Diagram
+{
+	friend class Diagram_Manager;
+protected:
+	DLList_Node<NodeID> * _root;
+	CDLList<NodeID> * _roots;
+	Diagram( NodeID root, CDLList<NodeID> * roots )
+	{
+		_roots = roots;
+		_root = _roots->Insert_Back( root );
+		_root->infor = 1;
+	}
+	void Disconnect()
+	{
+		_root->infor--;
+		if ( _root->infor == 0 ) {
+			_roots->Delete( _root );
+		}
+	}
+public:
+	Diagram(): _root( nullptr ) {}
+	Diagram( const Diagram & another )
+	{
+		if ( another.Allocated() ) {
+			_roots = another._roots;
+			_root = another._root;
+			_root->infor++;
+		}
+		else _root = nullptr;
+	}
+	~Diagram()
+	{
+		if ( Allocated() ) Disconnect();
+	}
+	bool Allocated() const { return _root != nullptr; }
+	void Free()
+	{
+		if ( Allocated() ) {
+			Disconnect();
+			_root = nullptr;
+		}
+	}
+	Diagram & operator = ( const Diagram & another )
+	{
+		if ( Allocated() ) Disconnect();
+		_roots = another._roots;
+		_root = another._root;
+		_root->infor++;
+		return *this;
+	}
+	NodeID Root() const { return _root == nullptr ? NodeID::undef : _root->data; }
+};
+
 class Diagram_Manager: public Assignment
 {
 protected:
@@ -93,6 +147,7 @@ protected:
 	NodeID * _node_stack;
 	unsigned * _node_mark_stack;
 	vector<NodeID> _visited_nodes;
+	CDLList<NodeID> _allocated_nodes;
 	bool * _var_seen;
 	bool * _lit_seen;
 public:
@@ -110,6 +165,8 @@ public: // querying
     bool Is_Fixed( NodeID root ) { return root <= 2 * _max_var + 1 + 2 - Literal::start; }
 protected:
 	Literal Node2Literal( NodeID n )	{ return Literal( n - 2 + Literal::start ); }
+	Diagram Generate_Diagram( NodeID n ) { return Diagram( n, &_allocated_nodes ); }
+	bool Contain( const Diagram & dag ) { return dag._roots == &_allocated_nodes; }
 };
 
 

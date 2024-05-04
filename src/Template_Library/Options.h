@@ -199,6 +199,7 @@ public:
 			for ( ; j < _options.size(); j++ ) {
 				if ( ( stat = _options[j]->Match( i, argc, argv ) ) != 0 ) {
 					if ( stat == -1 ) {
+						cerr << "ERROR: wrong usage for " << _options[j]->Name() << endl;
 						return false;
 					}
 					break;
