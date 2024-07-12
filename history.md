@@ -15,3 +15,5 @@
 * 2023: ExactUS was renamed as FastUS by Yong Lai.
 
 * 2024: Panini was updated by Yong Lai, Kuldeep S. Meel, and Roland H. C. Yap. Now it supports the compilation to Decision-DNNF. It also implements a family of queries with the languages OBDD, OBDD[AND], Decision-DNNF, and CCDD.
+
+* 2024: Mate Soos joined the project.

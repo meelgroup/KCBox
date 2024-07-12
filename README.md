@@ -76,6 +76,7 @@ The following researchers have contributed to this project (sorted alphabeticall
 - Yong Lai (laiy@jlu.edu.cn)
 - Dayou Liu (dyliu@jlu.edu.cn)
 - Kuldeep S. Meel (meel@comp.nus.edu.sg)
+- Mate Soos (soos.mate@gmail.com)
 - Roland H. C. Yap (ryap@comp.nus.edu.sg)
 - Minghao Yin (ymh@nenu.edu.cn)
 
@@ -85,6 +86,6 @@ The following researchers have contributed to this project (sorted alphabeticall
 
 - Daniil Chivilikhin
 - Arijit Shaw
-- Mate Soos
 - Zhenghang Xu
 - Suwei Yang
+- github users: schmidcl
