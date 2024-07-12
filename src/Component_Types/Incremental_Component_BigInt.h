@@ -458,8 +458,8 @@ public:
 		_pool.Shrink_To_Fit();
 		_hash_memory = _pool.Memory();
 	}
-	unsigned Memory() const { return _hash_memory; }
-	unsigned Memory_Show()
+	size_t Memory() const { return _hash_memory; }
+	size_t Memory_Show()
 	{
 		cerr << _hash_memory << " (" << _other_clauses.Size() << ": " << _other_clauses.Memory() << ")" << endl;  // ToRemove
 		cerr << "hit ratio: " << 100 - 100.0 * _hit_failed_count / _hit_count << "%" << endl;

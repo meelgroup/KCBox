@@ -140,7 +140,7 @@ void CDD_Compiler::Backjump_Decision( unsigned num_kept_levels )
 
 void CDD_Compiler::Component_Cache_Erase( Component & comp )
 {
-	unsigned back_loc = _component_cache.Size() - 1;
+	size_t back_loc = _component_cache.Size() - 1;
 	_component_cache.Erase( comp.caching_loc );
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		if ( _comp_stack[_comp_offsets[i]].caching_loc == back_loc ) {

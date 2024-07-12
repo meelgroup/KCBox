@@ -97,7 +97,7 @@ public:
 	Bounded_Component_Cache(): pool( 40000 ) {}
 	void Clear() { pool.Clear(); }
 	unsigned Size() const { return pool.Size(); }
-	unsigned Memory() const { return pool.Capacity() * ( BOUNDED_COMPONENT_VAR_BOUND + BOUNDED_COMPONENT_LONG_CLAUSE_BOUND ) / 8; }
+	size_t Memory() const { return pool.Capacity() * ( BOUNDED_COMPONENT_VAR_BOUND + BOUNDED_COMPONENT_LONG_CLAUSE_BOUND ) / 8; }
 	unsigned Hit_Component( Component & comp )
 	{
 		comp_code.Assign( comp );

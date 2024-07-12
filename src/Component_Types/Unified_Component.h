@@ -345,7 +345,7 @@ public:
 		_hash_memory = _pool.Memory();
 	}
 	unsigned Size() const { return _pool.Size(); }
-	unsigned Memory() const { return _hash_memory; }
+	size_t Memory() const { return _hash_memory; }
 	unsigned Num_Long_Clauses() const { return _clause_set.Size(); }
 	const SortedSet<Literal> Long_Clauses( SetID id ) { return _clause_set.Elements( id ); }
 	SetID Encode_Clause( Literal * lits, unsigned size ) { return _clause_set.Set( lits, size );  }

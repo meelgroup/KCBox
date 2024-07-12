@@ -118,7 +118,7 @@ public:
 		_pool.Shrink_To_Fit();
 		_hash_memory = _pool.Memory();
 	}
-	unsigned Memory() const { return _hash_memory; }
+	size_t Memory() const { return _hash_memory; }
 	unsigned Hit_Component( Component & comp )
 	{
 		Cacheable_Component_BigFloat::_infor = _hit_infor;  /// NOTE: for different Component_Cache, Cacheable_Component::_infor is different, so update Cacheable_Component::_infor before Hit

@@ -625,9 +625,9 @@ public:
 		swap( _size, other._size );
 	}
 protected:
-	unsigned Upper_Loc( unsigned i ) { return i >> _bits_of_size_per_block; }
-	unsigned Lower_Loc( unsigned i ) { return i & _block_mask; }
-	size_t Block_Count( unsigned capacity ) { return ( capacity + _size_per_block - 1 ) >> _bits_of_size_per_block; }
+	size_t Upper_Loc( size_t i ) { return i >> _bits_of_size_per_block; }
+	unsigned Lower_Loc( size_t i ) { return i & _block_mask; }
+	size_t Block_Count( size_t capacity ) { return ( capacity + _size_per_block - 1 ) >> _bits_of_size_per_block; }
 	void Realloc_Blocks()
 	{
 		vector<vector<T>> new_blocks( _blocks.capacity() * 2 );

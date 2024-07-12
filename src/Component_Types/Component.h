@@ -16,7 +16,7 @@ protected:
 	vector<unsigned> _varIDs;
 	vector<unsigned> _clauseIDs;  // denote the ID of clauses
 public:
-	unsigned caching_loc;
+	size_t caching_loc;
 	unsigned Vars_Size() const { return _varIDs.size(); }
 	unsigned ClauseIDs_Size() const { return _clauseIDs.size(); }
 	void Vars_Resize( unsigned newsize ) { _varIDs.resize( newsize ); }
@@ -115,7 +115,7 @@ protected:
 	unsigned _num_var;  // NOTE: _num_var is always greater than 1
 	unsigned _num_cl;
 	unsigned * _bits;
-	unsigned _key;
+	uint64_t _key;
 	T _result;
 public:
 	Cacheable_Component(): _num_var( 0 ) {}
@@ -243,7 +243,7 @@ public:
 		_bits[size - 1] = tmp;
 		return _bits[i] == other._bits[i];
 	}
-	unsigned Key() const { return _key; }
+	uint64_t Key() const { return _key; }
 	size_t Memory() const { return sizeof(Cacheable_Component) + Bits_Size() * sizeof(unsigned); }
 protected:
     unsigned Bits_Size() const { return ( _num_var * _infor._vcode_size + _num_cl * _infor._ccode_size - 1 ) / UNSIGNED_SIZE + 1;  /* ceil */ }
@@ -339,7 +339,7 @@ public:
 	unsigned Size() const { return _pool.Size(); }
 	unsigned Capacity() const { return _pool.Capacity(); }
 	unsigned Empty() const { return _pool.Empty(); }
-	unsigned Memory() const { return _hash_memory; }
+	size_t Memory() const { return _hash_memory; }
 	void Shrink_To_Fit()
 	{
 		_pool.Shrink_To_Fit();
