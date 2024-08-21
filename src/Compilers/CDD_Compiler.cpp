@@ -132,31 +132,11 @@ void CDD_Compiler::Backjump_Decision( unsigned num_kept_levels )
 	for ( _num_levels--; _num_levels > num_kept_levels; _num_levels-- ) {
 		if ( _comp_offsets[_num_levels] - _comp_offsets[_num_levels - 1] <= 1 ) _num_rsl_stack -= _state_stack[_num_levels - 1] - 2;  // ToCheck
 		else _num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-		if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	}
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
-}
-
-void CDD_Compiler::Component_Cache_Erase( Component & comp )
-{
-	size_t back_loc = _component_cache.Size() - 1;
-	_component_cache.Erase( comp.caching_loc );
-	for ( unsigned i = 1; i < _num_levels; i++ ) {
-		if ( _comp_stack[_comp_offsets[i]].caching_loc == back_loc ) {
-			_comp_stack[_comp_offsets[i]].caching_loc = comp.caching_loc;
-		}
-		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
-			if ( _comp_stack[j].caching_loc == back_loc ) {
-				_comp_stack[j].caching_loc = comp.caching_loc;
-			}
-		}
-		if ( _call_stack[i].Existed() ) {
-			if ( _call_stack[i].Get_Caching_Loc() == back_loc ) {
-				_call_stack[i].Set_Caching_Loc( comp.caching_loc );
-			}
-		}
-	}
+	_component_cache.Entry_Reset_Subtrees( Current_Component().caching_loc );
+	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 }
 
 NodeID CDD_Compiler::Component_Cache_Map( Component & comp )
@@ -172,6 +152,9 @@ NodeID CDD_Compiler::Component_Cache_Map( Component & comp )
 		comp.Display( cerr );
 		_incremental_comp.Display( cerr );
 		Display_Component( comp, cerr );
+	}
+	if ( _component_cache.Entry_Is_Isolated( comp.caching_loc ) ) {
+		Component_Cache_Connect( comp );
 	}
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache += tmp_watch.Get_Elapsed_Seconds();
 	return _component_cache.Read_Result( comp.caching_loc );
@@ -203,6 +186,19 @@ void CDD_Compiler::Generate_Incremental_Component( Component & comp )
 	for ( unsigned i = 0; i < comp.ClauseIDs_Size(); i++ ) {
 		_incremental_comp.Add_ClauseID( _long_clause_ids[comp.ClauseIDs(i)] );
 	}
+}
+
+void CDD_Compiler::Component_Cache_Connect( Component & comp )
+{
+	unsigned pos = &comp - _comp_stack;
+	assert( pos < _num_comp_stack );
+	unsigned level = Level_Of_Component( pos );
+	if ( level <= 1 ) return;
+	assert( &comp == &(Active_Component( level )) );
+	if ( Is_Level_Decision( level ) || Active_Position_On_Level( level ) == 0 ) {
+		_component_cache.Entry_Add_Child( Parent_of_Active_Component( level ).caching_loc, comp.caching_loc );
+	}
+	else _component_cache.Entry_Add_Sibling( (&comp - 1)->caching_loc, comp.caching_loc );
 }
 
 void CDD_Compiler::Backtrack()
@@ -262,10 +258,25 @@ void CDD_Compiler::Component_Cache_Clear()
 			_comp_stack[j].caching_loc = kept_locs[index++];
 		}
 	}
+	Component_Cache_Reconnect_Components();
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		if ( _call_stack[i].Existed() ) _call_stack[i].Set_Caching_Loc( kept_locs[index++] );
 	}
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache += watch.Get_Elapsed_Seconds();
+}
+
+void CDD_Compiler::Component_Cache_Reconnect_Components()
+{
+	_component_cache.Entry_Set_Isolated( Active_Component( 1 ).caching_loc );
+	for ( unsigned i = 2; i < _num_levels; i++ ) {
+		Component & parent = Active_Component( i - 1 );
+		_component_cache.Entry_Set_Isolated( _comp_stack[_comp_offsets[i]].caching_loc );
+		_component_cache.Entry_Add_Child( parent.caching_loc, _comp_stack[_comp_offsets[i]].caching_loc );
+		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
+			_component_cache.Entry_Set_Isolated( _comp_stack[j].caching_loc );
+			_component_cache.Entry_Add_Sibling( _comp_stack[j - 1].caching_loc, _comp_stack[j].caching_loc );
+		}
+	}
 }
 
 void CDD_Compiler::Remove_Redundant_Nodes( CDD_Manager & manager )
@@ -306,14 +317,14 @@ void CDD_Compiler::Backjump_Decomposition( unsigned num_kept_levels )
 {
 	assert( num_kept_levels < _num_levels );
 	_num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-	if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	for ( _num_levels--; _num_levels > num_kept_levels; _num_levels-- ) {
 		if ( _comp_offsets[_num_levels] - _comp_offsets[_num_levels - 1] <= 1 ) _num_rsl_stack -= _state_stack[_num_levels - 1] - 2;  // ToCheck
 		else _num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-		if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	}
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
+	_component_cache.Entry_Reset_Subtrees( Current_Component().caching_loc );
+	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 }
 
 void CDD_Compiler::Backtrack_Halfway()

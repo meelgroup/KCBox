@@ -8,6 +8,7 @@
 #include "Primitive_Types/CNF_Formula.h"
 #include "Primitive_Types/Assignment.h"
 #include "minisatInterface.h"
+#include "Component_Types/Component.h"
 
 
 namespace KCBox {
@@ -35,6 +36,7 @@ public:
 
 class Decision_Manager: public Assignment
 {
+	friend class CadiBack;
 protected:
 	unsigned * _var_stamps;  // decision level of variable
 	Reason * _reasons;  // decision reason of variable
@@ -202,6 +204,9 @@ protected:
 	void Update_Heur_Decaying_Sum_Sorted_List_Component( Component & comp );
 	void Update_Heur_Decaying_Sum_Heap_Component( Component & comp );
 	Literal Branch_Component( Component & comp );
+	void Filter_Long_Learnts_During_Solving( unsigned old_num_levels, unsigned old_size );
+	bool Two_Unassigned_Literals( Clause & clause );
+	unsigned Num_Unassigned_Literals( Clause & clause );
 protected:
 	Reason Assign_Late( unsigned level, Literal lit, Reason reason );
 protected:
@@ -212,6 +217,7 @@ protected:
 	unsigned Num_Binary_Learnts();
 	void Verify_Satisfiability( CNF_Formula & cnf, bool result );
 	void Verify_Long_Learnt( unsigned pos );
+	void Verify_Learnt( Big_Clause & learnt );
 	void Verify_Learnts( CNF_Formula & cnf );
 	bool Imply_Clause_CNF_No_Learnt( CNF_Formula & cnf, Clause & clause );
 	void Verify_Imply_Clause( Clause & clause );
@@ -232,6 +238,7 @@ protected:
 	void Display_Watched_List( ostream & out );
 	void Display_SAT_Heuristic_Value( ostream & out );
 	void Display_Decision_Stack( ostream & out, unsigned base_dec_level );
+	void Display_Decision_Path( ostream & out );
 	void Display_Conflict( Reason confl, ostream & out );
 	void Display_Models( vector<Model *> & source, ostream & out );
 	void Display_Clauses_For_Verifying_Imp( ostream & out, unsigned old_num_d_stack, unsigned new_num_d_stack );

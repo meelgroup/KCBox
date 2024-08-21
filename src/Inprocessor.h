@@ -3,6 +3,7 @@
 
 #include "Preprocessor.h"
 #include "Primitive_Types/Lit_Equivalency.h"
+#include "Component_Types/Component_Cache.h"
 
 
 namespace KCBox {
@@ -94,6 +95,7 @@ protected:  /// compute implied literals by IBCP
 	Reason Add_Learnt();
 	unsigned Analyze_Conflict_Fixed_UIP( Reason confl, Literal fixed );
 	Reason Get_Approx_Imp_Component_Partial_IBCP( Component & comp );
+	Reason Get_Approx_Imp_Component_Partial_IBCP_Neg( Component & comp );
 protected:  /// compute implied literals by calling SAT solver
 	void Get_All_Imp_Component_SAT( Component & comp, vector<Model *> & models );
 	void Get_All_Imp_Component( Component & comp, vector<Model *> & models );
@@ -108,12 +110,16 @@ protected:  /// compute implied literals by calling SAT solver
 	unsigned Restart_Bound_Component( Component & comp );
 	void Add_Marked_Model_Component( Component & comp, vector<Model *> & models );
 	void Get_All_Imp_Component_External( Component & comp, vector<Model *> & models );
+	void Get_All_Imp_Component_MiniSat( Component & comp, vector<Model *> & models );
 	void Prepare_Renamed_Ext_Clauses_Component( Component & comp, vector<vector<int>> & eclauses );
 	unsigned Analyze_Conflict_Naive( Literal uip );
 	void Add_Extra_Binary_Clause_Naive( Literal lit1, Literal lit2 );
 	void Add_Model_Component( vector<int8_t> & minisat_model, Component & comp, vector<Model *> & models );
 	unsigned Num_Projected_Vars_Assigned( unsigned start );
 	void Reset_Extra_Binary_Clauses();
+	void Get_All_Imp_Component_CaDiCaL( Component & comp, vector<Model *> & models );
+	unsigned Analyze_Conflict_CaDiCaL( Literal uip );
+	void Verify_All_Imp_Component( Component & comp );
 protected:  /// compute projected implied literals by calling SAT solver
 	void Get_All_Projected_Imp_Component( Component & comp, vector<Model *> & models );
 	Literal Pick_Projected_Imp_Component_Heuristic( Component & comp, vector<unsigned>::const_iterator & start );
@@ -123,13 +129,30 @@ protected:  /// manage components
 	void Generate_Init_Component( Component & comp );  // not decompose the initial clauses
 	Component & Current_Component() { return _comp_stack[_active_comps[_num_levels - 1]]; }
 	Component & Parent_of_Current_Component() { return _comp_stack[_active_comps[_num_levels - 2]]; }
+	Component & Previous_Component() { return _comp_stack[_active_comps[_num_levels - 1] - 1]; }
+	Component & Active_Component( unsigned level ) const { return _comp_stack[_active_comps[level]]; }
+	Component & Parent_of_Active_Component( unsigned level ) { return _comp_stack[_active_comps[level - 1]]; }
 	unsigned Num_Components_On_Current_Level() const { return _num_comp_stack - _comp_offsets[_num_levels - 1]; }
 	unsigned Num_Components_On_Level( unsigned level ) const { _comp_offsets[_num_levels] = _num_comp_stack;  return _comp_offsets[level + 1] - _comp_offsets[level]; }
+	unsigned Active_Position_On_Level( unsigned level ) const { return _active_comps[level] - _comp_offsets[level]; }
 	bool Is_Current_Level_Empty() const { return _num_comp_stack == _comp_offsets[_num_levels - 1]; }
 	bool Is_Current_Level_Decision() const { return _num_comp_stack == _comp_offsets[_num_levels - 1] + 1; }
 	bool Is_Current_Level_Decomposition() const { return _num_comp_stack > _comp_offsets[_num_levels - 1] + 1; }
 	bool Is_Current_Level_Active() const { return _active_comps[_num_levels - 1] < _num_comp_stack; }
 	bool Is_Level_Decision( unsigned level ) const { _comp_offsets[_num_levels] = _num_comp_stack;  return _comp_offsets[level + 1] == _comp_offsets[level] + 1; }
+	bool Finished_Decision_Of_Current_Component() const
+	{
+		if ( Is_Current_Level_Decision() ) return _state_stack[_num_levels - 1] == 3;
+		else return _state_stack[_num_levels - 1] % 3 == 2;
+	}
+	unsigned Level_Of_Component( unsigned pos ) const
+	{
+		unsigned level = _num_levels - 1;
+		for ( ; ; level-- ) {
+			if ( pos >= _comp_offsets[level] ) return level;
+		}
+		return UNSIGNED_UNDEF;
+	}
 	unsigned Dynamic_Decompose_Component( Component & source, Component smaller_comps[] );
 	unsigned Dynamic_Decompose_Component_With_Sorting( Component & source, Component smaller_comps[] );
 	void Add_Var_Neighbors_In_Binary_Clauses( Variable var, Component & target );

@@ -97,6 +97,14 @@ extern vector<int> ExtLits( Clause & clause )
 	return eclause;
 }
 
+extern void ExtLits( Clause & clause, vector<int> & eclause )
+{
+	eclause.resize( clause.Size() );
+	for ( size_t i = 0; i < clause.Size(); i++ ) { // validate the following insertion_sort
+		eclause[i] = ExtLit( clause[i] );
+	}
+}
+
 extern Clause Clause_Random( Variable max_var, unsigned max_len, unsigned min_len )
 {
 	assert( 0 < min_len && min_len <= max_len && max_len <= NumVars( max_var ) );
@@ -571,7 +579,7 @@ void WCNF_Formula::Read_MC_Competition_Format( istream & fin )
 		exit( 1 );
 	}
 	unsigned num;
-	if ( sscanf( line, "p cnf %d %u", &num, &num_cl ) != 2 ) {
+	if ( sscanf( line, "p cnf %u %u", &num, &num_cl ) != 2 ) {
 		cerr << "ERROR[WCNF_Formula]: wrong cnf-file format!" << endl;
 		exit( 1 );
 	}
@@ -642,11 +650,9 @@ bool WCNF_Formula::Get_Line_MC_Competition( istream & fin, char line[] )
 			}
 		}
 		else if ( Read_String_Change( p, "p" ) ) {
-			if ( !Read_String_Change( p, "weight" ) ) {
-				cerr << "ERROR[WCNF_Formula]: invalid weight!" << endl;
-				exit( 1 );
+			if ( Read_String_Change( p, "weight" ) ) {
+				Read_Literal_Weight( p );
 			}
-			Read_Literal_Weight( p );
 		}
 	}
 	return false;
@@ -704,7 +710,7 @@ void WCNF_Formula::Read_MiniC2D_Format( istream & fin )
 		exit( 1 );
 	}
 	unsigned num_vars;
-	if ( sscanf( line, "p cnf %d %u", &num_vars, &num_cl ) != 2 ) {
+	if ( sscanf( line, "p cnf %u %u", &num_vars, &num_cl ) != 2 ) {
 		cerr << "ERROR[WCNF_Formula]: wrong cnf-file format!" << endl;
 	}
 	_max_var = Variable::start + num_vars - 1;

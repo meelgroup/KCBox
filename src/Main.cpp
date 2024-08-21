@@ -36,7 +36,7 @@ const int num_tools = sizeof(tools) / sizeof(Tool_Parameters *);
 struct Parameters
 {
 	char current_path[128];
-	char procedure_name[64];
+    char procedure_name[64];
 	const char * cnf_file;
 	const char * tool;
 	BoolOption quiet;
@@ -160,7 +160,7 @@ void Parse_Tool_Parameters( Tool_Parameters & tool_parameter, int argc, const ch
 
 void Test_Preprocessor()
 {
-	Preprocessor::Test( parameters.cnf_file, preprocessor_parameters.out_file, parameters.quiet );
+	Preprocessor::Test( parameters.cnf_file, preprocessor_parameters, parameters.quiet );
 }
 
 void Test_Counter()
@@ -235,7 +235,7 @@ void Test_PartialKC()
 
 void Test()
 {
-    if ( !parameters.quiet ) {
+	if ( !parameters.quiet ) {
 		if ( counter_parameters.competition ) {
 			cout << "c o Instance name: " << parameters.cnf_file << endl;
 			system( "printf 'c o '" );
@@ -245,7 +245,7 @@ void Test()
 			cout << "Instance name: " << parameters.cnf_file << endl;
 			system( "date" );
 		}
-    }
+	}
 	if ( strcmp( parameters.tool, preprocessor_parameters.Tool_Name() ) == 0 ) {
 		Test_Preprocessor();
 	}
@@ -323,7 +323,7 @@ void Debug()
 
 int main( int argc, char *argv[] )
 {
-    Debug();
+	Debug();
 	return 0;
 }
 

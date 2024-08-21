@@ -53,7 +53,6 @@ CDDiagram R2D2_Compiler::Compile( R2D2_Manager & manager, CNF_Formula & cnf, Heu
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-	running_options.activate_easy_compiler = false;
 	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
 	bool cnf_sat = Preprocess( cnf, _models_stack[0] );
 	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Preprocess done." << endl;
@@ -177,7 +176,7 @@ void R2D2_Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )
 		break;
 	case FixedLinearOrder:
 		_var_order = vorder;
-		running_options.imp_strategy = Partial_Implicit_BCP;
+		running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		Rename_Clauses_Fixed_Ordering();
 		break;
 	case LexicographicOrder:
@@ -210,13 +209,14 @@ void R2D2_Compiler::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( running_options.var_ordering_heur == minfill ) {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= 48 ) running_options.imp_strategy = No_Implicit_BCP;
+		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	else {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	running_options.sat_employ_external_solver_always = false;
@@ -568,7 +568,7 @@ bool R2D2_Compiler::Try_Shift_To_Implicite_BCP( R2D2_Manager & manager )
 	Component & comp = Current_Component();
 	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
 	assert( running_options.imp_strategy == SAT_Imp_Computing );
-	running_options.imp_strategy = Partial_Implicit_BCP;
+	running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 	Recycle_Models( _models_stack[_num_levels - 1] );
 	Compile_With_Implicite_BCP( manager );
 	if ( false && comp.Vars_Size() > running_options.trivial_variable_bound / 1 ) system( "./pause" );  // ToRemove
@@ -642,7 +642,6 @@ CDDiagram R2D2_Compiler::Compile_FixedLinearOrder( R2D2_Manager & manager, Prepr
 	Allocate_and_Init_Auxiliary_Memory( preprocessor.Max_Var() );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-	running_options.activate_easy_compiler = false;
 	Preprocessor::operator=( preprocessor );
 	_models_stack[0] = _model_pool->Models();
 	Store_Lit_Equivalences( _call_stack[0] );

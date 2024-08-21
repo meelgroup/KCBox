@@ -20,8 +20,8 @@ Linear_Order( var_order ),
 _nodes( LARGE_HASH_TABLE ),
 _op_table( LARGE_HASH_TABLE * 10 )
 {
-    assert( var_order.Max() - Variable::start + 1 == var_order.Size() );
-    Allocate_and_Init_Auxiliary_Memory();
+	assert( var_order.Max() - Variable::start + 1 == var_order.Size() );
+	Allocate_and_Init_Auxiliary_Memory();
 	Add_Fixed_Nodes();
 }
 
@@ -63,7 +63,7 @@ void OBDD_Manager::Add_Fixed_Nodes()
 
 OBDD_Manager::~OBDD_Manager()
 {
-    Free_Auxiliary_Memory();
+	Free_Auxiliary_Memory();
 }
 
 void OBDD_Manager::Free_Auxiliary_Memory()
@@ -73,9 +73,9 @@ void OBDD_Manager::Free_Auxiliary_Memory()
 
 void OBDD_Manager::Reorder( const Chain & new_order )
 {
-    if ( _nodes.Size() > _num_fixed_nodes ) {
-        cerr << "ERROR[OBDD]: cannot be Reorder with non-fixed _nodes!" << endl;
-    }
+	if ( _nodes.Size() > _num_fixed_nodes ) {
+		cerr << "ERROR[OBDD]: cannot be Reorder with non-fixed _nodes!" << endl;
+	}
 	_var_order = new_order;
 }
 
@@ -104,12 +104,12 @@ void OBDD_Manager::Verify_Ordered( NodeID bdd )
 		BDD_Node * low = &(_nodes[node->low]);
 		BDD_Node * high = &(_nodes[node->high]);
 		if ( !Is_Const( node->low ) && Var_LE( low->var, node->var ) ) {
-            cerr << "ERROR[OBDD_Manager]: node " << _node_stack[num_n_stack - 1] << " is not ordered!" << endl;
-            assert( Var_LT( node->var, low->var ) );
+			cerr << "ERROR[OBDD_Manager]: node " << _node_stack[num_n_stack - 1] << " is not ordered!" << endl;
+			assert( Var_LT( node->var, low->var ) );
 		}
 		if ( !Is_Const( node->high ) && Var_LE( high->var, node->var ) ) {
-            cerr << "ERROR[OBDD_Manager]: node " << _node_stack[num_n_stack - 1] << " is not ordered!" << endl;
-            assert( Var_LT( node->var, high->var ) );
+			cerr << "ERROR[OBDD_Manager]: node " << _node_stack[num_n_stack - 1] << " is not ordered!" << endl;
+			assert( Var_LT( node->var, high->var ) );
 		}
 		num_n_stack--;
 		if ( !high->infor.visited ) {
@@ -152,8 +152,8 @@ void OBDD_Manager::Verify_Reduced( NodeID bdd )
 		BDD_Node * low = &(_nodes[node->low]);
 		BDD_Node * high = &(_nodes[node->high]);
 		if ( node->low == node->high ) {
-            cerr << "ERROR[OBDD_Manager]: node " << _node_stack[num_n_stack - 1] << " is not reduced!" << endl;
-            assert( node->low != node->high );
+			cerr << "ERROR[OBDD_Manager]: node " << _node_stack[num_n_stack - 1] << " is not reduced!" << endl;
+			assert( node->low != node->high );
 		}
 		num_n_stack--;
 		if ( !high->infor.visited ) {
@@ -571,8 +571,8 @@ BigInt OBDD_Manager::Count_Models( const Diagram & bdd )
 	unsigned num_vars = NumVars( _max_var );
 	BigInt result;
 	if ( Is_Fixed( bdd.Root() ) ) {
-	    if ( bdd.Root() == NodeID::bot ) return 0;
-        result.Assign_2exp( num_vars - ( bdd.Root() != NodeID::top ) );
+		if ( bdd.Root() == NodeID::bot ) return 0;
+		result.Assign_2exp( num_vars - ( bdd.Root() != NodeID::top ) );
 		return result;
 	}
 	_node_stack[0] = bdd.Root();
@@ -584,10 +584,10 @@ BigInt OBDD_Manager::Count_Models( const Diagram & bdd )
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.mark = num_vars;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
 			num_node_stack--;
 		}
@@ -624,8 +624,8 @@ BigInt OBDD_Manager::Count_Models( const Diagram & bdd )
 	}
 	result = results[bdd.Root()];
 	result.Mul_2exp( _nodes[bdd.Root()].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
@@ -640,8 +640,8 @@ BigFloat OBDD_Manager::Count_Models( const Diagram & bdd, const vector<double> &
 	unsigned num_vars = NumVars( _max_var );
 	BigFloat result;
 	if ( Is_Fixed( bdd.Root() ) ) {
-	    if ( bdd.Root() == NodeID::bot ) return 0;
-        result.Assign_2exp( num_vars - ( bdd.Root() != NodeID::top ) );
+		if ( bdd.Root() == NodeID::bot ) return 0;
+		result.Assign_2exp( num_vars - ( bdd.Root() != NodeID::top ) );
 		return result;
 	}
 	_node_stack[0] = bdd.Root();
@@ -657,7 +657,7 @@ BigFloat OBDD_Manager::Count_Models( const Diagram & bdd, const vector<double> &
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -713,8 +713,8 @@ BigInt OBDD_Manager::Count_Models_Under_Assignment( NodeID root, unsigned assign
 	unsigned num_vars = NumVars( _max_var ) - assignment_size;
 	BigInt result;
 	if ( Is_Const( root ) ) {
-	    if ( root == NodeID::bot ) result = 0;
-	    else result.Assign_2exp( num_vars );
+		if ( root == NodeID::bot ) result = 0;
+		else result.Assign_2exp( num_vars );
 		return result;
 	}
 	_node_stack[0] = root;
@@ -726,10 +726,10 @@ BigInt OBDD_Manager::Count_Models_Under_Assignment( NodeID root, unsigned assign
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.mark = num_vars;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
 			num_node_stack--;
 		}
@@ -785,8 +785,8 @@ BigInt OBDD_Manager::Count_Models_Under_Assignment( NodeID root, unsigned assign
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
@@ -855,10 +855,10 @@ void OBDD_Manager::Mark_Models_Under_Assignment( NodeID root, const vector<doubl
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.visited = true;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( Var_Decided( topn.var ) ) {
 			NodeID child = topn.Ch(_assignment[topn.var]);
@@ -915,7 +915,7 @@ void OBDD_Manager::Mark_Models( const Diagram & bdd, vector<BigFloat> & results 
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -967,7 +967,7 @@ void OBDD_Manager::Probabilistic_Model( const Diagram & bdd, vector<float> & pro
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -1046,7 +1046,7 @@ void OBDD_Manager::Mark_Models( Diagram & bdd, const vector<double> & weights, v
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -1095,7 +1095,7 @@ void OBDD_Manager::Probabilistic_Model( Diagram & bdd, const vector<double> & we
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -1177,10 +1177,10 @@ void OBDD_Manager::Mark_Models_Under_Assignment( NodeID root, vector<BigFloat> &
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( Var_Decided( topn.var ) ) {
 			NodeID child = topn.Ch( _assignment[topn.var] );
@@ -1222,8 +1222,8 @@ void OBDD_Manager::Mark_Models_Under_Assignment( NodeID root, vector<BigFloat> &
 			}
 		}
 	}
-    _nodes[NodeID::bot].infor.visited = false;
-    _nodes[NodeID::top].infor.visited = false;
+	_nodes[NodeID::bot].infor.visited = false;
+	_nodes[NodeID::top].infor.visited = false;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.visited = false;
 	}
@@ -1400,33 +1400,33 @@ bool OBDD_Manager::Entail( const Diagram & left, const Diagram & right )
 
 Diagram OBDD_Manager::Convert( Clause & clause )
 {
-    if ( clause.Size() == 0 ) return Generate_Diagram( NodeID::bot );
-    assert( clause[0] <= 2 * _max_var + 1 );
-    if ( clause.Size() == 1 ) return Generate_Diagram( NodeID::literal( clause[0] ) );
-    clause.Sort( _var_order.Rank() );
-    unsigned i, len;
-    for ( i = len = 1; i < clause.Size(); i++ ) {
-    	assert( Lit_LT( clause[len-1], clause[i] ) || clause[len-1].Var() == clause[i].Var() );
-    	if ( clause[len-1] == clause[i] ) continue;
-    	if ( clause[len-1] == ~clause[i] ) break;
-    	clause[len++] = clause[i];
-    }
-    if ( i < clause.Size() ) return Generate_Diagram( NodeID::top );
-    clause.Shrink( len );
-    Decision_Node bnode;
+	if ( clause.Size() == 0 ) return Generate_Diagram( NodeID::bot );
+	assert( clause[0] <= 2 * _max_var + 1 );
+	if ( clause.Size() == 1 ) return Generate_Diagram( NodeID::literal( clause[0] ) );
+	clause.Sort( _var_order.Rank() );
+	unsigned i, len;
+	for ( i = len = 1; i < clause.Size(); i++ ) {
+		assert( Lit_LT( clause[len-1], clause[i] ) || clause[len-1].Var() == clause[i].Var() );
+		if ( clause[len-1] == clause[i] ) continue;
+		if ( clause[len-1] == ~clause[i] ) break;
+		clause[len++] = clause[i];
+	}
+	if ( i < clause.Size() ) return Generate_Diagram( NodeID::top );
+	clause.Shrink( len );
+	Decision_Node bnode;
 	NodeID root = NodeID::literal( clause[len - 1] );
 	for ( i = 1; i < len; i++ ) {
 		Literal lit = clause[len - i - 1];
 		bnode.var = lit.Var();
 		if ( lit.Sign() ) {
-            bnode.low = root;
-            bnode.high = NodeID::top;
+			bnode.low = root;
+			bnode.high = NodeID::top;
 		}
 		else {
-            bnode.low = NodeID::top;
-            bnode.high = root;
+			bnode.low = NodeID::top;
+			bnode.high = root;
 		}
-        root = Push_Node( bnode );
+		root = Push_Node( bnode );
 	}
 	return Generate_Diagram( root );
 }
@@ -1608,10 +1608,10 @@ Diagram OBDD_Manager::Negate( const Diagram & bdd )
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		BDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) num_node_stack--;
 		else {
 			if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -1632,8 +1632,8 @@ Diagram OBDD_Manager::Negate( const Diagram & bdd )
 		}
 	}
 	Diagram result = Generate_Diagram( _nodes[bdd.Root()].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
@@ -1647,7 +1647,7 @@ EPCCL_Theory * OBDD_Manager::Convert_EPCCL( const Diagram & bdd )
 	EPCCL_Theory * cnf = new EPCCL_Theory( _max_var );
 	Big_Clause clause( _max_var );
 	if ( bdd.Root() == NodeID::bot ) {
-	    clause.Resize( 1 );
+		clause.Resize( 1 );
 		clause[0] = Literal::start;
 		cnf->Add_Clause( clause );
 		clause[1] = Literal::start_neg;

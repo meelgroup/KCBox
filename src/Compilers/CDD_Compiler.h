@@ -35,15 +35,16 @@ protected:
 	void Component_Cache_Add_Original_Clauses();
 protected:
 	void Backjump_Decision( unsigned num_kept_levels );  // backtrack when detect some unsatisfiable component, and tail is decision
-	void Component_Cache_Erase( Component & comp );
 	NodeID Component_Cache_Map( Component & comp );
 	void Generate_Incremental_Component( Component & comp );
+	void Component_Cache_Connect( Component & comp );
 	void Backtrack();  // backtrack one level without discarding results
 	void Extend_New_Level();
 	void Refactor_Current_Level();
 	void Remove_Redundant_Nodes( CDD_Manager & manager );
 	bool Cache_Clear_Applicable( CDD_Manager & manager );
 	void Component_Cache_Clear();
+	void Component_Cache_Reconnect_Components();
 	void Backjump_Decomposition( unsigned num_kept_levels );  // backtrack when detect some unsatisfiable component, and tail is decomposition
 	void Backtrack_Halfway();  // backtrack one decomposition level when getting a UNSAT
 protected:

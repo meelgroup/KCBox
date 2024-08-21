@@ -5,6 +5,7 @@
 #include "Solver_Krom.h"
 #include "Primitive_Types/Gate_Circuit.h"
 #include "minisatInterface.h"
+#include "CadiBack.h"
 
 
 namespace KCBox {
@@ -33,6 +34,7 @@ protected:
 	unsigned _equivalent_lit_cluster_size;
 	vector<unsigned> * _long_lit_membership_lists;  /// literal membership
 	Solver_Krom * _solver_krom;  // max_var is assigned when compiled
+	CadiBack * _cadiback;
 public:
 	Preprocessor();
 	~Preprocessor();
@@ -54,7 +56,10 @@ public:
 protected:
 	bool Preprocess( vector<Model *> & models );
 	bool Get_All_Imp_Init_External( vector<Model *> & models );
+	bool Get_All_Imp_Init_MiniSat( vector<Model *> & models );
 	void Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>> & clauses, bool * var_filled );  // mark the omitted variable in var_omitted
+	bool Get_All_Imp_Init_CaDiCaL( vector<Model *> & models );
+	void Prepare_CadiBack();
 	bool Replace_Equivalent_Lit_First();  // called before computing all implied literals
 	void Replace_Equivalent_Lit_Binary_Clauses_First();  // no learnt clauses, might generate unit clauses
 	void Replace_Equivalent_Lit_Long_Clauses_First();  // no learnt clauses, might generate unit clauses
@@ -124,12 +129,12 @@ protected:
 	inline void Add_Extra_Binary_Clause_Naive( Literal lit1, Literal lit2 );
 	unsigned Analyze_Conflict_Naive( unsigned uip );
 	bool Block_Lits_External( vector<Model *> & models );  // block literals and remove clauses
+	bool Block_Lits_External_Appliable();
 	void Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>> & simplified, vector<vector<int>> & others, bool * var_filled );  // mark the omitted variable in var_omitted
 protected:
 	void Verify_Backbone( CNF_Formula & cnf );
 	void Verify_Processed_Clauses( CNF_Formula & cnf );
 	void Verify_Learnts( CNF_Formula & cnf );
-	void Verify_Long_Learnt( unsigned pos );
 	void Verify_Imply_Clause( Clause & clause );
 	void Load_Original_Instance( CNF_Formula & cnf );
 	void Verify_Equivalent_Lit_Clusters();
@@ -169,6 +174,8 @@ protected:
 protected:
 	void Shrink_Max_Var();
 	void Check_Var_Appearances();
+	void Remove_Unseen_Lits_In_Learnts();
+	void Erase_Fixed_Lit_From_Long_Clause( unsigned cl_pos, unsigned lit_pos );
 	bool Generate_Models_External( vector<Model *> & models );
 protected:
 	void Display_Statistics_Sharp( ostream & out );
@@ -251,26 +258,47 @@ public:
 			}
 		}
 	}
-	static void Test( const char * infile, const char * outfile, bool quiet )
+	static void Test( const char * infile, Preprocessor_Parameters & parameters, bool quiet )
 	{
 		ifstream cnf_fin;
 		cnf_fin.open( infile );
 		CNF_Formula cnf( cnf_fin );
 		cnf_fin.close();
 		Preprocessor preprocessor;
+		preprocessor.running_options.sat_solver = Parse_Solver( parameters.solver );
+		preprocessor.running_options.block_clauses = !parameters.no_rm_clauses;
+		preprocessor.running_options.detect_lit_equivalence = !parameters.no_lit_equ;
 		preprocessor.running_options.display_preprocessing_process = !quiet;
+		if ( quiet ) {
+			preprocessor.running_options.profile_solving = Profiling_Close;
+			preprocessor.running_options.profile_preprocessing = Profiling_Close;
+		}
+		if ( parameters.competition ) preprocessor.running_options.display_prefix = "c o ";
 		vector<Model *> models;
-		preprocessor.Preprocess( cnf, models );
-		if ( outfile == nullptr ) {
+		bool sat = preprocessor.Preprocess( cnf, models );
+		if ( !sat ) {
+			if ( parameters.out_file == nullptr ) {
+				cout << "p cnf 1 2" << endl;
+				cout << "1 0" << endl;
+				cout << "-1 0" << endl;
+			}
+			else {
+				ofstream fout( parameters.out_file );
+				fout << "p cnf 1 2" << endl;
+				fout << "1 0" << endl;
+				fout << "-1 0" << endl;
+				fout.close();
+			}
+		}
+		else if ( parameters.out_file == nullptr ) {
 			preprocessor.Display_Processed_Clauses( cout );
-			preprocessor.Reset();
 		}
 		else {
-			ofstream fout( outfile );
+			ofstream fout( parameters.out_file );
 			preprocessor.Display_Processed_Clauses( fout );
 			fout.close();
-			preprocessor.Reset();
 		}
+		preprocessor.Reset();
 	}
 };
 

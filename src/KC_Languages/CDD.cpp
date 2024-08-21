@@ -180,7 +180,6 @@ unsigned CDD_Manager::Num_Edges( NodeID root )
 {
 	if ( root < 2 ) return 0;
 	else if ( root < _num_fixed_nodes ) return 2;
-	unsigned i;
 	_node_stack[0] = root;
 	unsigned num_node_stack = 1;
 	unsigned result = 0;
@@ -199,7 +198,7 @@ unsigned CDD_Manager::Num_Edges( NodeID root )
 			_nodes[topn.ch[1]].infor.visited = true;
 			_visited_nodes.push_back( topn.ch[1] );
 		}
-		for ( i = 2; i < topn.ch_size; i++ ) {
+		for ( unsigned i = 2; i < topn.ch_size; i++ ) {
 			if ( !_nodes[topn.ch[i]].infor.visited ) {
 				_node_stack[num_node_stack++] = topn.ch[i];
 				_nodes[topn.ch[i]].infor.visited = true;
@@ -481,7 +480,7 @@ void CDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		itr->data = _nodes[itr->data].infor.mark;
 	}
-	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
+	for ( i = 0; i < kept_nodes.size(); i++ ) {
 		assert( _nodes[kept_nodes[i]].infor.mark != UNSIGNED_UNDEF );
 		kept_nodes[i] = _nodes[kept_nodes[i]].infor.mark;
 	}

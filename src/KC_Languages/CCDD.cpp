@@ -529,8 +529,8 @@ BigInt CCDD_Manager::Count_Models( NodeID root )
 	unsigned num_vars = NumVars( _max_var );
 	BigInt result;
 	if ( Is_Fixed( root ) ) {
-	    if ( root == NodeID::bot ) return 0;
-        result.Assign_2exp( num_vars - ( root != NodeID::top ) );
+		if ( root == NodeID::bot ) return 0;
+		result.Assign_2exp( num_vars - ( root != NodeID::top ) );
 		return result;
 	}
 	_node_stack[0] = root;
@@ -542,10 +542,10 @@ BigInt CCDD_Manager::Count_Models( NodeID root )
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.mark = _max_var;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		assert( topn.ch_size >= 0 );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
 			num_node_stack--;
@@ -603,11 +603,11 @@ BigInt CCDD_Manager::Count_Models( NodeID root )
 				num_node_stack--;
 				results[top] = results[topn.ch[loc]];
 				topn.infor.mark = _nodes[topn.ch[loc]].infor.mark;
-                for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
-                    results[top] *= results[topn.ch[i]];
-                    topn.infor.mark += _nodes[topn.ch[i]].infor.mark;
-                }
-                topn.infor.mark -= ( topn.ch_size - loc - 1 ) * num_vars + loc;
+				for ( unsigned i = loc + 1; i < topn.ch_size; i++ ) {
+					results[top] *= results[topn.ch[i]];
+					topn.infor.mark += _nodes[topn.ch[i]].infor.mark;
+				}
+				topn.infor.mark -= ( topn.ch_size - loc - 1 ) * num_vars + loc;
 				_visited_nodes.push_back( top );
 			}
 		}
@@ -627,8 +627,8 @@ BigInt CCDD_Manager::Count_Models( NodeID root )
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
@@ -1075,7 +1075,7 @@ void CCDD_Manager::Mark_Models( const CDDiagram & ccdd, vector<BigFloat> & resul
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( topn.sym <= _max_var ) {
@@ -1119,7 +1119,7 @@ void CCDD_Manager::Mark_Models( const CDDiagram & ccdd, vector<BigFloat> & resul
 					results[top].Div_2exp( num_vars );
 				}
 				results[top].Div_2exp( loc );
-                topn.infor.visited = true;
+				topn.infor.visited = true;
 				_visited_nodes.push_back( top );
 				num_node_stack--;
 			}
@@ -1175,7 +1175,7 @@ void CCDD_Manager::Probabilistic_Model( const CDDiagram & ccdd, vector<float> & 
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( topn.sym <= _max_var ) {
@@ -1220,7 +1220,7 @@ void CCDD_Manager::Probabilistic_Model( const CDDiagram & ccdd, vector<float> & 
 					results[top].Div_2exp( num_vars );
 				}
 				results[top].Div_2exp( loc );
-                topn.infor.visited = true;
+				topn.infor.visited = true;
 				_visited_nodes.push_back( top );
 				num_node_stack--;
 			}
@@ -1232,10 +1232,10 @@ void CCDD_Manager::Probabilistic_Model( const CDDiagram & ccdd, vector<float> & 
 				_node_mark_stack[num_node_stack++] = true;
 			}
 			else {
-               for ( unsigned i = 1; i < topn.ch_size; i++ ) {
-                    results[topn.ch[i]].Assign_2exp( num_vars - 1 );
-                    prob_values[topn.ch[i]] = 0.5;
-                 }
+			   for ( unsigned i = 1; i < topn.ch_size; i++ ) {
+					results[topn.ch[i]].Assign_2exp( num_vars - 1 );
+					prob_values[topn.ch[i]] = 0.5;
+				 }
 				results[top] = results[topn.ch[0]];
 				results[top].Div_2exp( topn.ch_size - 1 );
 				topn.infor.visited = true;
@@ -1660,7 +1660,7 @@ void CCDD_Manager::Statistics( const CDDiagram & ccdd )
 	unsigned num_edges = 0;
 	unsigned num_kernelized_nodes = 0;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) num_node_stack--;
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -1726,7 +1726,7 @@ NodeID CCDD_Manager::Add_Decision_Node( Decision_Node & bnode )
 	assert( bnode.low < _nodes.Size() && bnode.high < _nodes.Size() );
 	NodeID tmp_link, low = bnode.low, high = bnode.high;
 	if ( low == high ) tmp_link = low;
-    else if ( Is_Const( bnode.low ) && Is_Const( bnode.high ) ) tmp_link = NodeID::literal( bnode.var, bnode.high == NodeID::top );
+	else if ( Is_Const( bnode.low ) && Is_Const( bnode.high ) ) tmp_link = NodeID::literal( bnode.var, bnode.high == NodeID::top );
 	else if ( low == NodeID::bot ) tmp_link = Extract_Leaf_Left_No_Check( bnode );
 	else if ( high == NodeID::bot ) tmp_link = Extract_Leaf_Right_No_Check( bnode );
 	else if ( BOTH_X( _nodes[low].sym, _nodes[high].sym, CDD_SYMBOL_DECOMPOSE ) && \
@@ -2200,7 +2200,7 @@ NodeID CCDD_Manager::Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_eq
 				if ( c != NodeID::top ) _aux_rnode.Add_Child( c );
 			}
 			else if ( Is_Equivalence_Node( _nodes[node.ch[i]] ) ) {
-                Literal lit0 = Literal(child.Var(), true);
+				Literal lit0 = Literal(child.Var(), true);
 				Literal lit = Node2Literal( child.ch[1] );
 				if ( !lit_equivalency.Contain_Lit_Equivalence( lit0, lit ) ) _aux_rnode.Add_Child( node.ch[i] );
 			}
@@ -2219,7 +2219,7 @@ NodeID CCDD_Manager::Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_eq
 		return Push_Kernelization_Node( _aux_kerne_rnode.ch, _aux_kerne_rnode.ch_size );
 	}
 	else if ( Is_Equivalence_Node( _nodes[n] ) ) {
-        Literal lit0 = Literal(node.Var(), true);
+		Literal lit0 = Literal(node.Var(), true);
 		Literal lit = Node2Literal( node.ch[1] );
 		if ( !lit_equivalency.Contain_Lit_Equivalence( lit0, lit ) ) return n;
 		else return NodeID::top;
@@ -2704,6 +2704,7 @@ void CCDD_Manager::Verify_Decomposition_Node( CDD_Node & node, Hash_Cluster<Vari
 
 void CCDD_Manager::Verify_Kernelization_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
 {
+	UNUSED( var_cluster );
 	if ( node.ch[0] == NodeID::top ) assert( node.ch_size >= 3 );
 	else assert( node.ch_size >= 2 );
 	if ( _nodes[node.ch[0]].sym == CDD_SYMBOL_KERNELIZE || _nodes[node.ch[0]].sym == CDD_SYMBOL_FALSE ) {
@@ -2774,7 +2775,7 @@ void CCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 		assert( n == NodeID::bot );
 	}
 //	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
-	unsigned i, old_size;
+	unsigned old_size;
 	Binary_Map<NodeID, NodeID, NodeID> op_table;
 	Binary_Map_Node<NodeID, NodeID, NodeID> op_node;
 	_path[0] = n;
@@ -2966,7 +2967,7 @@ void CCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 					_path_mark[_num_levels++] = 0;
 				}
 				else {
-					for ( i = 1; i < topn.ch_size; i++ ) {
+					for ( unsigned i = 1; i < topn.ch_size; i++ ) {
 						CDD_Node & ch = _nodes[topn.ch[i]];
 						Variable var = ch.Var();
 						if ( _assignment[var] >= 0 ) {
@@ -2982,7 +2983,7 @@ void CCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 		cerr << "ERROR[CDD]: The following assignment is a model of cdd!" << endl;
 		Quick_Sort( lit_vec );
 		cerr << ExtLit( lit_vec[0] ) << " ";
-		for ( i = 1; i < lit_vec.size(); i++ ) {
+		for ( unsigned i = 1; i < lit_vec.size(); i++ ) {
 			if ( lit_vec[i] != lit_vec[i-1] ) cerr << ExtLit( lit_vec[i] ) << " ";
 		}
 		cerr << endl;

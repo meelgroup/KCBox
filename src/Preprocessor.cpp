@@ -56,6 +56,7 @@ void Preprocessor::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // To
 	_model_seen[2 * _max_var + 3] = false;
 	_lit_search_state[2 * _max_var + 2] = UNSIGNED_UNDEF;
 	_lit_search_state[2 * _max_var + 3] = UNSIGNED_UNDEF;
+	_cadiback = nullptr;
 }
 
 void Preprocessor::Free_Auxiliary_Memory()  // NOTE: only called in Allocate_and_Init_Auxiliary_Memory
@@ -87,6 +88,10 @@ void Preprocessor::Reset()
 		lit = Literal( i, true );
 		_lit_equivalences[lit] = lit;
 		_long_lit_membership_lists[lit].clear();
+	}
+	if ( _cadiback != nullptr ) {
+		delete _cadiback;
+		_cadiback = nullptr;
 	}
 }
 
@@ -204,7 +209,10 @@ bool Preprocessor::Preprocess( vector<Model *> & models )
 	do {
 		Eliminate_Redundancy();
 	} while ( Replace_Equivalent_Lit() );
-	if ( running_options.block_lits_external && !Large_Scale_Problem() ) Block_Lits_External( models );
+	if ( running_options.block_lits_external ) {
+		Block_Lits_External( models );
+		Eliminate_Redundancy();  /// NOTE: redundant long clauses will make kernelization wrong
+	}
 	Block_Binary_Clauses();
 	if ( running_options.recover_exterior ) Transform_Exterior_Into_Clauses();
 	return true;
@@ -214,6 +222,19 @@ bool Preprocessor::Get_All_Imp_Init_External( vector<Model *> & models )
 {
 	StopWatch watch;
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) watch.Start();
+	bool sat;
+	if ( running_options.sat_solver == solver_MiniSat ) sat = Get_All_Imp_Init_MiniSat( models );
+	else if ( running_options.sat_solver == solver_CaDiCaL ) sat = Get_All_Imp_Init_CaDiCaL( models );
+	else {
+		cerr << "ERROR[Preprocessor]: invalid SAT solver!" << endl;
+		exit( 1 );
+	}
+	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_external_solve += watch.Get_Elapsed_Seconds();
+	return sat;
+}
+
+bool Preprocessor::Get_All_Imp_Init_MiniSat( vector<Model *> & models )
+{
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_external_solve++;
 	bool * var_filled = new bool [_max_var + 1];
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
@@ -260,7 +281,6 @@ bool Preprocessor::Get_All_Imp_Init_External( vector<Model *> & models )
 		_minisat_extra_output.models.clear();
 	}
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_unsat_solve++;
-	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.time_external_solve += watch.Get_Elapsed_Seconds();
 	delete [] var_filled;
 	return sat;
 }
@@ -330,6 +350,45 @@ void Preprocessor::Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>>
 				}
 			}  // ToRemove
 		}  // ToRemove
+	}
+}
+
+bool Preprocessor::Get_All_Imp_Init_CaDiCaL( vector<Model *> & models )
+{
+	Prepare_CadiBack();
+	if ( Hyperscale_Problem() ) _cadiback->set_options( false, false, false, false, false, false, false );
+	bool sat = _cadiback->calculate( *this, models, _model_pool );
+	if ( Hyperscale_Problem() ) {
+		delete _cadiback;
+		_cadiback = nullptr;
+	}
+	BCP( 0 );
+	return sat;
+}
+
+void Preprocessor::Prepare_CadiBack()
+{
+	if ( _cadiback != nullptr ) delete _cadiback;
+	_cadiback = new CadiBack;
+	for ( unsigned i = 0; i < _unary_clauses.size(); i++ ) {
+		_cadiback->clause( ExtLit( _unary_clauses[i] ) );
+	}
+	for ( Literal lit = Literal::start; lit <= 2 * _max_var + 1;  ) {
+		for ( unsigned i = 0; i < _binary_clauses[lit].size(); i++ ) {
+			if ( lit > _binary_clauses[lit][i] ) continue;
+			_cadiback->clause( ExtLit( lit ), ExtLit( _binary_clauses[lit][i] ) );
+		}
+		lit++;
+		for ( unsigned i = 0; i < _binary_clauses[lit].size(); i++ ) {
+			if ( lit > _binary_clauses[lit][i] ) continue;
+			_cadiback->clause( ExtLit( lit ), ExtLit( _binary_clauses[lit][i] ) );
+		}
+		lit++;
+	}
+	vector<int> eclause;
+	for ( unsigned i = 0; i < _long_clauses.size(); i++ ) {
+		ExtLits( _long_clauses[i], eclause );
+		_cadiback->clause( eclause );
 	}
 }
 
@@ -2028,6 +2087,7 @@ void Preprocessor::Block_Binary_Clauses()  // NOTE: all unary clauses has been c
 bool Preprocessor::Block_Lits_External( vector<Model *> & models )
 {
 	StopWatch watch;
+	if ( !Block_Lits_External_Appliable() ) return false;
 	if ( _old_num_long_clauses == 0 ) return false;
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) watch.Start();
 	if ( running_options.profile_preprocessing >= Profiling_Detail ) statistics.num_external_solve++;
@@ -2035,12 +2095,12 @@ bool Preprocessor::Block_Lits_External( vector<Model *> & models )
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		var_filled[i] = true;
 	}
+	_minisat_extra_output.return_model = !Hyperscale_Problem();
+	_minisat_extra_output.return_units = false;
+	_minisat_extra_output.return_learnt_max_len = 3;
 	vector<vector<int>> simplified;
 	vector<vector<int>> others;
 	Prepare_Ext_Clauses_Without_Omitted_Vars( simplified, others, var_filled );  // var_filled is assigned in this function
-	_minisat_extra_output.return_model = !Hyperscale_Problem();
-	_minisat_extra_output.return_units = false;
-	_minisat_extra_output.return_learnt_max_len = 8;
 	bool found = Minisat::Ext_Block_Literals( simplified, others, _minisat_extra_output );
 	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
 		_long_clauses[i].Free();
@@ -2093,6 +2153,18 @@ bool Preprocessor::Block_Lits_External( vector<Model *> & models )
 	return found;
 }
 
+bool Preprocessor::Block_Lits_External_Appliable()
+{
+	unsigned sum_len = 0;
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		Clause & clause = _long_clauses[i];
+		if ( clause.Size() > 64 ) return false;
+		sum_len += clause.Size();
+	}
+	if ( sum_len > 20000 ) return false;
+	else return true;
+}
+
 void Preprocessor::Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>> & simplified, vector<vector<int>> & others, bool * var_filled )  // mark the omitted variable in var_omitted
 {
 	vector<int> ext_clause(1);
@@ -2141,6 +2213,17 @@ void Preprocessor::Prepare_Ext_Clauses_Without_Omitted_Vars( vector<vector<int>>
 				var_filled[InternVar( evar )] = false;
 			}
 		}
+	}
+	for ( unsigned i = _old_num_long_clauses; i < _long_clauses.size(); i++ ) {
+		Clause & clause = _long_clauses[i];
+		if ( clause.Size() > _minisat_extra_output.return_learnt_max_len ) continue;
+		ext_clause.clear();
+		for ( unsigned j = 0; j < clause.Size(); j++ ) {
+			Literal lit = clause[j];
+			ext_clause.push_back( ExtLit( lit ) );
+			var_filled[lit.Var()] = false;
+		}
+		others.push_back( ext_clause );
 	}
 	ext_clause.resize(1);
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
@@ -2586,6 +2669,10 @@ bool Preprocessor::Preprocess_Sharp( vector<Model *> & models )
 		Eliminate_Redundancy();
 		flag = Replace_Equivalent_Lit();
 		flag = flag || Replace_AND_Gates();
+	}
+	if ( running_options.block_lits_external ) {
+		Block_Lits_External( models );
+		Eliminate_Redundancy();  /// NOTE: redundant long clauses will make kernelization wrong
 	}
 	Block_Binary_Clauses();
 	if ( running_options.recover_exterior ) Transform_Exterior_Into_Clauses();
@@ -3169,6 +3256,7 @@ void Preprocessor::Add_Only_Old_Binary_Clause( Big_Clause & clause )
 void Preprocessor::Shrink_Max_Var()
 {
 	Check_Var_Appearances();
+	Remove_Unseen_Lits_In_Learnts();
 	unsigned num_removed = 0, num_omitted = 0;
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		if ( !_var_seen[i] ) {
@@ -3270,6 +3358,38 @@ void Preprocessor::Check_Var_Appearances()
 			_var_seen[clause[j].Var()] = true;
 		}
 	}
+}
+
+void Preprocessor::Remove_Unseen_Lits_In_Learnts()
+{
+	for ( unsigned i = _old_num_long_clauses; i < _long_clauses.size(); ) {
+		Clause & clause = _long_clauses[i];
+		for ( unsigned j = 0; j < clause.Size(); ) {
+			if ( !_var_seen[clause[j].Var()] ) {
+				Erase_Fixed_Lit_From_Long_Clause( i, j );
+			} else j++;
+		}
+		if ( clause.Size() == 2 ) {
+			Clause binary = Pull_Old_Long_Clause_No_Learnt( i );
+			Add_Binary_Clause_Naive( binary[0], binary[1] );
+			binary.Free();
+		} else i++;
+		Verify_Watched_Lists();
+	}
+}
+
+void Preprocessor::Erase_Fixed_Lit_From_Long_Clause( unsigned cl_pos, unsigned lit_pos )
+{
+	if ( lit_pos < 2 ) {
+		Literal lit = _long_clauses[cl_pos][lit_pos];
+		vector<unsigned>::iterator itr, begin;
+		for ( itr = begin = _long_watched_lists[lit].begin(); *itr != cl_pos; itr++ ) {}
+		Simply_Erase_Vector_Element( _long_watched_lists[lit], itr - begin );  // NOTE: remove the clause from watched_list
+		_long_clauses[cl_pos].Erase_Lit( lit_pos );
+		lit = _long_clauses[cl_pos][lit_pos];
+		_long_watched_lists[lit].push_back( cl_pos );
+	}
+	else _long_clauses[cl_pos].Erase_Lit( lit_pos );
 }
 
 bool Preprocessor::Generate_Models_External( vector<Model *> & models )
@@ -3535,6 +3655,10 @@ bool Preprocessor::Preprocess_Sharp( const vector<double> & weights, vector<Mode
 			}
 		}
 		flag = flag || Replace_AND_Gates( weight_equ );
+	}
+	if ( running_options.block_lits_external ) {
+		Block_Lits_External( models );
+		Eliminate_Redundancy();  /// NOTE: redundant long clauses will make kernelization wrong
 	}
 	Block_Binary_Clauses();
 	if ( running_options.recover_exterior ) Transform_Exterior_Into_Clauses();
@@ -3920,6 +4044,7 @@ BigFloat Preprocessor::Normalize_Weights( const vector<double> & original_weight
 void Preprocessor::Shrink_Max_Var( BigFloat * normalized_weights )
 {
 	Check_Var_Appearances();
+	Remove_Unseen_Lits_In_Learnts();
 	unsigned num_removed = 0;
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
 		if ( !_var_seen[i] ) {

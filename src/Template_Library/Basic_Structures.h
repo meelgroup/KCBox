@@ -14,21 +14,21 @@ namespace KCBox {
 *                                                                                                   *
 ****************************************************************************************************/
 
-class Identity
+template<typename T_UINT> class Identity
 {
 protected:
-	unsigned _id;
+	T_UINT _id;
 public:
 	Identity() {}
-	Identity( unsigned id ): _id( id ) {}
+	Identity( T_UINT id ): _id( id ) {}
 	Identity( const Identity &n ): _id( n._id ) {}
 	Identity & operator ++(int) { _id++; return *this; }
 	Identity & operator = ( Identity node ) { _id = node._id; return *this; }
 	bool operator == (const Identity &other) const { return _id == other._id; }
 	bool operator != (const Identity &other) const { return _id != other._id; }
-	bool operator == (const unsigned other) const { return _id == other; }
-	bool operator != (const unsigned other) const { return _id != other; }
-	operator unsigned () const { return _id; }
+	bool operator == (const T_UINT other) const { return _id == other; }
+	bool operator != (const T_UINT other) const { return _id != other; }
+	operator T_UINT () const { return _id; }
 };
 
 
@@ -589,6 +589,24 @@ public:
 				_blocks[old_count] = vector<T>( _size_per_block );
 			}
 		}
+	}
+	void Double_Block_Size()
+	{
+		_bits_of_size_per_block++;
+		assert( _bits_of_size_per_block <= UNSIGNED_SIZE - 1 );
+		_size_per_block = 1 << _bits_of_size_per_block;
+		_block_mask = _size_per_block - 1;
+		size_t i;
+		for ( i = 0; i + i + 1 < _blocks.size(); i++ ) {
+			_blocks[i] = _blocks[i + i];
+			_blocks[i].insert( _blocks[i].end(), _blocks[i + i + 1].begin(), _blocks[i + i + 1].end() );
+		}
+		if ( _blocks.size() % 2 ) {
+			_blocks[i] = _blocks.back();
+			_blocks[i].resize( _size_per_block );
+			i++;
+		}
+		_blocks.resize( i );
 	}
 	void Shrink_To_Fit()
 	{
@@ -1749,7 +1767,12 @@ public:
 		}
 		if ( DEBUG_OFF && size > 1 ) {
 			for ( unsigned i = 0; i < size - 1; i++ ) {
-				assert( elems[i] < elems[i+1] );  // ToRemove
+				if ( elems[i] >= elems[i+1] ) {  // ToRemove
+					cerr << "{" << elems[0];
+					for ( unsigned i = 1; i < size; i++ ) cerr << ", " << elems[i];
+					cerr << "}";
+					assert( elems[i] < elems[i+1] );
+				}
 			}
 		}
 		SortedSet<T> set( elems, size );

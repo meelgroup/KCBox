@@ -414,6 +414,7 @@ public:
 			}
 		}
 	}
+	Variable Max_Var() const { return _max_var; }
 	void Free_Unallocated_Models()
 	{
 		while ( _unallocated != NULL ) {  // delete the list _unallocated

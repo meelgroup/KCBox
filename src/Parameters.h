@@ -5,7 +5,6 @@
 #include "Template_Library/Basic_Structures.h"
 #include "Template_Library/Options.h"
 #include "Primitive_Types/Assignment.h"
-#include "Component_Types/Bounded_Component.h"
 
 
 namespace KCBox {
@@ -15,12 +14,38 @@ namespace KCBox {
 #define SAT_REASON_CLAUSE true
 
 
+enum Solver_Type
+{
+	solver_MiniSat = 0,
+	solver_CaDiCaL,
+	solver_invalid
+};
+
+extern inline Solver_Type Parse_Solver( const char * type )
+{
+	if ( strcmp( type, "MiniSat" ) == 0 ) return solver_MiniSat;
+	else if ( strcmp( type, "CaDiCaL" ) == 0 ) return solver_CaDiCaL;
+	else return solver_invalid;
+}
+
 struct Preprocessor_Parameters: public Tool_Parameters
 {
+	BoolOption competition;
+	StringOption solver;
+	BoolOption no_rm_clauses;
+	BoolOption no_lit_equ;
 	StringOption out_file;
 	Preprocessor_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
+		competition( "--competition", "working for mc competition", false ),
+		solver( "--solver", "MiniSat or CaDiCaL", nullptr ),
+		no_rm_clauses( "--no-rm-clauses", "no use of blocking clauses", false ),
+		no_lit_equ( "--no-lit-equ", "no use of literal equivalence", false ),
 		out_file( "--out", "the output file with the processed instance", nullptr )
 	{
+		Add_Option( &competition );
+		Add_Option( &solver );
+		Add_Option( &no_rm_clauses );
+		Add_Option( &no_lit_equ );
 		Add_Option( &out_file );
 	}
 };
@@ -36,17 +61,19 @@ struct Counter_Parameters: public Tool_Parameters
 	StringOption heur;
 	FloatOption memo;
 	IntOption kdepth;
+	BoolOption clear_half;
 	IntOption format;
 	Counter_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		competition( "--competition", "working for mc competition", false ),
 		diffversion( "--diffversion", "running with a given version", 1 ),
 		weighted( "--weighted", "weighted model counting", false ),
-		mpf_prec( "--mpf_prec", "the times of the default precision of mpf_t", 1 ),
+		mpf_prec( "--mpf-prec", "the times of the default precision of mpf_t", 1 ),
 		condition( "--condition", "the assignment file for counting models with conditioning", nullptr ),
 		static_heur( "--static", "focusing on static heuristic", false ),
 		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCS, DLCP, dynamic_minfill)", "auto" ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		kdepth( "--kdepth", "maximum kernelization depth", 128 ),
+		clear_half( "--clear-half", "clear half of component cache", false ),
 		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 )
 	{
 		Add_Option( &competition );
@@ -58,6 +85,7 @@ struct Counter_Parameters: public Tool_Parameters
 		Add_Option( &heur );
 		Add_Option( &memo );
 		Add_Option( &kdepth );
+		Add_Option( &clear_half );
 		Add_Option( &format );
 		Add_Version( 1 );
 		if ( diffversion != _versions.back() ) {
@@ -366,10 +394,37 @@ enum Heuristic_Literal_Structure
 enum Implicate_Computing_Strategy
 {
 	Automatical_Imp_Computing = 0,
+	No_Implicit_BCP,
 	Partial_Implicit_BCP,  /// used in sharpSAT
+	Partial_Implicit_BCP_Neg,  /// used in sharpSAT, try to propagate negative literal
 	Full_Implicit_BCP,  /// used in ydotlai's compilers and counters
 	SAT_Imp_Computing  /// employ SAT solver to computing exact implied literals
 };
+
+inline ostream & operator << ( ostream & out, Implicate_Computing_Strategy & imp )
+{
+	switch ( imp ) {
+	case Automatical_Imp_Computing:
+		out << "Automatical_Imp_Computing";
+		break;
+	case No_Implicit_BCP:
+		out << "No_Implicit_BCP";
+		break;
+	case Partial_Implicit_BCP:
+		out << "Partial_Implicit_BCP";
+		break;
+	case Partial_Implicit_BCP_Neg:
+		out << "Partial_Implicit_BCP_Neg";
+		break;
+	case Full_Implicit_BCP:
+		out << "Full_Implicit_BCP";
+		break;
+	case SAT_Imp_Computing:
+		out << "SAT_Imp_Computing";
+		break;
+	}
+	return out;
+}
 
 enum Literal_Equivalence_Detecting_Strategy
 {
@@ -397,6 +452,7 @@ struct Running_Options
 	const char * display_prefix;
 /// parameters of solver
 	Variable variable_bound;  // used for oracle mode
+	Solver_Type sat_solver;
 	double sat_heur_decay_factor;
 	double sat_heur_cumulative_inc;
 	double sat_heur_bound;
@@ -404,6 +460,7 @@ struct Running_Options
 	unsigned sat_restart_trigger_init;  // the initialized number of new learnt clauses trigger restarting
 	double sat_restart_trigger_inc;
 	unsigned sat_restart_max;  // the maximum times of restart, and after that, external solver will be called
+	bool sat_filter_long_learnts;
 	bool sat_employ_external_solver;
 	bool sat_employ_external_solver_always;
 	Heuristic_Literal_Structure sat_heur_lits;
@@ -448,14 +505,13 @@ struct Running_Options
 	float trivial_density_bound;
 	float trivial_length_bound;
 	unsigned treewidth_bound;  /// NOTE: when the minfill treewidth is greater than treewidth_bound, we will terminate the construction of Simple_TreeD
-	bool activate_easy_compiler;
 	bool compute_duplicate_rate;
-	bool erase_useless_cacheable_component;
 	unsigned removing_redundant_nodes_trigger;
 	bool display_compiling_process;
 	bool display_memory_status;
 	Profiling_Level profile_compiling;
 /// parameters of counter
+	bool clear_half_of_cache;
 	bool static_heur;
 	bool display_counting_process;
 	Profiling_Level profile_counting;
@@ -475,6 +531,7 @@ struct Running_Options
 		display_prefix = "";
 		variable_bound = Variable::undef;  /// NOTE: only Preprocessor and its inherited class can open this mode
 		/// solver
+		sat_solver = solver_MiniSat;
 		sat_heur_decay_factor = 0.99;
 		sat_heur_cumulative_inc = 1;
 		sat_heur_bound = 1e100;
@@ -482,6 +539,7 @@ struct Running_Options
 		sat_restart_trigger_init = 100;
 		sat_restart_trigger_inc = 1.5;
 		sat_restart_max = 2;
+		sat_filter_long_learnts = false;
 		sat_employ_external_solver = true;
 		sat_employ_external_solver_always = false;
 		sat_heur_lits = Heuristic_Literal_Heap;
@@ -524,13 +582,12 @@ struct Running_Options
 		trivial_clause_bound = trivial_variable_bound * 2;
 		trivial_density_bound = 3;
 		trivial_length_bound = 0.5;
-		treewidth_bound = BOUNDED_TREEWIDTH;
-		activate_easy_compiler = true;
-		erase_useless_cacheable_component = true;
+		treewidth_bound = 32;
 		removing_redundant_nodes_trigger = 2000000;
 		display_compiling_process = true;
 		profile_compiling = Profiling_Abstract;
 		/// counter
+		clear_half_of_cache = false;
 		static_heur = false;
 		display_counting_process = true;
 		profile_counting = Profiling_Abstract;
@@ -550,6 +607,7 @@ struct Running_Options
 	{
 		out << display_prefix << "variable_bound = " << variable_bound << endl;  /// NOTE: only Preprocessor and its inherited class can open this mode
 		/// solver
+		out << display_prefix << "sat_solver = " << sat_solver << endl;
 		out << display_prefix << "sat_heur_decay_factor = " << sat_heur_decay_factor << endl;
 		out << display_prefix << "sat_heur_cumulative_inc = " << sat_heur_cumulative_inc << endl;
 		out << display_prefix << "sat_heur_bound = " << sat_heur_bound << endl;
@@ -557,6 +615,7 @@ struct Running_Options
 		out << display_prefix << "sat_restart_trigger_init = " << sat_restart_trigger_init << endl;
 		out << display_prefix << "sat_restart_trigger_inc = " << sat_restart_trigger_inc << endl;
 		out << display_prefix << "sat_restart_max = " << sat_restart_max << endl;
+		out << display_prefix << "sat_filter_long_learnts = " << sat_filter_long_learnts << endl;
 		out << display_prefix << "sat_employ_external_solver = " << sat_employ_external_solver << endl;
 		out << display_prefix << "sat_employ_external_solver_always = " << sat_employ_external_solver_always << endl;
 		out << display_prefix << "sat_heur_lits = " << sat_heur_lits << endl;
@@ -602,12 +661,11 @@ struct Running_Options
 		out << display_prefix << "trivial_density_bound = " << trivial_density_bound << endl;
 		out << display_prefix << "trivial_length_bound = " << trivial_length_bound << endl;
 		out << display_prefix << "treewidth_bound = " << treewidth_bound << endl;
-		out << display_prefix << "activate_easy_compiler = " << activate_easy_compiler << endl;
-		out << display_prefix << "erase_useless_cacheable_component = " << erase_useless_cacheable_component << endl;
 		out << display_prefix << "removing_redundant_nodes_trigger = " << removing_redundant_nodes_trigger << endl;
 		out << display_prefix << "display_compiling_process = " << display_compiling_process << endl;
 		out << display_prefix << "profile_compiling = " << profile_compiling << endl;
 		/// counter
+		out << display_prefix << "clear_half_of_cache = " << clear_half_of_cache << endl;
 		out << display_prefix << "static_heur = " << static_heur << endl;
 		out << display_prefix << "display_counting_process = " << display_counting_process << endl;
 		out << display_prefix << "profile_counting = " << profile_counting << endl;

@@ -117,6 +117,7 @@ CDDiagram CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heu
 		else {
 			_lit_equivalency.Reorder( _var_order );
 			Encode_Long_Clauses();
+			assert( _long_clause_ids.back() == _old_num_long_clauses - 1 );
 			Compile_With_SAT_Imp_Computing( manager );
 		}
 		_num_rsl_stack--;
@@ -253,13 +254,14 @@ void CCDD_Compiler::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( Is_TreeD_Based_Ordering( running_options.var_ordering_heur ) ) {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= 48 ) running_options.imp_strategy = No_Implicit_BCP;
+		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	else {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	running_options.sat_employ_external_solver_always = false;
@@ -619,7 +621,7 @@ bool CCDD_Compiler::Try_Shift_To_Implicite_BCP( CCDD_Manager & manager )
 	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
 	assert( running_options.imp_strategy == SAT_Imp_Computing );
 	if ( Try_Final_Kernelization( manager ) == lbool::unknown ) return true;
-	running_options.imp_strategy = Partial_Implicit_BCP;
+	running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 	if ( !running_options.static_heur && running_options.mixed_var_ordering ) {
 		Heuristic old_heur = running_options.var_ordering_heur;
 		Chain old_order;
@@ -702,12 +704,16 @@ bool CCDD_Compiler::Estimate_Hardness( Component & comp )
 lbool CCDD_Compiler::Try_Final_Kernelization( CCDD_Manager & manager )
 {
 	if ( _current_kdepth >= running_options.max_kdepth || Estimate_Final_Kernelization_Effect() == false ) return lbool(false);
+	_component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 	Store_Cached_Binary_Clauses();
 	Kernelize_Without_Imp();
 	Set_Current_Level_Kernelized( true );
 	Sort_Clauses_For_Caching();
 	NodeID cached_result;
-	if ( Current_Component().Vars_Size() == 0 ) cached_result = NodeID::top;
+	if ( Current_Component().Vars_Size() == 0 ) {
+		Current_Component().caching_loc == CacheEntryID::undef;
+		cached_result = NodeID::top;
+	}
 	else cached_result = Component_Cache_Map( Current_Component() );
 	if ( cached_result != NodeID::undef ) {
 		if ( debug_options.verify_component_count ) {
@@ -757,12 +763,27 @@ void CCDD_Compiler::Leave_Final_Kernelization( CCDD_Manager & manager )
 	_num_comp_stack += 1;
 	const CDD_Node & sub_root = manager.Node( _rsl_stack[_num_rsl_stack - 1] );
 	NodeID core;
-	if ( sub_root.sym == CDD_SYMBOL_DECOMPOSE ) core = sub_root.ch[sub_root.ch_size - 1];  /// NOTE: first imp, and then kernelization; need to recover
+	unsigned num_imp;
+	if ( sub_root.sym == CDD_SYMBOL_DECOMPOSE ) {  /// NOTE: first imp, and then kernelization; need to recover the implied literals that have been used in Compile_With_Implicite_BCP
+		num_imp = manager.Search_First_Non_Literal_Position( _rsl_stack[_num_rsl_stack - 1] );
+		_cdd_rnode.sym = CDD_SYMBOL_DECOMPOSE;
+		_cdd_rnode.ch_size = 0;
+		_cdd_rnode.Add_Children( sub_root.ch + num_imp, sub_root.ch_size - num_imp );
+		core = manager.Add_Decomposition_Node( _cdd_rnode );
+	}
 	else core = _rsl_stack[_num_rsl_stack - 1];
 	_rsl_stack[_num_rsl_stack - 1] = Make_Kernelized_Conjunction_Node( manager, core );
 	Clear_Cached_Binary_Clauses();
 	Set_Current_Level_Kernelized( false );
+	CacheEntryID kernelized_loc = Current_Component().caching_loc;
 	Cancel_Kernelization_Without_Imp();
+	if ( _component_cache.Entry_Is_Child( Parent_of_Current_Component().caching_loc, kernelized_loc ) ) {
+		if ( kernelized_loc != Current_Component().caching_loc ) {
+			_component_cache.Entry_Swap( kernelized_loc, Current_Component().caching_loc );
+		}
+	} else {
+		_component_cache.Entry_Add_Child( Parent_of_Current_Component().caching_loc, Current_Component().caching_loc );
+	}
 	Recover_Cached_Binary_Clauses();
 	Encode_Long_Clauses();
 	if ( false && debug_options.verify_component_compilation ) {
@@ -771,8 +792,8 @@ void CCDD_Compiler::Leave_Final_Kernelization( CCDD_Manager & manager )
 	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );
 	if ( sub_root.sym == CDD_SYMBOL_DECOMPOSE ) {
 		_cdd_rnode.sym = CDD_SYMBOL_DECOMPOSE;
-		_cdd_rnode.ch_size = sub_root.ch_size;
-		for ( unsigned i = 0; i < sub_root.ch_size - 1; i++ ) {
+		_cdd_rnode.ch_size = num_imp + 1;
+		for ( unsigned i = 0; i < num_imp; i++ ) {
 			_cdd_rnode.ch[i] = sub_root.ch[i];
 		}
 		_cdd_rnode.ch[_cdd_rnode.ch_size - 1] = _rsl_stack[_num_rsl_stack - 1];
@@ -805,12 +826,16 @@ void CCDD_Compiler::Compute_Second_Var_Order_Automatical( Component & comp )
 lbool CCDD_Compiler::Try_Kernelization( CCDD_Manager & manager )
 {
 	if ( _current_kdepth >= running_options.max_kdepth || Estimate_Kernelization_Effect() == false ) return lbool(false);
+	_component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 	Store_Cached_Binary_Clauses();
 	Kernelize_Without_Imp();
 	Set_Current_Level_Kernelized( true );
 	Sort_Clauses_For_Caching();
 	NodeID cached_result;
-	if ( Current_Component().Vars_Size() == 0 ) cached_result = NodeID::top;
+	if ( Current_Component().Vars_Size() == 0 ) {
+		Current_Component().caching_loc == CacheEntryID::undef;
+		cached_result = NodeID::top;
+	}
 	else cached_result = Component_Cache_Map( Current_Component() );
 	if ( cached_result != NodeID::undef ) {
 		if ( debug_options.verify_component_compilation ) {
@@ -862,7 +887,15 @@ void CCDD_Compiler::Leave_Kernelization( CCDD_Manager & manager )
 	_rsl_stack[_num_rsl_stack - 1] = Make_Kernelized_Conjunction_Node( manager, _rsl_stack[_num_rsl_stack - 1] );
 	Clear_Cached_Binary_Clauses();
 	Set_Current_Level_Kernelized( false );
+	CacheEntryID kernelized_loc = Current_Component().caching_loc;
 	Cancel_Kernelization_Without_Imp();
+	if ( _component_cache.Entry_Is_Child( Parent_of_Current_Component().caching_loc, kernelized_loc ) ) {
+		if ( kernelized_loc != Current_Component().caching_loc ) {
+			_component_cache.Entry_Swap( kernelized_loc, Current_Component().caching_loc );
+		}
+	} else {
+		_component_cache.Entry_Add_Child( Parent_of_Current_Component().caching_loc, Current_Component().caching_loc );
+	}
 	Recover_Cached_Binary_Clauses();
 	Encode_Long_Clauses();
 	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );

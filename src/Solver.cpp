@@ -877,6 +877,7 @@ Reason Solver::Search_Solution_Component( Component & comp, unsigned conf_limit 
 	unsigned old_num_levels = _num_levels;
 	assert( old_num_levels >= 3 );  /// required all initialized implied literals are pulled out
 	unsigned old_size = _long_clauses.size();
+	unsigned max_learnts = 4 * ( comp.Vars_Size() + 1 + old_size );
 	Literal branch;
 	while ( ( branch = Branch_Component( comp ) ) != _heur_lit_sentinel ) {
 		Extend_New_Level();
@@ -901,6 +902,10 @@ Reason Solver::Search_Solution_Component( Component & comp, unsigned conf_limit 
 			}
 			conf = BCP( _num_dec_stack - 1 );
 		}
+		if ( _long_clauses.size() - old_size - _num_dec_stack >= max_learnts && max_learnts < UNSIGNED_UNDEF / 2 ) {
+			Filter_Long_Learnts_During_Solving( old_num_levels - 1, old_size );
+			max_learnts *= 2;
+		}
 	}
 	return Reason::undef;  // SAT
 }
@@ -920,6 +925,7 @@ unsigned Solver::Restart_Bound_Component( Component & comp )
 
 Reason Solver::Add_Learnt_Sort_Component( Component & comp )
 {
+	if ( debug_options.verify_learnts ) Verify_Learnt( _big_learnt );
 	Reason reason;
 	if ( _big_learnt.Size() == 2 ) {
 		_binary_clauses[_big_learnt[0]].push_back( _big_learnt[1] );
@@ -1055,6 +1061,82 @@ Literal Solver::Branch_Component( Component & comp )
 	}
 }
 
+void Solver::Filter_Long_Learnts_During_Solving( unsigned old_num_levels, unsigned old_size )
+{
+	if ( !running_options.sat_filter_long_learnts ) return;
+	while ( _clause_status.size() < _long_clauses.size() ) {
+		_clause_status.push_back( false );
+	}
+	_clause_stack.resize( _long_clauses.size() );
+	for ( unsigned i = _dec_offsets[old_num_levels]; i < _num_dec_stack; i++ ) {
+		Reason r = _reasons[_dec_stack[i].Var()];
+		if ( r == Reason::undef || r.Is_Lit_Reason() ) continue;  /// NOTE: SAT_IS_REASON_LONG( Reason::undef ) is true
+		unsigned cl = r.Clause_Value();
+		if ( cl >= old_size ) {
+			_clause_status[cl] = true;
+		}
+	}
+	unsigned new_size = old_size;
+	const unsigned fixed_len = 3;
+	vector<Clause>::iterator begin = _long_clauses.begin(), end = _long_clauses.end();
+	for ( vector<Clause>::iterator itr = begin + old_size; itr < end; itr++ ) {
+		if ( _clause_status[itr - begin] ) {
+			_clause_stack[itr - begin] = new_size;
+			_long_clauses[new_size++] = *itr;
+		}
+		else if ( itr->Size() <= fixed_len ) _long_clauses[new_size++] = *itr;
+		else if ( Two_Unassigned_Literals( *itr ) ) _long_clauses[new_size++] = *itr;
+		else if ( ( itr - begin ) % 2 == 0 ) _long_clauses[new_size++] = *itr;
+		else itr->Free();
+	}
+	_long_clauses.resize( new_size ), end = _long_clauses.end();
+	for ( unsigned i = _dec_offsets[old_num_levels]; i < _num_dec_stack; i++ ) {
+		Reason r = _reasons[_dec_stack[i].Var()];
+		if ( r == Reason::undef || r.Is_Lit_Reason() ) continue;
+		unsigned cl = r.Clause_Value();
+		if ( _clause_status[cl] ) {
+			_clause_status[cl] = false;
+			_reasons[_dec_stack[i].Var()] = Reason( _clause_stack[cl], SAT_REASON_CLAUSE );  // update reason by new position
+			assert( _long_clauses[_clause_stack[cl]][0] == _dec_stack[i] );  // ToRemove
+		}
+	}
+	for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+		_long_watched_lists[x + x].clear();
+		_long_watched_lists[x + x + 1].clear();
+	}
+	for ( vector<Clause>::iterator itr = begin; itr < end; itr++ ) {
+		Clause & clause = *itr;
+		_long_watched_lists[clause[0]].push_back( itr - begin );
+		_long_watched_lists[clause[1]].push_back( itr - begin );
+	}
+}
+
+bool Solver::Two_Unassigned_Literals( Clause & clause )
+{
+	assert( clause.Size() > 2 );
+	if ( Lit_SAT( clause[0] ) || Lit_SAT( clause[1] ) ) return false;
+	Label_Value( clause.Last_Lit() );  // label last literal as SAT
+	unsigned i;
+	for ( i = 2; Lit_UNSAT( clause[i] ); i++ ) {}
+	Un_Label_Value( clause.Last_Lit() );
+	return Lit_UNSAT( clause[i] );
+}
+
+unsigned Solver::Num_Unassigned_Literals( Clause & clause )
+{
+	assert( clause.Size() > 2 );
+	if ( Lit_SAT( clause[0] ) || Lit_SAT( clause[1] ) ) return 0;
+	unsigned num = 2;
+	Label_Value( clause.Last_Lit() );  // label last literal as SAT
+	unsigned i;
+	for ( i = 2; !Lit_SAT( clause[i] ); i++ ) {
+		num += Lit_Undecided( clause[i] );
+	}
+	Un_Label_Value( clause.Last_Lit() );
+	if ( Lit_SAT( clause[i] ) ) return 0;
+	else return num + Lit_Undecided( clause[i] );
+}
+
 Reason Solver::Assign_Late( unsigned level, Literal lit, Reason reason )
 {
 	ASSERT( !Var_Decided( lit.Var() ) && level < _num_levels && reason != Reason::undef );
@@ -1171,6 +1253,45 @@ void Solver::Verify_Long_Learnt( unsigned pos )
 		clauses.push_back( ExtLits( _long_clauses[i] ) );
 	}
 	assert( Minisat::Ext_Solve( clauses, _minisat_extra_output ) == 0 );
+}
+
+void Solver::Verify_Learnt( Big_Clause & learnt )
+{
+	vector<vector<int>> original_eclauses;
+	vector<int> unary_eclause(1);
+	for ( unsigned i = 0; i < _unary_clauses.size(); i++ ) {
+		unary_eclause[0] = ExtLit( _unary_clauses[i] );
+		original_eclauses.push_back( unary_eclause );
+	}
+	for ( Literal lit = Literal::start; lit <= 2 * _max_var + 1;  ) {
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+			if ( lit > _binary_clauses[lit][i] ) continue;
+			original_eclauses.push_back( ExtLits( lit, _binary_clauses[lit][i] ) );
+		}
+		lit++;
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+			if ( lit > _binary_clauses[lit][i] ) continue;
+			original_eclauses.push_back( ExtLits( lit, _binary_clauses[lit][i] ) );
+		}
+		lit++;
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		original_eclauses.push_back( ExtLits( _long_clauses[i] ) );
+	}
+	for ( unsigned i = 0; i < learnt.Size(); i++ ) {
+		unary_eclause[0] = -ExtLit( learnt[i] );
+		original_eclauses.push_back( unary_eclause );
+	}
+	int sat = Minisat::Ext_Solve( original_eclauses, _minisat_extra_output );
+	if ( sat != 0 ) {
+		Display_Decision_Stack( cerr, _num_levels );
+		cerr << "invalid learnt clause: ";
+		for ( unsigned j = 0; j < learnt.Size(); j++ ) {
+			cerr << ExtLit( learnt[j] ) << ' ';
+		}
+		cerr << "0" << endl;
+		assert( sat == 0 );
+	}
 }
 
 void Solver::Verify_Learnts( CNF_Formula & cnf )
@@ -1684,6 +1805,43 @@ void Solver::Display_Decision_Stack( ostream & out, unsigned base_dec_level )
 		out << ExtLit( _dec_stack[j] ) << " ";
 	}
 	out << endl;
+}
+
+void Solver::Display_Decision_Path( ostream & out )
+{
+	unsigned i = 0;
+	for ( ; i < _num_levels - 1; i++ ) {
+		if ( _dec_offsets[i+1] > _dec_offsets[i] ) break;
+	}
+	if ( i < _num_levels - 1 ) {
+		Literal decision = _dec_stack[_dec_offsets[i]];
+		out << "_assignment[" << decision.Var() << "] == ";
+		if ( decision.Sign() ) cerr << "true";
+		else cerr << "false";
+		for ( i++; i < _num_levels - 1; i++ ) {
+			if ( _dec_offsets[i+1] == _dec_offsets[i] ) continue;
+			decision = _dec_stack[_dec_offsets[i]];
+			cerr << " && ";
+			out << "_assignment[" << decision.Var() << "] == ";
+			if ( decision.Sign() ) cerr << "true";
+			else cerr << "false";
+		}
+		if ( _num_dec_stack > _dec_offsets[i] ) {
+			decision = _dec_stack[_dec_offsets[_num_levels - 1]];
+			cerr << " && ";
+			out << "_assignment[" << decision.Var() << "] = ";
+			if ( decision.Sign() ) cerr << "true";
+			else cerr << "false";
+		}
+		out << endl;
+	}
+	else if ( _num_dec_stack > _dec_offsets[i] ) {
+		Literal decision = _dec_stack[_dec_offsets[_num_levels - 1]];
+		out << "_assignment[" << decision.Var() << "] = ";
+		if ( decision.Sign() ) cerr << "true";
+		else cerr << "false";
+		out << endl;
+	}
 }
 
 void Solver::Display_Conflict( Reason confl, ostream & out )

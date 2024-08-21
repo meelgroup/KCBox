@@ -1232,11 +1232,17 @@ Reason Inprocessor::Get_Approx_Imp_Component( Component & comp, unsigned & backj
 	if ( running_options.profile_compiling >= Profiling_Abstract ) tmp_watch.Start();
 	Reason confl;
 	switch( running_options.imp_strategy ) {
+	case No_Implicit_BCP:
+		confl = BCP_Component( comp, _num_dec_stack - 1 );
+		break;
 	case Full_Implicit_BCP:
 		confl = Get_Approx_Imp_Component_Full_IBCP( comp );
 		break;
 	case Partial_Implicit_BCP:
 		confl = Get_Approx_Imp_Component_Partial_IBCP( comp );
+		break;
+	case Partial_Implicit_BCP_Neg:
+		confl = Get_Approx_Imp_Component_Partial_IBCP_Neg( comp );
 		break;
 	default:
 		cerr << "ERROR[Inprocessor]: invalid computing strategy about implied literals!" << endl;
@@ -1451,6 +1457,74 @@ unsigned Inprocessor::Analyze_Conflict_Fixed_UIP( Reason confl, Literal fixed ) 
 }
 
 Reason Inprocessor::Get_Approx_Imp_Component_Partial_IBCP( Component & comp )
+{
+	unsigned i, j, k;
+	Reason confl = BCP_Component( comp, _num_dec_stack - 1 );  // NOTE: cannot replace with _dec_offsets[_num_levels - 1] because of backjump
+	if ( confl != Reason::undef ) return confl;
+	_base_dec_level = _num_levels;
+	_dec_offsets[_num_levels++] = _num_dec_stack;
+	unsigned old_num_d_stack = _num_dec_stack - 1;
+	while ( old_num_d_stack < _num_dec_stack ) {
+		unsigned num_active_lits = 0;
+		for ( i = old_num_d_stack; i < _num_dec_stack; i++) {
+			unsigned lit_neg = ~_dec_stack[i];
+			for ( j = 0; j < _long_lit_membership_lists[lit_neg].size(); j++ ) {
+				unsigned tmp_num = num_active_lits;
+				unsigned loc = _long_lit_membership_lists[lit_neg][j];
+				Clause & clause = _long_clauses[loc];
+				for ( k = 0; k < clause.Size(); k++ ) {
+					Literal lit = clause[k];
+					if ( Lit_SAT( lit ) ) break;
+					if ( Lit_UNSAT( lit ) ) continue;
+					_active_lits[tmp_num] = lit;  // lit is a possible implied literal, and assign ~lit to check
+					tmp_num += !_lit_seen[lit];
+					_lit_seen[lit] = true;
+				}
+				if ( k < clause.Size() ) {
+					for ( k = num_active_lits; k < tmp_num; k++ ) {
+						Literal lit = _active_lits[k];
+						_lit_seen[lit] = false;
+					}
+				}
+				else num_active_lits = tmp_num;
+			}
+		}
+		vector<float> scores;
+		scores.resize( num_active_lits );
+		for ( i = 0; i < num_active_lits; i++ ) {
+			Literal lit = _active_lits[i];
+			_lit_seen[lit] = false;
+			scores[i] = _heur_decaying_sum[lit];
+		}
+		unsigned num_curr_decisions = _num_dec_stack - old_num_d_stack;
+		old_num_d_stack = _num_dec_stack;
+		unsigned num_test_lits = 10 + num_curr_decisions / 20;
+		float threshold = 0.0;
+		if ( scores.size() > num_test_lits ) {
+			threshold = kth_Element( scores, scores.size() - num_test_lits );
+		}
+		for ( i = 0; i < num_active_lits; i++ ) {
+			Literal lit = ~_active_lits[i];
+			if ( Lit_Decided( lit ) || _heur_decaying_sum[lit] < threshold ) continue;
+			Assign( lit );
+			confl = BCP_Component( comp, _dec_offsets[_num_levels - 1] );
+			if ( confl != Reason::undef ) {
+				Analyze_Conflict_Fixed_UIP( confl, lit );
+				Un_BCP( _dec_offsets[_num_levels - 1] );
+				_num_levels--;
+				Assign( ~lit, Add_Learnt() );
+				confl = BCP_Component( comp, _num_dec_stack - 1 );  // NOTE: cannot use _dec_offsets[_num_levels - 1]
+				if ( confl != Reason::undef ) return confl;
+				else _dec_offsets[_num_levels++] = _num_dec_stack;
+			}
+			else Un_BCP( _dec_offsets[_num_levels - 1] );
+		}
+	}
+	_num_levels--;
+	return Reason::undef;
+}
+
+Reason Inprocessor::Get_Approx_Imp_Component_Partial_IBCP_Neg( Component & comp )
 {
 	unsigned i, j, k;
 	Reason confl = BCP_Component( comp, _num_dec_stack - 1 );  // NOTE: cannot replace with _dec_offsets[_num_levels - 1] because of backjump
@@ -2740,7 +2814,7 @@ bool Inprocessor::Learnts_Exploded()
 
 void Inprocessor::Filter_Long_Learnts()
 {
-	unsigned i, j;
+	unsigned i;
 	for ( i = _clause_status.size(); i < _long_clauses.size(); i++ ) {
 		_clause_status.push_back( false );
 	}
@@ -2764,12 +2838,8 @@ void Inprocessor::Filter_Long_Learnts()
 		else {
 			if ( !SHIELD_OPTIMIZATION ) itr->Free();  // ToModify
 			else {
-				if ( Lit_SAT( (*itr)[0] ) || Lit_SAT( (*itr)[1] ) ) itr->Free();
-				else {
-					for ( j = 2; j < itr->Size() && Lit_UNSAT( (*itr)[j] ); j++ ) {}
-					if ( j < itr->Size() ) itr->Free();
-					else _long_clauses[i++] = *itr;
-				}
+				if ( !Two_Unassigned_Literals( *itr ) ) itr->Free();
+				else _long_clauses[i++] = *itr;
 			}
 		}
 	}
@@ -2921,11 +2991,22 @@ void Inprocessor::Add_Marked_Model_Component( Component & comp, vector<Model *> 
 void Inprocessor::Get_All_Imp_Component_External( Component & comp, vector<Model *> & models )
 {
 	StopWatch begin_watch;
-	unsigned pos;
 	assert( !models.empty() );
 	if ( running_options.profiling_inprocessing >= Profiling_Detail ) begin_watch.Start();
 	if ( Learnts_Exploded() ) Filter_Long_Learnts();
 	BCP( _num_dec_stack - 1 );
+	if ( running_options.sat_solver == solver_MiniSat ) Get_All_Imp_Component_MiniSat( comp, models );
+	else if ( running_options.sat_solver == solver_CaDiCaL ) Get_All_Imp_Component_CaDiCaL( comp, models );
+	else {
+		cerr << "ERROR[Inprocessor]: invalid external solver!" << endl;
+		exit( 1 );
+	}
+	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_solve += begin_watch.Get_Elapsed_Seconds();
+}
+
+void Inprocessor::Get_All_Imp_Component_MiniSat( Component & comp, vector<Model *> & models )
+{
+	unsigned pos;
 	vector<vector<int>> eclauses;
 	Prepare_Renamed_Ext_Clauses_Component( comp, eclauses );  // NOTE: _var_map is assigned in this function
 	_minisat_extra_output.return_model = !Hyperscale_Problem();
@@ -2965,7 +3046,6 @@ void Inprocessor::Get_All_Imp_Component_External( Component & comp, vector<Model
 		Add_Model_Component( _minisat_extra_output.models[i], comp, models );
 	}
 	_minisat_extra_output.models.clear();
-	if ( running_options.profiling_inprocessing >= Profiling_Detail ) statistics.time_solve += begin_watch.Get_Elapsed_Seconds();
 }
 
 void Inprocessor::Prepare_Renamed_Ext_Clauses_Component( Component & comp, vector<vector<int>> & eclauses )
@@ -3118,6 +3198,90 @@ void Inprocessor::Add_Model_Component( vector<int8_t> & minisat_model, Component
 	}
 	if ( DEBUG_OFF ) Verify_Model_Component( model, comp );  // ToModify
 	models.push_back( model );
+}
+
+void Inprocessor::Get_All_Imp_Component_CaDiCaL( Component & comp, vector<Model *> & models )
+{
+	if ( _cadiback == nullptr ) Prepare_CadiBack();
+	unsigned old_size = _num_dec_stack;
+	_cadiback->calculate( comp, *this, models, _model_pool );
+	for ( unsigned i = old_size; i < _num_dec_stack; i++ ) {
+		Literal lit = _dec_stack[i];
+		Analyze_Conflict_CaDiCaL( ~lit );
+		_reasons[lit.Var()] = Add_Learnt();
+	}
+	BCP( old_size );
+	if ( DEBUG_OFF ) Verify_All_Imp_Component( comp );
+}
+
+unsigned Inprocessor::Analyze_Conflict_CaDiCaL( Literal uip )
+{
+	if ( _cadiback == nullptr ) Prepare_CadiBack();
+	_big_learnt[0] = ~uip;
+	_big_learnt.Resize( 1 );
+	for ( unsigned i = 1; i < _num_levels - 1; i++ ) {
+		if ( _dec_offsets[i + 1] > _dec_offsets[i] ) {
+			_big_learnt.Add_Lit( ~_dec_stack[_dec_offsets[i]] );
+		}
+	}
+	if ( _num_dec_stack > _dec_offsets[_num_levels - 1] ) {
+		_big_learnt.Add_Lit( ~_dec_stack[_dec_offsets[_num_levels - 1]] );
+	}
+	for ( unsigned i = 1; i < _big_learnt.Size(); ) {
+		Literal lit = _big_learnt[i];
+		_big_learnt[i] = ~lit;
+		if ( _cadiback->imply( _big_learnt ) ) _big_learnt.Erase_Lit( i );
+		else _big_learnt[i++] = lit;
+	}
+	assert( _big_learnt.Size() > 1 );
+	unsigned max = 1;
+	for ( unsigned i = 2; i < _big_learnt.Size(); i++ ) {
+		if ( _var_stamps[_big_learnt[i].Var()] > _var_stamps[_big_learnt[max].Var()] ) max = i;
+	}
+	Literal lit = _big_learnt[max];
+	_big_learnt[max] = _big_learnt[1];
+	_big_learnt[1] = lit;
+	return _base_dec_level > _var_stamps[lit.Var()] ? _base_dec_level : _var_stamps[lit.Var()]; // I should check this line!
+}
+
+void Inprocessor::Verify_All_Imp_Component( Component & comp )
+{
+	CaDiCaL::Solver solver;
+	for ( unsigned i = 0; i < _dec_offsets[_num_levels - 1] + 1; i++ ) {
+		solver.clause( ExtLit( _dec_stack[i] ) );
+	}
+	for ( Literal lit = Literal::start; lit <= 2 * _max_var + 1;  ) {
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+			if ( lit > _binary_clauses[lit][i] ) continue;
+			solver.clause( ExtLit( lit ), ExtLit( _binary_clauses[lit][i] ) );
+		}
+		lit++;
+		for ( unsigned i = 0; i < _old_num_binary_clauses[lit]; i++ ) {
+			if ( lit > _binary_clauses[lit][i] ) continue;
+			solver.clause( ExtLit( lit ), ExtLit( _binary_clauses[lit][i] ) );
+		}
+		lit++;
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		solver.clause( ExtLits( _long_clauses[i] ) );
+	}
+	assert( solver.solve() == 10 );
+	for ( unsigned i = _dec_offsets[_num_levels - 1] + 1; i < _num_dec_stack; i++ ) {
+		assert( comp.Search_Var( _dec_stack[i].Var() ) );
+		solver.assume( -ExtLit( _dec_stack[i] ) );
+		if ( solver.solve() != 20 ) {
+			Display_Comp_And_Decision_Stacks( cerr );
+			cerr << "ERROR[Inprocessor]: wrong implied literal " << ExtLit( _dec_stack[i] ) << "!" << endl;
+			exit( 0 );
+		}
+	}
+	for ( Variable x = Variable::start; x <= _max_var; x++ ) {
+		if ( Var_Decided( x ) ) continue;
+		solver.assume( -x );
+		assert( solver.solve() == 10 );
+		solver.assume( x );
+		assert( solver.solve() == 10 );
+	}
 }
 
 unsigned Inprocessor::Num_Projected_Vars_Assigned( unsigned start )  // vars[num] == max_var

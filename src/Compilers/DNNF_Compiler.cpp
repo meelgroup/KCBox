@@ -210,13 +210,14 @@ void DNNF_Compiler::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( Is_TreeD_Based_Ordering( running_options.var_ordering_heur ) ) {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= 48 ) running_options.imp_strategy = No_Implicit_BCP;
+		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	else {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	running_options.sat_employ_external_solver_always = false;
@@ -560,7 +561,7 @@ bool DNNF_Compiler::Try_Shift_To_Implicite_BCP( DecDNNF_Manager & manager )
 	Component & comp = Current_Component();
 	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
 	assert( running_options.imp_strategy == SAT_Imp_Computing );
-	running_options.imp_strategy = Partial_Implicit_BCP;
+	running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 	if ( !running_options.static_heur && running_options.mixed_var_ordering ) {
 		Heuristic old_heur = running_options.var_ordering_heur;
 		Chain old_order;

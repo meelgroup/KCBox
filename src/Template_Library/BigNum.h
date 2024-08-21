@@ -59,6 +59,7 @@ public:
 	    mpz_clear( tmp );
 	    return result;
 	}
+	typedef int int_type;
 	size_t Memory() const { return sizeof(mpz_t) + _xCount->_mp_alloc * sizeof(mp_limb_t); }
 protected:
 	mpz_t _xCount;
@@ -179,6 +180,7 @@ public:
 		mpf_add( _xCount, tmp1, tmp2 );
 		mpf_clear( tmp1 ); mpf_clear( tmp2 );
 	}
+	typedef int int_type;
 	size_t Memory() const { return sizeof(mpf_t) + (_xCount->_mp_prec+1) * sizeof(mp_limb_t); }
 protected:
     mpf_t _xCount;

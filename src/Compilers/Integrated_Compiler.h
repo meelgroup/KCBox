@@ -34,15 +34,16 @@ protected:
 protected:
 	void Compile_With_Implicite_BCP( OBDDC_Manager & manager );
 	void Backjump_Decision( unsigned num_kept_levels );  // backtrack when detect some unsatisfiable component, and tail is decision
-	void Component_Cache_Erase( Component & comp );
 	NodeID Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node );
-	NodeID Component_Cache_Map( Component & comp );
+	NodeID Component_Cache_Map_Current_Component();
+	void Component_Cache_Connect_Current_Component();
 	void Backtrack();  // backtrack one level without discarding results
 	void Extend_New_Level();
 	void Refactor_Current_Level();
 	NodeID Make_Decision_Node( OBDDC_Manager & manager, NodeID low, NodeID high );
 	void Remove_Redundant_Nodes( OBDDC_Manager & manager );
 	void Component_Cache_Clear();
+	void Component_Cache_Reconnect_Components();
 	void Backjump_Decomposition( unsigned num_kept_levels );  // backtrack when detect some unsatisfiable component, and tail is decomposition
 	void Backtrack_Halfway();  // backtrack one decomposition level when getting a UNSAT
 	NodeID Make_Node_With_Imp( OBDDC_Manager & manager, NodeID * nodes, unsigned num );

@@ -113,7 +113,7 @@ void Extensive_Inprocessor::Get_All_Imp_Component( Component & comp, vector<Mode
 
 void Extensive_Inprocessor::Filter_Long_Learnts()
 {
-	unsigned i, j;
+	unsigned i;
 	for ( i = _clause_status.size(); i < _long_clauses.size(); i++ ) {
 		_clause_status.push_back( false );
 	}
@@ -138,12 +138,8 @@ void Extensive_Inprocessor::Filter_Long_Learnts()
 		else {
 			if ( !SHIELD_OPTIMIZATION ) itr->Free();  // ToModify
 			else {
-				if ( Lit_SAT( (*itr)[0] ) || Lit_SAT( (*itr)[1] ) ) itr->Free();
-				else {
-					for ( j = 2; j < itr->Size() && Lit_UNSAT( (*itr)[j] ); j++ ) {}
-					if ( j < itr->Size() ) itr->Free();
-					else _long_clauses[i++] = *itr;
-				}
+				if ( !Two_Unassigned_Literals( *itr ) ) itr->Free();
+				else _long_clauses[i++] = *itr;
 			}
 		}
 	}
@@ -1111,17 +1107,32 @@ void Extensive_Inprocessor::Verify_Kernelization()
 	for ( unsigned i = 0; i < frame.Binary_Clauses_Size(); i++ ) {
 		Literal lit = frame.Binary_Clauses_First( i );
 		Literal lit2 = frame.Binary_Clauses_Second( i );
-        if ( comp.Search_Var( lit.Var() ) && comp.Search_Var( lit2.Var() ) ) {
+		bool appear = comp.Search_Var( lit.Var() ) || _lit_equivalences[lit] != lit;
+		bool appear2 = comp.Search_Var( lit2.Var() ) || _lit_equivalences[lit2] != lit2;
+        if ( appear && appear2 ) {
 			original_eclauses.push_back( ExtLits( lit, lit2 ) );
         }
 	}
-	for ( unsigned i = 0; i < frame.Long_Clauses().size(); i++ ) {
+	for ( unsigned i = 0; i < frame.Old_Num_Long_Clauses(); i++ ) {
 		Clause clause = frame.Long_Clauses( i );
-		bool appeared = false;
+		if ( Clause_SAT( clause ) ) continue;
+		bool appear = false;
 		for ( unsigned j = 0; j < clause.Size(); j++ ) {
-			if ( comp.Search_Var( clause[j].Var() ) ) appeared = true;
+			Literal lit = clause[j];
+			if ( comp.Search_Var( lit.Var() ) || _lit_equivalences[lit] != lit ) appear = true;
 		}
-		if ( appeared ) original_eclauses.push_back( ExtLits( clause ) );
+		if ( appear ) original_eclauses.push_back( ExtLits( clause ) );
+	}
+	for ( unsigned i = frame.Old_Num_Long_Clauses(); i < frame.Long_Clauses().size(); i++ ) {
+		Clause clause = frame.Long_Clauses( i );
+		if ( Clause_SAT( clause ) ) continue;
+		bool appear = false;
+		for ( unsigned j = 0; j < clause.Size(); j++ ) {
+			Literal lit = clause[j];
+			if ( Lit_Decided( lit ) ) continue;
+			if ( !comp.Search_Var( lit.Var() ) && _lit_equivalences[lit] == lit ) appear = true;
+		}
+		if ( !appear ) original_eclauses.push_back( ExtLits( clause ) );
 	}
 	vector<vector<int>> eclauses;
 	vector<int> unary_eclause(1);
@@ -1135,9 +1146,10 @@ void Extensive_Inprocessor::Verify_Kernelization()
 		}
 		int sat = Minisat::Ext_Solve( eclauses, _minisat_extra_output );
 		if ( sat != 0 ) {
+			Display_Decision_Stack( cerr, _num_levels );
 			cerr << "processed cnf formula:" << endl;
-			Display_Ext_Clauses( cerr, processed_eclauses );
-			cerr << "the current original clause:" << endl;
+//			Display_Ext_Clauses( cerr, processed_eclauses );
+			cerr << "the "<< i << "th original clause is invalid:" << endl;
 			for ( unsigned j = 0; j < eclause.size(); j++ ) {
 				cerr << eclause[j] << ' ';
 			}
@@ -1156,9 +1168,10 @@ void Extensive_Inprocessor::Verify_Kernelization()
 		}
 		int sat = Minisat::Ext_Solve( eclauses, _minisat_extra_output );
 		if ( sat != 0 ) {
+			Display_Decision_Stack( cerr, _num_levels );
 			cerr << "original cnf formula:" << endl;
 			Display_Ext_Clauses( cerr, original_eclauses );
-			cerr << "the current processed clause:" << endl;
+			cerr << "the "<< i << "th processed clause is invalid:" << endl;
 			for ( unsigned j = 0; j < eclause.size(); j++ ) {
 				cerr << eclause[j] << ' ';
 			}
@@ -1185,6 +1198,112 @@ void Extensive_Inprocessor::Verify_Kernelization()
 			assert( sat == 1 );
 		}
 		eclauses.pop_back();
+	}
+}
+
+void Extensive_Inprocessor::Display_Clauses( ostream & out, bool all )
+{
+	unsigned last_level = Search_Last_Kernelizition_Level();
+	Component & last_comp = _comp_stack[_active_comps[last_level]];
+	unsigned index = 0;
+	if ( !all ) out << "p cnf " << _max_var - Variable::start + 1 << ' ' << Old_Num_Clauses() << endl;
+	else out << "p cnf " << _max_var - Variable::start + 1 << ' ' << Num_Clauses() << endl;
+	for ( unsigned i = 0; i < _unary_clauses.size(); i++ ) {
+		if ( all ) out << index++ << ":\t";
+		out << ExtLit( _unary_clauses[i] ) << ' ' << '0' << endl;
+	}
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( !last_comp.Search_Var( i ) ) continue;
+		for ( unsigned j = 0; j < _old_num_binary_clauses[i + i]; j++ ) {
+			if ( i + i > _binary_clauses[i + i][j] ) continue;
+			if ( all ) out << index++ << ":\t";
+			out << '-' << ExtVar( i ) << " ";
+			out << ExtLit( _binary_clauses[i + i][j] ) << " 0" << endl;
+		}
+		for ( unsigned j = 0; j < _old_num_binary_clauses[i + i + 1]; j++ ) {
+			if ( i + i + 1 > _binary_clauses[i + i + 1][j] ) continue;
+			if ( all ) out << index++ << ":\t";
+			out << ExtVar( i ) << " ";
+			out << ExtLit( _binary_clauses[i + i + 1][j] ) << " 0" << endl;
+		}
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		if ( all ) out << index++ << ":\t";
+		out << _long_clauses[i] << endl;
+	}
+	if ( !all ) return;
+	out << "--------" << endl;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( !last_comp.Search_Var( i ) ) continue;
+		for ( unsigned j = _old_num_binary_clauses[i + i]; j < _binary_clauses[i + i].size(); j++ ) {
+			if ( i + i > _binary_clauses[i + i][j] ) continue;
+			out << index++ << ":\t";
+			out << '-' << ExtVar( i ) << " ";
+			out << ExtLit( _binary_clauses[i + i][j] ) << " 0" << endl;
+		}
+		for ( unsigned j = _old_num_binary_clauses[i + i + 1]; j < _binary_clauses[i + i + 1].size(); j++ ) {
+			if ( i + i + 1 > _binary_clauses[i + i + 1][j] ) continue;
+			out << index++ << ":\t";
+			out << ExtVar( i ) << " ";
+			out << ExtLit( _binary_clauses[i + i + 1][j] ) << " 0" << endl;
+		}
+	}
+	for ( unsigned i = _old_num_long_clauses; i < _long_clauses.size(); i++ ) {
+		out << index++ << ":\t";
+		out << _long_clauses[i] << endl;
+	}
+}
+
+void Extensive_Inprocessor::Display_Active_Clauses( ostream & out )
+{
+	unsigned last_level = Search_Last_Kernelizition_Level();
+	Component & last_comp = _comp_stack[_active_comps[last_level]];
+	unsigned count = 0;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( !last_comp.Search_Var( i ) ) continue;
+		if ( Var_Decided( i ) ) continue;
+		for ( unsigned j = 0; j < _old_num_binary_clauses[i + i]; j++ ) {
+			if ( i + i > _binary_clauses[i + i][j] ) continue;
+			if ( Lit_Decided( _binary_clauses[i + i][j] ) ) continue;
+			count++;
+		}
+		for ( unsigned j = 0; j < _old_num_binary_clauses[i + i + 1]; j++ ) {
+			if ( i + i + 1 > _binary_clauses[i + i + 1][j] ) continue;
+			if ( Lit_Decided( _binary_clauses[i + i + 1][j] ) ) continue;
+			count++;
+		}
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		Clause & clause = _long_clauses[i];
+		count += !Clause_SAT( clause );
+	}
+	out << "p cnf " << _max_var - Variable::start + 1 << ' ' << count << endl;
+	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
+		if ( !last_comp.Search_Var( i ) ) continue;
+		if ( Var_Decided( i ) ) continue;
+		for ( unsigned j = 0; j < _old_num_binary_clauses[i + i]; j++ ) {
+			if ( i + i > _binary_clauses[i + i][j] ) continue;
+			if ( Lit_Decided( _binary_clauses[i + i][j] ) ) continue;
+			out << '-' << ExtVar( i ) << " ";
+			out << ExtLit( _binary_clauses[i + i][j] ) << " 0" << endl;
+		}
+		for ( unsigned j = 0; j < _old_num_binary_clauses[i + i + 1]; j++ ) {
+			if ( i + i + 1 > _binary_clauses[i + i + 1][j] ) continue;
+			if ( Lit_Decided( _binary_clauses[i + i + 1][j] ) ) continue;
+			out << ExtVar( i ) << " ";
+			out << ExtLit( _binary_clauses[i + i + 1][j] ) << " 0" << endl;
+		}
+	}
+	for ( unsigned i = 0; i < _old_num_long_clauses; i++ ) {
+		Clause & clause = _long_clauses[i];
+		if ( Clause_SAT( clause ) ) continue;
+		for ( unsigned j = 0; j < clause.Size(); j++ ) {
+			if ( Lit_Undecided( clause[j] ) ) {
+				out << ExtLit( clause[j] );
+				out << " ";
+			}
+		}
+		out << "0" << endl;
 	}
 }
 

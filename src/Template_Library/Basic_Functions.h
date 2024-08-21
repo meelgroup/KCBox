@@ -15,6 +15,7 @@
 #include <map>
 #include <bitset>
 #include <algorithm>
+#include <limits>
 #include "../Debug_Library/Debug_Functions.h"
 using namespace std;
 
@@ -27,6 +28,7 @@ namespace KCBox {
 typedef long double ldouble;
 typedef unsigned long long ullong;
 
+//#define ACTIVATE_CLHASH
 #define PAIR( a, b )	( ( a + b ) * ( a + b + 1 ) / 2 + a )
 #define EITHOR_ZERO( a, b ) ( !a + !b > 0 )
 #define BOTH_ZERO( a, b ) ( !a + !b == 2 )
@@ -44,6 +46,8 @@ typedef unsigned long long ullong;
 #define BLANK_CHAR( ch )  ( ch == ' ' || ch == '\t' )
 #define BLANK_CHAR_GENERAL( ch )  ( ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n' )
 #define DIGIT_CHAR( ch )  ( '0' <= ch && ch <= '9' )
+
+#define UNUSED(x) (void)(x)
 
 
 /**************************************** number ****************************************/

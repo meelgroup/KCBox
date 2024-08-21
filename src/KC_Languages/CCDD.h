@@ -74,7 +74,7 @@ public:
 
 class CCDD_Manager: public CDD_Manager, public Linear_Order
 {
-    friend class CCDD_Compiler;
+	friend class CCDD_Compiler;
 protected:  // auxiliary memory
 	Lit_Equivalency _lit_equivalency;
 	Lit_Equivalency _lit_equivalency_low;  // used for compute shared literal equivalences
@@ -232,13 +232,13 @@ protected:  // basic functions
 	}
 	NodeID Update_Child( NodeID n, unsigned pos, NodeID child )
 	{
-	    assert( _nodes[n].sym == CDD_SYMBOL_DECOMPOSE && _nodes[n].ch[pos] != child );
-	    NodeID * ch = new NodeID [_nodes[n].ch_size];
-        ch[0] = _nodes[n].ch[0];
-        ch[1] = _nodes[n].ch[1];
-        for ( unsigned i = 2; i < _nodes[n].ch_size; i++ ) ch[i] = _nodes[n].ch[i];
-        ch[pos] = child;
-        Insert_Sort_Position( ch, _nodes[n].ch_size, pos );
+		assert( _nodes[n].sym == CDD_SYMBOL_DECOMPOSE && _nodes[n].ch[pos] != child );
+		NodeID * ch = new NodeID [_nodes[n].ch_size];
+		ch[0] = _nodes[n].ch[0];
+		ch[1] = _nodes[n].ch[1];
+		for ( unsigned i = 2; i < _nodes[n].ch_size; i++ ) ch[i] = _nodes[n].ch[i];
+		ch[pos] = child;
+		Insert_Sort_Position( ch, _nodes[n].ch_size, pos );
 		CDD_Node node( _nodes[n].sym, ch, _nodes[n].ch_size );
 		return Push_Node( node );
 	}

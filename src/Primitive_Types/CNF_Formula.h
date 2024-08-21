@@ -221,7 +221,13 @@ public:
 	}
 	void Sort( QSorter & sorter ) { sorter.Sort( _lits, _size ); }
 	void Sort( const unsigned * var_rank );
-	void Display( ostream & out)
+	bool Contain( Literal lit ) const
+	{
+		unsigned i = 0;
+		for ( ; i < _size && _lits[i] != lit; i++ ) {}
+		return i < _size;
+	}
+	void Display( ostream & out )
 	{
 		for ( unsigned i = 0; i < _size; i++ ) {
 			out << ExtLit( _lits[i] ) << ' ';
@@ -247,6 +253,8 @@ extern vector<int> ExtLits( Literal lit1, Literal lit2 );
 extern vector<int> ExtLits( Big_Clause & clause );
 
 extern vector<int> ExtLits( Clause & clause );
+
+extern void ExtLits( Clause & clause, vector<int> & eclause );
 
 extern Clause Clause_Random( Variable max_var, unsigned max_len, unsigned min_len );
 

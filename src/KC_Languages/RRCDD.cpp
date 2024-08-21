@@ -282,9 +282,9 @@ void R2D2_Manager::Shared_Lit_Equivalency_Imp( NodeID * imps, unsigned num_imps,
 				else _lit_vector.push_back( lit2 );
 			}
 		}
-		for ( Literal lit: _lit_vector ) {
-			if ( !result_equivalency.Lit_Renamable( lit ) ) {
-				result_equivalency.Add_Equivalence_Flat( min_lit, lit );
+		for ( Literal lit2: _lit_vector ) {
+			if ( !result_equivalency.Lit_Renamable( lit2 ) ) {
+				result_equivalency.Add_Equivalence_Flat( min_lit, lit2 );
 			}
 		}
 		_lit_vector.clear();
@@ -411,9 +411,8 @@ void R2D2_Manager::Remove_All_Lit_Equivalences( NodeID parent, NodeID * rest_nod
 
 NodeID R2D2_Manager::Decompose( NodeID * dnodes, unsigned num, NodeID * equ_nodes, unsigned num_equ )  // use _aux_decom_rnode, _aux_kerne_rnode, _equ_node_seen
 {
-	unsigned i, j;
 	_aux_decom_rnode.ch_size = 0;
-	for ( i = 0; i < num; i++ ) {
+	for ( unsigned i = 0; i < num; i++ ) {
 		_aux_kerne_rnode.ch[0] = dnodes[i];
 		_aux_kerne_rnode.ch_size = 1;
 		for ( unsigned j = 0; j < num_equ; j++ ) {
@@ -428,7 +427,7 @@ NodeID R2D2_Manager::Decompose( NodeID * dnodes, unsigned num, NodeID * equ_node
 		else if ( Is_Fixed( dnodes[i] ) ) {
 			Simple_CDD_Node main_ch( _nodes[_aux_kerne_rnode.ch[0]] );
 			bool sign = ( main_ch.ch[1] == NodeID::top );
-			for ( j = 1; j < _aux_kerne_rnode.ch_size; j++ ) {
+			for ( unsigned j = 1; j < _aux_kerne_rnode.ch_size; j++ ) {
 				_aux_kerne_rnode.ch[j] = _nodes[_aux_kerne_rnode.ch[j]].ch[sign];
 			}
 			_qsorter.Sort( _aux_kerne_rnode.ch, _aux_kerne_rnode.ch_size );
@@ -436,7 +435,7 @@ NodeID R2D2_Manager::Decompose( NodeID * dnodes, unsigned num, NodeID * equ_node
 		}
 		else _aux_decom_rnode.Add_Child( Push_Node( _aux_kerne_rnode ) );
 	}
-	for ( i = 0; i < num_equ; i++ ) {
+	for ( unsigned i = 0; i < num_equ; i++ ) {
 		bool tmp = _equ_node_seen[num_equ - 1];
 		_equ_node_seen[num_equ - 1] = false;
 		for ( ; _equ_node_seen[i]; i++ ) {}
@@ -446,7 +445,7 @@ NodeID R2D2_Manager::Decompose( NodeID * dnodes, unsigned num, NodeID * equ_node
 		_aux_kerne_rnode.ch[0] = NodeID::top;
 		_aux_kerne_rnode.ch[1] = equ_nodes[i];
 		_aux_kerne_rnode.ch_size = 2;
-		for ( j = i + 1; j < num_equ; j++ ) {
+		for ( unsigned j = i + 1; j < num_equ; j++ ) {
 			if ( _equ_node_seen[j] ) continue;
 			CDD_Node & equ_node2 = _nodes[equ_nodes[j]];
 			if ( equ_node2.sym == equ_node_sym ) {
@@ -463,7 +462,7 @@ NodeID R2D2_Manager::Decompose( NodeID * dnodes, unsigned num, NodeID * equ_node
 		_qsorter.Sort( _aux_decom_rnode.ch, _aux_decom_rnode.ch_size );
 		n = Push_Node( _aux_decom_rnode );
 	}
-	for ( j = 0; j < num_equ; j++ ) {
+	for ( unsigned j = 0; j < num_equ; j++ ) {
 		_equ_node_seen[j] = false;
 	}
 	return n;
@@ -643,6 +642,7 @@ void R2D2_Manager::Verify_Decomposition_Node( CDD_Node & node, Hash_Cluster<Vari
 
 void R2D2_Manager::Verify_Kernelization_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
 {
+	UNUSED( var_cluster );
 	if ( node.ch[0] == NodeID::top ) assert( node.ch_size >= 3 );
 	else assert( node.ch_size >= 2 );
 	assert( _nodes[node.ch[0]].sym <= _max_var || _nodes[node.ch[0]].sym == CDD_SYMBOL_TRUE );

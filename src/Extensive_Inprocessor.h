@@ -79,6 +79,8 @@ protected:
 	void Recover_Cached_Binary_Clauses();
 protected:
 	void Verify_Kernelization();
+	void Display_Clauses( ostream & out, bool all = false );
+	void Display_Active_Clauses( ostream & out );
 public:
 	void Add_Formula( CNF_Formula & cnf, Component & comp, vector<Model *> & models, unsigned pre_fixed_num_vars );  //
 protected:

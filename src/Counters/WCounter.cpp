@@ -67,7 +67,6 @@ BigFloat WCounter::Count_Models( WCNF_Formula & cnf, Heuristic heur )
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( running_options.profile_counting >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-	running_options.activate_easy_compiler = false;
 	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
 	bool cnf_sat;
 	if ( !running_options.detect_AND_gates ) cnf_sat = Preprocess( cnf, _models_stack[0] );
@@ -236,13 +235,14 @@ void WCounter::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( running_options.var_ordering_heur == minfill ) {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= 48 ) running_options.imp_strategy = No_Implicit_BCP;
+		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	else {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	running_options.sat_employ_external_solver_always = false;
@@ -300,8 +300,8 @@ void WCounter::Count_With_Implicite_BCP()
 					Backtrack_True();
 				}
 				else if ( Is_Current_Level_Decision() ) {
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
 						Backtrack_Known( cached_result );
 					}
 					else _state_stack[_num_levels - 1]++;
@@ -337,8 +337,8 @@ void WCounter::Count_With_Implicite_BCP()
 			if ( Is_Current_Level_Active() ) {  // not all components have been processed
 				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
 				case 0:
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  /// NOTE: backjump makes that there are unknown cacheable component
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  /// NOTE: backjump makes that there are unknown cacheable component
 						Iterate_Known( cached_result );
 						_state_stack[_num_levels - 1] += 2;
 					}
@@ -369,8 +369,8 @@ void WCounter::Count_With_Implicite_BCP()
 						}
 						else if ( Is_Current_Level_Decision() ) {	// all components except one collapsed into literals, and this component is not handled yet
 							assert( _active_comps[_num_levels - 1] == _num_comp_stack - 1 );
-							cached_result = Component_Cache_Map( Current_Component() );  /// NOTE: the current component was after the collapsed one
-							if ( cached_result != -1 ) {  /// NOTE: backjump makes that there are unknown cacheable component
+							cached_result = Component_Cache_Map_Current_Component();  /// NOTE: the current component was after the collapsed one
+							if ( cached_result != _component_cache.Default_Caching_Value() ) {  /// NOTE: backjump makes that there are unknown cacheable component
 								Backtrack_Known( cached_result );
 							}
 							else _state_stack[_num_levels - 1] = 1;
@@ -398,27 +398,12 @@ void WCounter::Backjump_Decision( unsigned num_kept_levels )
 	for ( _num_levels--; _num_levels > num_kept_levels; _num_levels-- ) {
 		if ( _comp_offsets[_num_levels] - _comp_offsets[_num_levels - 1] <= 1 ) _num_rsl_stack -= _state_stack[_num_levels - 1] - 2;  // ToCheck
 		else _num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-		if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	}
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
+	_component_cache.Entry_Reset_Subtrees( Current_Component().caching_loc );
+	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 	_rsl_stack[_num_rsl_stack++] = 0;  /// NOTE: cannot omit when in the second decision, and need to be AFTER backjump
-}
-
-void WCounter::Component_Cache_Erase( Component & comp )
-{
-	size_t back_loc = _component_cache.Size() - 1;
-	_component_cache.Erase( comp.caching_loc );
-	for ( unsigned i = 1; i < _num_levels; i++ ) {
-		if ( _comp_stack[_comp_offsets[i]].caching_loc == back_loc ) {
-			_comp_stack[_comp_offsets[i]].caching_loc = comp.caching_loc;
-		}
-		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
-			if ( _comp_stack[j].caching_loc == back_loc ) {
-				_comp_stack[j].caching_loc = comp.caching_loc;
-			}
-		}
-	}
 }
 
 void WCounter::Backtrack_True()
@@ -444,14 +429,26 @@ void WCounter::Backtrack_Known( BigFloat cached_result )
 	Backtrack();
 }
 
-BigFloat WCounter::Component_Cache_Map( Component & comp )
+BigFloat WCounter::Component_Cache_Map_Current_Component()
 {
 	StopWatch tmp_watch;
 	if ( running_options.profile_counting >= Profiling_Abstract ) tmp_watch.Start();
+	Component & comp = Current_Component();
 	comp.caching_loc = _component_cache.Hit_Component( comp );
+	if ( _component_cache.Entry_Is_Isolated( comp.caching_loc ) ) {
+		Component_Cache_Connect_Current_Component();
+	}
 	if ( Cache_Clear_Applicable() ) Component_Cache_Clear();
 	if ( running_options.profile_counting >= Profiling_Abstract ) statistics.time_gen_cnf_cache += tmp_watch.Get_Elapsed_Seconds();
 	return _component_cache.Read_Result( comp.caching_loc );
+}
+
+void WCounter::Component_Cache_Connect_Current_Component()
+{
+	if ( Is_Current_Level_Decision() || Active_Position_On_Level( _num_levels - 1 ) == 0 ) {
+		_component_cache.Entry_Add_Child( Parent_of_Current_Component().caching_loc, Current_Component().caching_loc );
+	}
+	else _component_cache.Entry_Add_Sibling( Previous_Component().caching_loc, Current_Component().caching_loc );
 }
 
 bool WCounter::Cache_Clear_Applicable()
@@ -490,12 +487,28 @@ void WCounter::Component_Cache_Clear()
 			kept_locs.push_back( _comp_stack[j].caching_loc );
 		}
 	}
-	_component_cache.Clear_Shrink_Half( kept_locs );
+	if ( !running_options.clear_half_of_cache ) _component_cache.Clear_Shrink_Half( kept_locs );
+	else _component_cache.Clear_Half( kept_locs );
 	unsigned index = 0;
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		_comp_stack[_comp_offsets[i]].caching_loc = kept_locs[index++];
 		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
 			_comp_stack[j].caching_loc = kept_locs[index++];
+		}
+	}
+	Component_Cache_Reconnect_Components();
+}
+
+void WCounter::Component_Cache_Reconnect_Components()
+{
+	_component_cache.Entry_Set_Isolated( Active_Component( 1 ).caching_loc );
+	for ( unsigned i = 2; i < _num_levels; i++ ) {
+		Component & parent = Active_Component( i - 1 );
+		_component_cache.Entry_Set_Isolated( _comp_stack[_comp_offsets[i]].caching_loc );
+		_component_cache.Entry_Add_Child( parent.caching_loc, _comp_stack[_comp_offsets[i]].caching_loc );
+		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
+			_component_cache.Entry_Set_Isolated( _comp_stack[j].caching_loc );
+			_component_cache.Entry_Add_Sibling( _comp_stack[j - 1].caching_loc, _comp_stack[j].caching_loc );
 		}
 	}
 }
@@ -540,14 +553,14 @@ void WCounter::Backjump_Decomposition( unsigned num_kept_levels )
 {
 	assert( num_kept_levels < _num_levels );
 	_num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-	if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	for ( _num_levels--; _num_levels > num_kept_levels; _num_levels-- ) {
 		if ( _comp_offsets[_num_levels] - _comp_offsets[_num_levels - 1] <= 1 ) _num_rsl_stack -= _state_stack[_num_levels - 1] - 2;  // ToCheck
 		else _num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-		if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	}
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
+	_component_cache.Entry_Reset_Subtrees( Current_Component().caching_loc );
+	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 	_rsl_stack[_num_rsl_stack++] = 0;  /// NOTE: cannot omit when in the second decision, and need to be AFTER backjump
 }
 
@@ -626,8 +639,8 @@ void WCounter::Count_With_SAT_Imp_Computing()
 					Backtrack_True();
 				}
 				else if ( Is_Current_Level_Decision() ) {
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  // no backjump
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  // no backjump
 						Recycle_Models( _models_stack[_num_levels - 1] );
 						Backtrack_Known( cached_result );
 					}
@@ -661,8 +674,8 @@ void WCounter::Count_With_SAT_Imp_Computing()
 			if ( Is_Current_Level_Active() ) {  // not all components have been processed
 				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
 				case 0:
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  // no backjump
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  // no backjump
 						Iterate_Known( cached_result );
 						_state_stack[_num_levels - 1] += 2;
 					}
@@ -699,7 +712,7 @@ bool WCounter::Try_Shift_To_Implicite_BCP()
 	Component & comp = Current_Component();
 	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
 	assert( running_options.imp_strategy == SAT_Imp_Computing );
-	running_options.imp_strategy = Partial_Implicit_BCP;
+	running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 	if ( !running_options.static_heur && running_options.mixed_var_ordering ) {
 		Heuristic old_heur = running_options.var_ordering_heur;
 		Chain old_order;
@@ -809,7 +822,6 @@ BigFloat WCounter::Count_Models( WCNF_Formula & cnf, vector<Model *> & models, d
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( running_options.profile_counting >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-	running_options.activate_easy_compiler = false;
 	if ( running_options.display_counting_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
 	_models_stack[0] = models;
 	models.clear();
@@ -912,8 +924,8 @@ void WCounter::Count_With_Implicite_BCP( double timeout )
 					Backtrack_True();
 				}
 				else if ( Is_Current_Level_Decision() ) {
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
 						Backtrack_Known( cached_result );
 					}
 					else _state_stack[_num_levels - 1]++;
@@ -949,8 +961,8 @@ void WCounter::Count_With_Implicite_BCP( double timeout )
 			if ( Is_Current_Level_Active() ) {  // not all components have been processed
 				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
 				case 0:
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  /// NOTE: backjump makes that there are unknown cacheable component
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  /// NOTE: backjump makes that there are unknown cacheable component
 						Iterate_Known( cached_result );
 						_state_stack[_num_levels - 1] += 2;
 					}
@@ -981,8 +993,8 @@ void WCounter::Count_With_Implicite_BCP( double timeout )
 						}
 						else if ( Is_Current_Level_Decision() ) {	// all components except one collapsed into literals, and this component is not handled yet
 							assert( _active_comps[_num_levels - 1] == _num_comp_stack - 1 );
-							cached_result = Component_Cache_Map( Current_Component() );  /// NOTE: the current component was after the collapsed one
-							if ( cached_result != -1 ) {  /// NOTE: backjump makes that there are unknown cacheable component
+							cached_result = Component_Cache_Map_Current_Component();  /// NOTE: the current component was after the collapsed one
+							if ( cached_result != _component_cache.Default_Caching_Value() ) {  /// NOTE: backjump makes that there are unknown cacheable component
 								Backtrack_Known( cached_result );
 							}
 							else _state_stack[_num_levels - 1] = 1;
@@ -1040,8 +1052,8 @@ void WCounter::Count_With_SAT_Imp_Computing( double timeout )
 					Backtrack_True();
 				}
 				else if ( Is_Current_Level_Decision() ) {
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  // no backjump
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  // no backjump
 						Recycle_Models( _models_stack[_num_levels - 1] );
 						Backtrack_Known( cached_result );
 					}
@@ -1075,8 +1087,8 @@ void WCounter::Count_With_SAT_Imp_Computing( double timeout )
 			if ( Is_Current_Level_Active() ) {  // not all components have been processed
 				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
 				case 0:
-					cached_result = Component_Cache_Map( Current_Component() );
-					if ( cached_result != -1 ) {  // no backjump
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != _component_cache.Default_Caching_Value() ) {  // no backjump
 						Iterate_Known( cached_result );
 						_state_stack[_num_levels - 1] += 2;
 					}
@@ -1113,7 +1125,7 @@ bool WCounter::Try_Shift_To_Implicite_BCP( double timeout )
 	Component & comp = Current_Component();
 	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
 	assert( running_options.imp_strategy == SAT_Imp_Computing );
-	running_options.imp_strategy = Partial_Implicit_BCP;
+	running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 	if ( !running_options.static_heur && running_options.mixed_var_ordering ) {
 		Heuristic old_heur = running_options.var_ordering_heur;
 		Chain old_order;
@@ -1137,7 +1149,7 @@ BigFloat WCounter::Backtrack_Failure()
 {
 	assert( _num_rsl_stack == 0 );
 	Backtrack();
-	return -1;
+	return _component_cache.Default_Caching_Value();
 }
 
 void WCounter::Verify_Result_Component( Component & comp, BigFloat count )

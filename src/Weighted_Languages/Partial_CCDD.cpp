@@ -224,7 +224,7 @@ void Partial_CCDD_Manager::Verify_Node( NodeID n )
 	Partial_CDD_Node & node = _nodes[n];
 	if ( Is_False( n ) ) assert( n == NodeID::bot );
 	else if ( Is_True( n ) ) assert( n == NodeID::top );
-	else if ( Literal( node ) != Literal::undef ) assert( n == Literal( node ) );
+	else if ( Literal( node ) != Literal::undef ) assert( n == unsigned( Literal( node ) ) );
 	if ( node.sym == SEARCH_CONFLICTED || node.sym == SEARCH_EMPTY || node.sym == SEARCH_KNOWN || node.sym == SEARCH_UNKNOWN ) {
 		assert(  node.ch_size == 0 &&  node.imp_size == 0 );
 		assert(  node.weight >= 0 );

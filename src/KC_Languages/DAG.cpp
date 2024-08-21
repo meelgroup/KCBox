@@ -10,12 +10,12 @@ const NodeID NodeID::undef( UNSIGNED_UNDEF );
 
 Diagram_Manager::Diagram_Manager( Variable max_var )
 {
-    if ( max_var != Variable::undef ) Allocate_and_Init_Auxiliary_Memory( max_var );
+	if ( max_var != Variable::undef ) Allocate_and_Init_Auxiliary_Memory( max_var );
 }
 
 void Diagram_Manager::Allocate_and_Init_Auxiliary_Memory( Variable max_var )
 {
-    Assignment::Allocate_and_Init_Auxiliary_Memory( max_var );
+	Assignment::Allocate_and_Init_Auxiliary_Memory( max_var );
 	_path = new NodeID [2 * _max_var + 2];
 	_path_mark = new unsigned [2 * _max_var + 2];
 	_node_stack = new NodeID [2 * _max_var + 4];
@@ -31,11 +31,11 @@ void Diagram_Manager::Allocate_and_Init_Auxiliary_Memory( Variable max_var )
 
 Diagram_Manager::~Diagram_Manager()
 {
-    if ( _max_var != Variable::undef ) Free_Auxiliary_Memory();
-    if ( !_allocated_nodes.Empty() ) {
+	if ( _max_var != Variable::undef ) Free_Auxiliary_Memory();
+	if ( !_allocated_nodes.Empty() ) {
 		cerr << "ERROR[Diagram_Manager]: please free allocated nodes first!" << endl;
 		exit( 1 );
-    }
+	}
 }
 
 void Diagram_Manager::Free_Auxiliary_Memory()

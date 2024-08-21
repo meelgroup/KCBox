@@ -223,7 +223,7 @@ void Quick_Sort_Weight( vector<unsigned> & data, unsigned * weight )
 	unsigned num_stack = 1;
 	while ( num_stack-- ) {
 		if ( e_stack[num_stack] < 16 + b_stack[num_stack] ) { // NOTE: b_stack[num_stack] may be more than e_stack[num_stack] by one.
-			for ( unsigned i = b_stack[num_stack] + 1; i <= e_stack[num_stack]; i++ ) {
+			for ( i = b_stack[num_stack] + 1; i <= e_stack[num_stack]; i++ ) {
 				tmp = data[i];
 				for ( j = i - 1; weight[tmp] < weight[data[j]]; j-- ) {
 					data[j+1] = data[j];

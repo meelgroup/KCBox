@@ -42,14 +42,15 @@ protected:
 protected:
 	void Count_With_Implicite_BCP();
 	void Backjump_Decision( unsigned num_kept_levels );  // backtrack when detect some unsatisfiable component, and tail is decision
-	void Component_Cache_Erase( Component & comp );
 	void Backtrack_True();
 	void Backtrack_Known( BigInt cached_result );
-	BigInt Component_Cache_Map( Component & comp );
+	BigInt Component_Cache_Map_Current_Component();
 	void Generate_Incremental_Component( Component & comp );
 	void Generate_Incremental_Component_Old( Component & comp );
+	void Component_Cache_Connect_Current_Component();
 	bool Cache_Clear_Applicable();
 	void Component_Cache_Clear();
+	void Component_Cache_Reconnect_Components();
 	void Backtrack();  // backtrack one level without discarding results
 	void Extend_New_Level();
 	void Backtrack_Decision();
@@ -71,7 +72,6 @@ protected:
 	bool Estimate_Hardness( Component & comp );
 	lbool Try_Final_Kernelization();  // return whether solved by this function
 	bool Estimate_Final_Kernelization_Effect();
-	void Leave_Tmp_Kernelization();
 	void Leave_Final_Kernelization();
 	void Compute_Second_Var_Order_Automatical( Component & comp );
 	lbool Try_Kernelization();  // return whether solved by this function
@@ -129,16 +129,21 @@ public:
 	static void Test( const char * infile, Counter_Parameters parameters, bool quiet )
 	{
 		KCounter counter;
+		counter.debug_options.verify_learnts = false;
 		counter.debug_options.verify_count = false;
 		counter.debug_options.verify_component_count = false;
-		counter.running_options.detect_AND_gates = false;
-		counter.running_options.static_heur = parameters.static_heur;
+		counter.debug_options.verify_kernelization = false;
 		counter.running_options.phase_selecting = false;
+		counter.running_options.sat_filter_long_learnts = false;
+		counter.running_options.detect_AND_gates = false;
+		counter.running_options.block_lits_external = true;
+		counter.running_options.static_heur = parameters.static_heur;
 		counter.running_options.max_kdepth = parameters.kdepth;
 		counter.running_options.mixed_imp_computing = true;
 		counter.running_options.trivial_variable_bound = 128;
 		counter.running_options.display_kernelizing_process = false;
 		counter.running_options.max_memory = parameters.memo;
+		counter.running_options.clear_half_of_cache = parameters.clear_half;
 		Heuristic heur = Parse_Heuristic( parameters.heur );
 		if ( quiet ) {
 			counter.running_options.profile_solving = Profiling_Close;

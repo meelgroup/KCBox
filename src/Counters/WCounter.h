@@ -2,7 +2,7 @@
 #define _WCounter_h_
 
 #include "../Inprocessor.h"
-#include "../Component_Types/Component_BigFloat.h"
+#include "../Component_Types/Component_Cache.h"
 
 
 namespace KCBox {
@@ -15,7 +15,7 @@ protected:
 	BigFloat * _weights;  // double might overflow
 	BigFloat * _rsl_stack;  // rsl denotes result
 	unsigned _num_rsl_stack;  // recording the number of temporary results
-	Component_Cache_BigFloat _component_cache;
+	Component_Cache<BigFloat> _component_cache;
 	vector<Literal> _equivalent_lit_pairs;
 public:
 	WCounter();
@@ -39,12 +39,13 @@ protected:
 protected:
 	void Count_With_Implicite_BCP();
 	void Backjump_Decision( unsigned num_kept_levels );  // backtrack when detect some unsatisfiable component, and tail is decision
-	void Component_Cache_Erase( Component & comp );
 	void Backtrack_True();
 	void Backtrack_Known( BigFloat cached_result );
-	BigFloat Component_Cache_Map( Component & comp );
+	BigFloat Component_Cache_Map_Current_Component();
+	void Component_Cache_Connect_Current_Component();
 	bool Cache_Clear_Applicable();
 	void Component_Cache_Clear();
+	void Component_Cache_Reconnect_Components();
 	void Backtrack();  // backtrack one level without discarding results
 	void Extend_New_Level();
 	void Backtrack_Decision();
@@ -120,9 +121,12 @@ public:
 		counter.debug_options.verify_processed_clauses = false;
 		counter.debug_options.verify_count = false;
 		counter.debug_options.verify_component_count = false;
+		counter.running_options.sat_filter_long_learnts = false;
 		counter.running_options.detect_AND_gates = true;
+		counter.running_options.block_lits_external = true;
 		counter.running_options.static_heur = parameters.static_heur;
 		counter.running_options.max_memory = parameters.memo;
+		counter.running_options.clear_half_of_cache = parameters.clear_half;
 		Heuristic heur = Parse_Heuristic( parameters.heur );
 		if ( quiet ) {
 			counter.running_options.profile_solving = Profiling_Close;

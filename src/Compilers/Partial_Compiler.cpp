@@ -1098,11 +1098,11 @@ double Partial_CCDD_Compiler::Estimate_Posterior_Probability( Variable var, Comp
 	if ( DEBUG_OFF ) debug_options.verify_component_count = comp.Vars_Size() <= _projected_vars.size();
 	Implicate_Computing_Strategy old_strategy = running_options.imp_strategy;
 	if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) {
-		running_options.imp_strategy = Partial_Implicit_BCP;
+		running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		Estimate_Posterior_Probability_With_Implicite_BCP();
 	}
 	else if ( true ) {
-		running_options.imp_strategy = Partial_Implicit_BCP;
+		running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		if ( Is_Level_Decision( _num_levels - 2 ) ) {
 			Estimate_Posterior_Probability_With_Implicite_BCP_Opt();
 		}

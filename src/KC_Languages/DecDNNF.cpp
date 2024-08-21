@@ -139,8 +139,8 @@ BigInt DecDNNF_Manager::Count_Models( NodeID root )
 	unsigned num_vars = NumVars( _max_var );
 	BigInt result;
 	if ( Is_Fixed( root ) ) {
-	    if ( root == NodeID::bot ) return 0;
-        result.Assign_2exp( num_vars - ( root != NodeID::top ) );
+		if ( root == NodeID::bot ) return 0;
+		result.Assign_2exp( num_vars - ( root != NodeID::top ) );
 		return result;
 	}
 	_node_stack[0] = root;
@@ -152,10 +152,10 @@ BigInt DecDNNF_Manager::Count_Models( NodeID root )
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.mark = _max_var;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		assert( topn.ch_size >= 0 );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
 			num_node_stack--;
@@ -225,8 +225,8 @@ BigInt DecDNNF_Manager::Count_Models( NodeID root )
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
@@ -241,8 +241,8 @@ BigFloat DecDNNF_Manager::Count_Models( const CDDiagram & dnnf, const vector<dou
 	unsigned num_vars = NumVars( _max_var );
 	BigFloat result;
 	if ( Is_Fixed( dnnf.Root() ) ) {
-	    if ( dnnf.Root() == NodeID::bot ) return 0;
-        result.Assign_2exp( num_vars - ( dnnf.Root() != NodeID::top ) );
+		if ( dnnf.Root() == NodeID::bot ) return 0;
+		result.Assign_2exp( num_vars - ( dnnf.Root() != NodeID::top ) );
 		return result;
 	}
 	_node_stack[0] = dnnf.Root();
@@ -258,7 +258,7 @@ BigFloat DecDNNF_Manager::Count_Models( const CDDiagram & dnnf, const vector<dou
 		_nodes[i].infor.visited = true;
 	}
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 		if ( topn.infor.visited ) num_node_stack--;
 		else if ( topn.sym <= _max_var ) {
@@ -336,8 +336,8 @@ BigInt DecDNNF_Manager::Count_Models_Under_Assignment( NodeID root, unsigned ass
 	unsigned num_vars = NumVars( _max_var ) - assignment_size;
 	BigInt result;
 	if ( Is_Const( root ) ) {
-	    if ( root == NodeID::bot ) result = 0;
-	    else result.Assign_2exp( num_vars );
+		if ( root == NodeID::bot ) result = 0;
+		else result.Assign_2exp( num_vars );
 		return result;
 	}
 	_node_stack[0] = root;
@@ -349,10 +349,10 @@ BigInt DecDNNF_Manager::Count_Models_Under_Assignment( NodeID root, unsigned ass
 	results[NodeID::top] = 1;
 	_nodes[NodeID::top].infor.mark = num_vars;
 	while ( num_node_stack ) {
-	    NodeID top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
-//	    cerr << top << ": ";
-//	    topn.Display( cerr );
+//		cerr << top << ": ";
+//		topn.Display( cerr );
 		assert( topn.ch_size >= 0 );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
 			num_node_stack--;
@@ -463,8 +463,8 @@ BigInt DecDNNF_Manager::Count_Models_Under_Assignment( NodeID root, unsigned ass
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
 	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
 	}
@@ -1639,7 +1639,6 @@ CDDiagram DecDNNF_Manager::Condition( const CDDiagram & dnnf, const vector<Liter
 		CDD_Node & topn = _nodes[top];
 //	    cerr << top << ": ";
 //	    topn.Display( cerr );
-		assert( topn.ch_size >= 0 );
 		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
 			num_node_stack--;
 		}

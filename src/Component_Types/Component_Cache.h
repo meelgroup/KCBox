@@ -1,46 +1,41 @@
-#ifndef _Incremental_Component_BigInt_h_
-#define _Incremental_Component_BigInt_h_
+#ifndef _Component_Cache_h_
+#define _Component_Cache_h_
 
-#include "Component_Cache.h"
-#include "Cacheable_Clause.h"
+#include "Cacheable_Component.h"
 
 
 namespace KCBox {
 
 
-class Incremental_Component_Cache_BigInt
+#ifdef DEBUG_MODE
+#define COMPONENT_CACHE_INIT_SIZE 1000
+#else
+#define COMPONENT_CACHE_INIT_SIZE LARGE_HASH_TABLE
+#endif
+
+template <typename T> class Component_Cache
 {
 protected:
 	Variable _max_var;
 	unsigned _num_long_cl;  // the total number of long clauses
 	Cacheable_Component_Infor _hit_infor;
-	BigInt _default_caching_value;  // for IBCP, we could leave one component without getting result, thus use this notation
-//	Hash_Table<Cacheable_Component_BigInt> _pool;
-	Large_Hash_Table<Cacheable_Component<BigInt>> _pool;
-	Cacheable_Component<BigInt> _big_cacheable_component;
-	Hash_Cluster<Literal> _original_binary_clauses;
-	Clause_Cache _other_clauses;
+	T _default_caching_value;  // for IBCP, we could leave one component without getting result, thus use this notation
+	Large_Hash_Table<Cacheable_Component<T>> _pool;
+	Cacheable_Component<T> _big_cacheable_component;
 	size_t _hash_memory;  // used to record the number of used bytes for storing components
-	ullong _hit_count;
-	ullong _hit_failed_count;
 public:
-	Incremental_Component_Cache_BigInt():
-		_max_var( Variable::undef ), _pool( COMPONENT_CACHE_INIT_SIZE ),
-		_original_binary_clauses( Variable::start + 1 )
+	Component_Cache(): _max_var( Variable::undef ), _pool( COMPONENT_CACHE_INIT_SIZE )
 	{
 		_hash_memory = _pool.Memory();
-		_hit_count = _hit_failed_count = 0;
 	}
-	Incremental_Component_Cache_BigInt( Variable max_var, unsigned num_long_clause, BigInt default_value ) :
+	Component_Cache( Variable max_var, unsigned num_long_clause, T default_value ) :
 		_max_var( max_var ), _num_long_cl( num_long_clause ), _default_caching_value( default_value ), \
-		_pool( COMPONENT_CACHE_INIT_SIZE ), _big_cacheable_component( NumVars( max_var ), num_long_clause ),
-		_original_binary_clauses( max_var + 1 ), _other_clauses( max_var )
+		_pool( COMPONENT_CACHE_INIT_SIZE ), _big_cacheable_component( NumVars( max_var ), num_long_clause )
 	{
 		_hit_infor.Init( max_var, num_long_clause );
 		_hash_memory = _pool.Memory();
-		_hit_count = _hit_failed_count = 0;
 	}
-	~Incremental_Component_Cache_BigInt()
+	~Component_Cache()
 	{
 		for ( size_t i = 0; i < _pool.Size(); i++ ) {
 			delete [] _pool[i]._bits;
@@ -56,26 +51,19 @@ public:
 		_big_cacheable_component.Reset();
 		_max_var = Variable::undef;
 		_hash_memory = _pool.Memory();
-		_original_binary_clauses.Clear();
-		_other_clauses.Reset();
-		_hit_count = _hit_failed_count = 0;
 	}
-	void Init( Variable max_var, unsigned num_long_clause, BigInt default_value )
+	void Init( Variable max_var, unsigned num_long_clause, T default_value )
 	{
 		if ( _max_var != Variable::undef ) {
-			cerr << "ERROR[Compiler_Component_Cache]: already initialized!" << endl;
+			cerr << "ERROR[Component_Cache]: already initialized!" << endl;
 			exit( 0 );
 		}
 		_max_var = max_var;
 		_num_long_cl = num_long_clause;
 		_hit_infor.Init( max_var, num_long_clause );
-		Cacheable_Component<BigInt>::_infor = _hit_infor;
+		Cacheable_Component<T>::_infor = _hit_infor;
 		_default_caching_value = default_value;
 		_big_cacheable_component.Init( NumVars( max_var ), num_long_clause );
-		_original_binary_clauses.Clear();
-		_original_binary_clauses.Enlarge_Fullset( max_var );
-		_other_clauses.Clear();
-		_other_clauses.Init( max_var );  // no tautologies
 	}
 	void Clear()
 	{
@@ -116,100 +104,34 @@ public:
 			seen[kept_locs[i]] = true;
 		}
 		size_t old_size = kept_locs.size();
-		if ( true ) {  // ToModify
-			size_t i = 0;
-			for ( ; i < _pool.Size() / 2; i++ ) {
-				if ( !seen[i] ) delete [] _pool[i]._bits;
-			}
-			for ( ; i < _pool.Size(); i++ ) {
-				if ( !seen[i] ) kept_locs.push_back( i );
-			}
+		size_t i = 0;
+		for ( ; i < _pool.Size() / 2; i++ ) {
+			if ( !seen[i] ) delete [] _pool[i]._bits;
 		}
-		else {
-			for ( size_t i = 0; i < _pool.Size(); i++ ) {
-				if ( !seen[i] ) {
-					if ( i % 2 ) kept_locs.push_back( i );
-					else delete [] _pool[i]._bits;
-				}
-			}
+		for ( ; i < _pool.Size(); i++ ) {
+			if ( !seen[i] ) kept_locs.push_back( i );
 		}
 		_pool.Clear( kept_locs );
 		kept_locs.resize( old_size );
 		_hash_memory = _pool.Memory();
 	}
-	BigInt Default_Caching_Value() const { return _default_caching_value; }
+	T Default_Caching_Value() const { return _default_caching_value; }
 	size_t Size() const { return _pool.Size(); }
 	size_t Capacity() const { return _pool.Capacity(); }
-	void Reserve( size_t capacity )
-	{
-		_hash_memory -= _pool.Capacity() * sizeof(Cacheable_Component<BigInt>);
-		_pool.Reserve( capacity );
-		_hash_memory += _pool.Capacity() * sizeof(Cacheable_Component<BigInt>);
-	}
+	bool Empty() const { return _pool.Empty(); }
+	size_t Memory() const { return _hash_memory; }
 	void Shrink_To_Fit()
 	{
 		_pool.Shrink_To_Fit();
 		_hash_memory = _pool.Memory();
 	}
-	size_t Memory() const { return _hash_memory; }
-	size_t Memory_Show()
-	{
-		cerr << _hash_memory << " (" << _other_clauses.Size() << ": " << _other_clauses.Memory() << ")" << endl;  // ToRemove
-		cerr << "hit ratio: " << 100 - 100.0 * _hit_failed_count / _hit_count << "%" << endl;
-//		Display( cerr );  // ToRemove
-		return _hash_memory;
-	}
-	void Add_Original_Binary_Clause( Literal lit, Literal lit2 )
-	{
-		_original_binary_clauses.Binary_Set( lit, lit2 );
-	}
-	SetID Encode_Binary_Clause( Literal lit, Literal lit2 )
-	{
-		if ( _original_binary_clauses.Binary_Set_ID( lit, lit2 ) != SETID_UNDEF ) {
-			return SETID_UNDEF;
-		}
-		unsigned old_size = _other_clauses.Size();
-		SetID set = _other_clauses.Hit_Binary_Clause( lit, lit2 );
-		if ( old_size < _other_clauses.Size() ) {
-//			cerr << ExtLit( lit ) << " " << ExtLit( lit2 ) << " 0" << endl;
-			if ( _other_clauses.Size() > _hit_infor.Max_Num_Clauses() ) Extend_ClauseID_Encode();
-		}
-		return set;
-	}
-	SetID Encode_Long_Clause( Literal * lits, unsigned size )
-	{
-		unsigned old_size = _other_clauses.Size();
-		SetID set = _other_clauses.Hit_Clause( lits, size );
-		if ( old_size < _other_clauses.Size() ) {
-			for ( unsigned i = 0; i < size; i++ ) {
-//				cerr << ExtLit( lits[i] ) << " ";
-			}
-//			cerr << "0" << endl;
-			if ( _other_clauses.Size() > _hit_infor.Max_Num_Clauses() ) Extend_ClauseID_Encode();
-		}
-		return set;
-	}
-	SetID Binary_Clause_ID( Literal lit, Literal lit2 )
-	{
-		cerr << ExtLit( lit ) << " " << ExtLit( lit2 ) << " 0" << endl;
-		if ( _original_binary_clauses.Binary_Set_ID( lit, lit2 ) != SETID_UNDEF ) {
-			return SETID_UNDEF;
-		}
-		else return _other_clauses.Hit_Binary_Clause( lit, lit2 );
-	}
 	CacheEntryID Hit_Component( Component & comp )
 	{
-		Cacheable_Component<BigInt>::_infor = _hit_infor;  /// NOTE: for different Unified_Component_Cache, Cacheable_Component::_infor is different, so update Cacheable_Component::_infor before Hit
-		if ( comp.ClauseIDs_Size() > _num_long_cl ) {
-			_num_long_cl = comp.ClauseIDs_Size();
-			_big_cacheable_component.Update_Bits( NumVars( _max_var), _num_long_cl );
-		}
+		Cacheable_Component<T>::_infor = _hit_infor;  /// NOTE: for different Component_Cache, Cacheable_Component::_infor is different, so update Cacheable_Component::_infor before Hit
 		_big_cacheable_component.Assign( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
 		size_t old_cache_size = _pool.Size();
 		size_t pos = _pool.Hit( _big_cacheable_component, _hash_memory );
-		_hit_count++;
 		if ( pos == old_cache_size ) {
-			_hit_failed_count++;
 			unsigned size = _big_cacheable_component.Bits_Size();
 			_pool[pos]._bits = new unsigned [size];
 			_pool[pos]._bits[0] = _big_cacheable_component._bits[0];  // has at least one 4-bytes
@@ -229,7 +151,7 @@ public:
 			_hash_memory -= _pool[loc].Memory();
 			delete [] _pool[loc]._bits;
 			_pool.Erase( loc );
-			_hash_memory += sizeof(Cacheable_Component<BigInt>);
+			_hash_memory += sizeof(Cacheable_Component<T>);
 		}
 		else {
 			_hash_memory -= _pool[loc].Memory();
@@ -237,19 +159,19 @@ public:
 			delete [] _pool[loc]._bits;
 			_pool.Erase( loc );
 			_hash_memory += _pool[loc].Memory();
-			_hash_memory += sizeof(Cacheable_Component<BigInt>);
+			_hash_memory += sizeof(Cacheable_Component<T>);
 		}
 	}
-	BigInt Read_Result( CacheEntryID loc ) { return _pool[loc]._result; }
-	void Write_Result( CacheEntryID loc, const BigInt result )
+	T Read_Result( CacheEntryID pos ) { return _pool[pos]._result; }
+	void Write_Result( CacheEntryID pos, const T result )
 	{
-		_hash_memory -= _pool[loc]._result.Memory();
-		_pool[loc]._result = result;
-		_hash_memory += _pool[loc]._result.Memory();  /// result's memory might not be equal to that of pool[loc]._result
+		_hash_memory -= _pool[pos].Memory();
+		_pool[pos]._result = result;
+		_hash_memory += _pool[pos].Memory();  /// result's memory might not be equal to that of pool[loc]._result
 	}
 	double Duplicate_Rate()
 	{
-		vector<BigInt> elems;
+		vector<T> elems;
 		for ( size_t i = 0; i < _pool.Size(); i++ ) {
 			if ( _pool[i]._result != _default_caching_value ) {
 				elems.push_back( _pool[i]._result );
@@ -279,31 +201,24 @@ public:
 		}
 	}
 protected:
-	void Extend_ClauseID_Encode()
+	unsigned Bits_Size( Component & comp ) const
 	{
-		Component comp;
-		Cacheable_Component_Infor old_infor = _hit_infor;
-		_hit_infor.Extend_CCode( 1 );
-		Cacheable_Component<BigInt>::_infor = _hit_infor;  /// update Cacheable_Component::_infor before Update
-		_big_cacheable_component.Update_Bits( NumVars( _max_var ), _num_long_cl );
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
-			Cacheable_Component<BigInt>::_infor = old_infor;  /// update Cacheable_Component::_infor before Hit
-			_pool[i].Read_Component( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
-			delete [] _pool[i]._bits;
-			unsigned new_size = Bits_Size( comp );
-			_pool[i]._bits = new unsigned [new_size];
-			for ( unsigned j = 1; j < new_size; j++ ) _pool[i]._bits[j] = 0;
-			Cacheable_Component<BigInt>::_infor = _hit_infor;  /// update Cacheable_Component::_infor before Hit
-			_pool[i].Assign( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
-		}
-		_pool.Recompute_Entries();
-		_hash_memory = _pool.Memory();
+		unsigned num_var_bits = comp.Vars_Size() * _hit_infor._vcode_size;
+		unsigned num_cl_bits = comp.ClauseIDs_Size() * _hit_infor._ccode_size;
+		return ( num_var_bits + num_cl_bits - 1 ) / UNSIGNED_SIZE + 1;  /* ceil */
 	}
-    unsigned Bits_Size( Component & comp ) const
-    {
-    	unsigned num_var_bits = comp.Vars_Size() * _hit_infor._vcode_size;
-    	unsigned num_cl_bits = comp.ClauseIDs_Size() * _hit_infor._ccode_size;
-    	return ( num_var_bits + num_cl_bits - 1 ) / UNSIGNED_SIZE + 1;  /* ceil */
+	void Verify( CacheEntryID loc, Component & comp )
+	{
+		Component other;
+		Read_Component( loc, other );
+		assert( comp == other );
+		for ( size_t i = 0; i < loc; i++ ) {
+			Read_Component( i, other );
+			if ( comp == other ) {
+				cerr << "ERROR[Incremental_Component_Cache]: equal entries " << i << " and " << loc << endl;
+				assert( false );
+			}
+		}
 	}
 public:
 	bool Entry_Is_Isolated( CacheEntryID loc )

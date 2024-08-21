@@ -82,6 +82,7 @@ endif()
 # static compilation
 option(BUILD_SHARED_LIBS "Build the shared library" ON)
 option(STATICCOMPILE "Compile to static executable" OFF)
+option(ENABLE_FLTO "Enable the flag -flto" OFF)
 if (STATICCOMPILE)
     set(BUILD_SHARED_LIBS OFF)
 endif()
@@ -193,6 +194,14 @@ macro(add_cxx_flag_if_supported flagname)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flagname}" )
   endif()
 endmacro()
+include(CheckCCompilerFlag)
+macro(add_c_flag_if_supported flagname)
+  check_c_compiler_flag("${flagname}" HAVE_FLAG_${flagname})
+
+  if(HAVE_FLAG_${flagname})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${flagname}" )
+  endif()
+endmacro()
 
 # contains some library search cmake scripts
 SET(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
@@ -207,16 +216,6 @@ if (STATICCOMPILE)
     set(BUILD_SHARED_LIBS OFF)
     SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     SET(CMAKE_EXE_LINKER_FLAGS "-static")
-
-        foreach (language CXX C)
-            set(VAR_TO_MODIFY "CMAKE_SHARED_LIBRARY_LINK_${language}_FLAGS")
-            string(REGEX REPLACE "(^| )-rdynamic($| )"
-                                 " "
-                                 replacement
-                                 "${${VAR_TO_MODIFY}}")
-            #message("Original (${VAR_TO_MODIFY}) is ${${VAR_TO_MODIFY}} replacement is ${replacement}")
-            set(${VAR_TO_MODIFY} "${replacement}" CACHE STRING "Default flags for ${build_config} configuration" FORCE)
-        endforeach()
 endif()
 
 SET(TOOLNAME "KCBox" CACHE STRING "please input PreLite, Panini, ExactMC, or PartialKC if you do not want KCBox")
@@ -231,7 +230,9 @@ if (NOT WIN32)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         #NOTE: out-satrace19-8373595 has confirmed that O3+flto only hurts compared to O2
         #      on gcc version 7.3.0
-        #add_cxx_flag_if_supported("-flto")
+        if (ENABLE_FLTO)
+            add_cxx_flag_if_supported("-flto")
+        endif()
     else()
         add_cxx_flag_if_supported("-Wall")
         add_cxx_flag_if_supported("-Wextra")
@@ -275,15 +276,22 @@ if (NOT WIN32)
     #add_cxx_flag_if_supported("-Wdeprecated")
 endif()
 
-find_library(GMP_LIB gmp REQUIRED)
-find_library(GMPXX_LIB gmpxx REQUIRED)
+if (NOT WIN32)
+    MESSAGE(STATUS "${CMAKE_C_FLAGS}")
+    add_c_flag_if_supported("-fPIC")
+    add_c_flag_if_supported("-std=c99")
+    add_c_flag_if_supported("-Wall")
+    add_c_flag_if_supported("-msse4.1")
+    add_c_flag_if_supported("-mpclmul")
+endif()
+
+find_library(GMP_LIB gmp)
+find_library(GMPXX_LIB gmpxx)
 
 find_package(ZLIB)
 include_directories(${ZLIB_INCLUDE_DIR})
 include_directories(${minisat_SOURCE_DIR})
 include_directories(${PreLite_SOURCE_DIR})
-include_directories(${GMP_INCLUDE_DIRS})
-include_directories(${GMPXX_INCLUDE_DIRS})
 
 #--------------------------------------------------------------------------------------------------
 # Compile flags:
@@ -308,27 +316,29 @@ include_directories(${PROJECT_SOURCE_DIR}/minisat/)
 include_directories(
     ${PROJECT_SOURCE_DIR}/src
 )
+include_directories(${PROJECT_SOURCE_DIR}/cadical/src/)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(${TOOLNAME}
-	src/Compilers/Integrated_Compiler.cpp
 	src/Compilers/CDD_Compiler.cpp
-	src/Compilers/DNNF_Compiler.cpp
-	src/Compilers/R2D2_Compiler.cpp
-	src/Compilers/RCDD_Compiler.cpp
+	src/Compilers/Integrated_Compiler.cpp
 	src/Compilers/CCDD_Compiler.cpp
+	src/Compilers/RCDD_Compiler.cpp
+	src/Compilers/R2D2_Compiler.cpp
+	src/Compilers/DNNF_Compiler.cpp
 	src/Compilers/Partial_Compiler.cpp
-	src/Component_Types/Incremental_Component_BigInt.cpp
+	src/Component_Types/Component.cpp
+	src/Component_Types/Cacheable_Clause.cpp
 	src/Counters/KCounter.cpp
 	src/Counters/WCounter.cpp
 	src/KC_Languages/DAG.cpp
 	src/KC_Languages/OBDD.cpp
 	src/KC_Languages/OBDD[AND].cpp
+	src/KC_Languages/CCDD.cpp
 	src/KC_Languages/CDD.cpp
 	src/KC_Languages/DecDNNF.cpp
 	src/KC_Languages/RCDD.cpp
 	src/KC_Languages/RRCDD.cpp
-	src/KC_Languages/CCDD.cpp
 	src/Weighted_Languages/Partial_CCDD.cpp
 	src/Primitive_Types/Assignment.cpp
 	src/Primitive_Types/CNF_Formula.cpp
@@ -337,18 +347,21 @@ add_executable(${TOOLNAME}
 	src/Template_Library/BigNum.cpp
 	src/Template_Library/Graph_Structures.cpp
 	src/Template_Library/Mersenne.cpp
+	src/clhash/clhash.c
 	src/CustomizedSolver.cpp
 	src/Extensive_Inprocessor.cpp
 	src/Inprocessor.cpp
 	src/Main.cpp
 	src/minisatInterface.cpp
 	src/Preprocessor.cpp
+	src/CadiBack.cpp
 	src/Solver.cpp
 	src/Solver_Krom.cpp
 )
 
 target_link_libraries(${TOOLNAME}
-    minisat-lib-static
     ${GMPXX_LIB}
     ${GMP_LIB}
+    minisat-lib-static
+    ${PROJECT_SOURCE_DIR}/cadical/build/libcadical.a
 )

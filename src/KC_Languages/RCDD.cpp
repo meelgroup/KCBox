@@ -849,6 +849,7 @@ void RCDD_Manager::Verify_Decomposition_Node( CDD_Node & node, Hash_Cluster<Vari
 
 void RCDD_Manager::Verify_Kernelization_Node( CDD_Node & node, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
 {
+	UNUSED( var_cluster );
 	if ( node.ch[0] == NodeID::top ) assert( node.ch_size >= 3 );
 	else assert( node.ch_size >= 2 );
 	assert( _nodes[node.ch[0]].sym != CDD_SYMBOL_KERNELIZE && _nodes[node.ch[0]].sym != CDD_SYMBOL_FALSE );

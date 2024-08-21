@@ -37,13 +37,13 @@ struct Node_Infor
 	}
 };
 
-class NodeID: public Identity
+class NodeID: public Identity<unsigned>
 {
 public:
 	NodeID() {}
-	NodeID( unsigned id ): Identity( id ) {}
-	NodeID( const NodeID &n ): Identity( n._id ) {}
-	NodeID & operator = ( NodeID node ) { _id = node._id; return *this; }
+	NodeID( unsigned id ): Identity<unsigned>( id ) {}
+	NodeID( const NodeID &n ): Identity<unsigned>( n._id ) {}
+	NodeID & operator = ( const NodeID &node ) { _id = node._id; return *this; }
 	const static NodeID bot;
 	const static NodeID top;
 	const static NodeID literal( Variable var, bool sign ) { return NodeID( 2 + 2 * var + sign - Literal::start ); }
@@ -159,10 +159,10 @@ protected:
 	virtual void Add_Fixed_Nodes() {}
 	void Free_Auxiliary_Memory();
 public: // querying
-    bool Is_Const( NodeID root ) { return root <= 1; }
-    bool Is_Internal( NodeID root ) { return root > 1; }
-    bool Is_Literal( NodeID root ) { return 2 <= root && root <= 2 * _max_var + 1 + 2 - Literal::start; }
-    bool Is_Fixed( NodeID root ) { return root <= 2 * _max_var + 1 + 2 - Literal::start; }
+	bool Is_Const( NodeID root ) { return root <= 1; }
+	bool Is_Internal( NodeID root ) { return root > 1; }
+	bool Is_Literal( NodeID root ) { return 2 <= root && root <= 2 * _max_var + 1 + 2 - Literal::start; }
+	bool Is_Fixed( NodeID root ) { return root <= 2 * _max_var + 1 + 2 - Literal::start; }
 protected:
 	Literal Node2Literal( NodeID n )	{ return Literal( n - 2 + Literal::start ); }
 	Diagram Generate_Diagram( NodeID n ) { return Diagram( n, &_allocated_nodes ); }

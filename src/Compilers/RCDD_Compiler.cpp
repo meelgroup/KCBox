@@ -200,13 +200,14 @@ void RCDD_Compiler::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( running_options.var_ordering_heur == minfill ) {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= 48 ) running_options.imp_strategy = No_Implicit_BCP;
+		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	else {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	running_options.sat_employ_external_solver_always = false;
@@ -563,7 +564,7 @@ bool RCDD_Compiler::Try_Shift_To_Implicite_BCP( RCDD_Manager & manager )
 	Component & comp = Current_Component();
 	if ( comp.Vars_Size() > running_options.trivial_variable_bound && Estimate_Hardness( comp ) ) return false;
 	assert( running_options.imp_strategy == SAT_Imp_Computing );
-	running_options.imp_strategy = Partial_Implicit_BCP;
+	running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 	Recycle_Models( _models_stack[_num_levels - 1] );
 	Compile_With_Implicite_BCP( manager );
 	if ( false && comp.Vars_Size() > running_options.trivial_variable_bound / 1 ) system( "./pause" );  // ToRemove
@@ -633,12 +634,16 @@ bool RCDD_Compiler::Estimate_Hardness( Component & comp )
 lbool RCDD_Compiler::Try_Kernelization( RCDD_Manager & manager )
 {
 	if ( _current_kdepth >= running_options.max_kdepth || Estimate_Kernelization_Effect() == false ) return lbool(false);
+	_component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 	Store_Cached_Binary_Clauses();
 	Kernelize_Without_Imp();
 	Set_Current_Level_Kernelized( true );
 	Sort_Clauses_For_Caching();
 	NodeID cached_result;
-	if ( Current_Component().Vars_Size() == 0 ) cached_result = NodeID::top;
+	if ( Current_Component().Vars_Size() == 0 ) {
+		Current_Component().caching_loc == CacheEntryID::undef;
+		cached_result = NodeID::top;
+	}
 	else cached_result = Component_Cache_Map( Current_Component() );
 	if ( cached_result != NodeID::undef ) {
 		if ( debug_options.verify_component_compilation ) {
@@ -700,7 +705,15 @@ void RCDD_Compiler::Leave_Kernelization( RCDD_Manager & manager )
 	_rsl_stack[_num_rsl_stack - 1] = Make_Kernelized_Conjunction_Node( manager, _rsl_stack[_num_rsl_stack - 1] );
 	Clear_Cached_Binary_Clauses();
 	Set_Current_Level_Kernelized( false );
+	CacheEntryID kernelized_loc = Current_Component().caching_loc;
 	Cancel_Kernelization_Without_Imp();
+	if ( _component_cache.Entry_Is_Child( Parent_of_Current_Component().caching_loc, kernelized_loc ) ) {
+		if ( kernelized_loc != Current_Component().caching_loc ) {
+			_component_cache.Entry_Swap( kernelized_loc, Current_Component().caching_loc );
+		}
+	} else {
+		_component_cache.Entry_Add_Child( Parent_of_Current_Component().caching_loc, Current_Component().caching_loc );
+	}
 	Recover_Cached_Binary_Clauses();
 	Encode_Long_Clauses();
 	_component_cache.Write_Result( Current_Component().caching_loc, _rsl_stack[_num_rsl_stack - 1] );

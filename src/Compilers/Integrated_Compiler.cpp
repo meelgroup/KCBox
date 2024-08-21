@@ -66,7 +66,6 @@ Diagram Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic
 	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
 	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
-	running_options.activate_easy_compiler = false;
 	running_options.recover_exterior = true;
 	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
 	bool cnf_sat = Preprocess( cnf, _models_stack[0] );
@@ -217,7 +216,7 @@ void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 					Backtrack();
 				}
 				else if ( Is_Current_Level_Decision() ) {
-					cached_result = Component_Cache_Map( Current_Component() );
+					cached_result = Component_Cache_Map_Current_Component();
 					if ( cached_result != NodeID::undef ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
 						if ( debug_options.verify_component_compilation ) {
 							Verify_Result_Component( Current_Component(), manager, cached_result );
@@ -263,7 +262,7 @@ void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 			if ( Is_Current_Level_Active() ) {  // not all components have been processed
 				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
 				case 0:
-					cached_result = Component_Cache_Map( Current_Component() );
+					cached_result = Component_Cache_Map_Current_Component();
 					if ( cached_result != NodeID::undef ) {  /// NOTE: backjump makes that there are unknown cacheable component
 						if ( debug_options.verify_component_compilation ) {
 							Verify_Result_Component( Current_Component(), manager, cached_result );
@@ -301,7 +300,7 @@ void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 						}
 						else if ( Is_Current_Level_Decision() ) {	// all components except one collapsed into literals, and this component is not handled yet
 							assert( _active_comps[_num_levels - 1] == _num_comp_stack - 1 );
-							cached_result = Component_Cache_Map( Current_Component() );  /// NOTE: the current component was after the collapsed one
+							cached_result = Component_Cache_Map_Current_Component();  /// NOTE: the current component was after the collapsed one
 							if ( cached_result != NodeID::undef ) {  /// NOTE: backjump makes that there are unknown cacheable component
 								if ( debug_options.verify_component_compilation ) {
 									Verify_Result_Component( Current_Component(), manager, cached_result );
@@ -342,26 +341,11 @@ void Compiler::Backjump_Decision( unsigned num_kept_levels )
 	for ( _num_levels--; _num_levels > num_kept_levels; _num_levels-- ) {
 		if ( _comp_offsets[_num_levels] - _comp_offsets[_num_levels - 1] <= 1 ) _num_rsl_stack -= _state_stack[_num_levels - 1] - 2;  // ToCheck
 		else _num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-		if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	}
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
-}
-
-void Compiler::Component_Cache_Erase( Component & comp )
-{
-	size_t back_loc = _component_cache.Size() - 1;
-	_component_cache.Erase( comp.caching_loc );
-	for ( unsigned i = 1; i < _num_levels; i++ ) {
-		if ( _comp_stack[_comp_offsets[i]].caching_loc == back_loc ) {
-			_comp_stack[_comp_offsets[i]].caching_loc = comp.caching_loc;
-		}
-		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
-			if ( _comp_stack[j].caching_loc == back_loc ) {
-				_comp_stack[j].caching_loc = comp.caching_loc;
-			}
-		}
-	}
+	_component_cache.Entry_Reset_Subtrees( Current_Component().caching_loc );
+	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 }
 
 NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node )
@@ -379,13 +363,25 @@ NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node )
 	return result;
 }
 
-NodeID Compiler::Component_Cache_Map( Component & comp )
+NodeID Compiler::Component_Cache_Map_Current_Component()
 {
 	StopWatch tmp_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) tmp_watch.Start();
+	Component & comp = Current_Component();
 	unsigned loc = _component_cache.Hit_Component( comp );
+	if ( _component_cache.Entry_Is_Isolated( comp.caching_loc ) ) {
+		Component_Cache_Connect_Current_Component();
+	}
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache += tmp_watch.Get_Elapsed_Seconds();
 	return _component_cache.Read_Result( loc );
+}
+
+void Compiler::Component_Cache_Connect_Current_Component()
+{
+	if ( Is_Current_Level_Decision() || Active_Position_On_Level( _num_levels - 1 ) == 0 ) {
+		_component_cache.Entry_Add_Child( Parent_of_Current_Component().caching_loc, Current_Component().caching_loc );
+	}
+	else _component_cache.Entry_Add_Sibling( Previous_Component().caching_loc, Current_Component().caching_loc );
 }
 
 void Compiler::Backtrack()
@@ -452,7 +448,22 @@ void Compiler::Component_Cache_Clear()
 			_comp_stack[j].caching_loc = kept_locs[k++];
 		}
 	}
+	Component_Cache_Reconnect_Components();
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache += watch.Get_Elapsed_Seconds();
+}
+
+void Compiler::Component_Cache_Reconnect_Components()
+{
+	_component_cache.Entry_Set_Isolated( Active_Component( 1 ).caching_loc );
+	for ( unsigned i = 2; i < _num_levels; i++ ) {
+		Component & parent = Active_Component( i - 1 );
+		_component_cache.Entry_Set_Isolated( _comp_stack[_comp_offsets[i]].caching_loc );
+		_component_cache.Entry_Add_Child( parent.caching_loc, _comp_stack[_comp_offsets[i]].caching_loc );
+		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
+			_component_cache.Entry_Set_Isolated( _comp_stack[j].caching_loc );
+			_component_cache.Entry_Add_Sibling( _comp_stack[j - 1].caching_loc, _comp_stack[j].caching_loc );
+		}
+	}
 }
 
 void Compiler::Remove_Redundant_Nodes( OBDDC_Manager & manager )
@@ -488,14 +499,14 @@ void Compiler::Backjump_Decomposition( unsigned num_kept_levels )
 {
 	assert( num_kept_levels < _num_levels );
 	_num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-	if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	for ( _num_levels--; _num_levels > num_kept_levels; _num_levels-- ) {
 		if ( _comp_offsets[_num_levels] - _comp_offsets[_num_levels - 1] <= 1 ) _num_rsl_stack -= _state_stack[_num_levels - 1] - 2;  // ToCheck
 		else _num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
-		if ( running_options.erase_useless_cacheable_component ) Component_Cache_Erase( Current_Component() );
 	}
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
+	_component_cache.Entry_Reset_Subtrees( Current_Component().caching_loc );
+	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 }
 
 void Compiler::Backtrack_Halfway()
@@ -549,7 +560,7 @@ void Compiler::Compile_With_SAT_Imp_Computing( OBDDC_Manager & manager )
 					Backtrack();
 				}
 				else if ( Is_Current_Level_Decision() ) {
-					cached_result = Component_Cache_Map( Current_Component() );
+					cached_result = Component_Cache_Map_Current_Component();
 					if ( cached_result != NodeID::undef ) {  // no backjump
 						if ( debug_options.verify_component_compilation ) {
 							Verify_Result_Component( Current_Component(), manager, cached_result );
@@ -591,7 +602,7 @@ void Compiler::Compile_With_SAT_Imp_Computing( OBDDC_Manager & manager )
 			if ( Is_Current_Level_Active() ) {  // not all components have been processed
 				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
 				case 0:
-					cached_result = Component_Cache_Map( Current_Component() );
+					cached_result = Component_Cache_Map_Current_Component();
 					if ( cached_result != NodeID::undef ) {  // no backjump
 						if ( debug_options.verify_component_compilation ) {
 							Verify_Result_Component( Current_Component(), manager, cached_result );
@@ -847,13 +858,14 @@ void Compiler::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( running_options.var_ordering_heur == minfill ) {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP;
-		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= 48 ) running_options.imp_strategy = No_Implicit_BCP;
+		else if ( running_options.treewidth <= 72 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
+		else if ( running_options.treewidth <= _unsimplifiable_num_vars / 128 ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	else {
-		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP;
+		if ( Hyperscale_Problem() ) running_options.imp_strategy = Partial_Implicit_BCP_Neg;
 		else running_options.imp_strategy = SAT_Imp_Computing;
 	}
 	running_options.sat_employ_external_solver_always = false;
