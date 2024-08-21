@@ -43,17 +43,20 @@ PartialKC is an anytime model counter with fast convergence performance. The mai
 ```
 sudo apt-get install build-essential cmake
 sudo apt-get install zlib1g.dev
-sudo apt-get install libgmp-dev
+sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
 ```
 
 ### Commands
 
 ```
+git submodule init && git submodule update
+cd cadical && ./configure && make && cd ..
 mkdir build && cd build
 cp ../scripts/build.sh .
 chmod u+x build.sh
 ./build.sh  ## if you want to build a single tool, please use "./build.sh toolname" instead
 ```
+Note that please check the file `cadical/BUILD.md` in case the authors change the way of installing CaDiCaL
 
 <!-- ####################################################################### -->
 
