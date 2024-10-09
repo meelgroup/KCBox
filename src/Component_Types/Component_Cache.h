@@ -20,6 +20,7 @@ protected:
 	unsigned _num_long_cl;  // the total number of long clauses
 	Cacheable_Component_Infor _hit_infor;
 	T _default_caching_value;  // for IBCP, we could leave one component without getting result, thus use this notation
+//	Hash_Table<Cacheable_Component<T>> _pool;
 	Large_Hash_Table<Cacheable_Component<T>> _pool;
 	Cacheable_Component<T> _big_cacheable_component;
 	size_t _hash_memory;  // used to record the number of used bytes for storing components
@@ -37,14 +38,14 @@ public:
 	}
 	~Component_Cache()
 	{
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			delete [] _pool[i]._bits;
 		}
 		if ( _max_var != Variable::undef ) delete [] _big_cacheable_component._bits;
 	}
 	void Reset()
 	{
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			delete [] _pool[i]._bits;
 		}
 		_pool.Clear();
@@ -65,9 +66,10 @@ public:
 		_default_caching_value = default_value;
 		_big_cacheable_component.Init( NumVars( max_var ), num_long_clause );
 	}
+	void Set_Encoding( Cache_Encoding_Strategy encoding ) { assert( _pool.Empty() );  _hit_infor.Set_Encoding( encoding ); }
 	void Clear()
 	{
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			delete [] _pool[i]._bits;
 		}
 		_pool.Clear();
@@ -76,10 +78,10 @@ public:
 	void Clear( vector<size_t> & kept_locs )
 	{
 		vector<bool> seen( _pool.Size(), false );
-		for ( size_t i = 0; i < kept_locs.size(); i++ ) {
+		for ( cache_size_t i = 0; i < kept_locs.size(); i++ ) {
 			seen[kept_locs[i]] = true;
 		}
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			if ( !seen[i] ) delete [] _pool[i]._bits;
 		}
 		_pool.Clear( kept_locs );
@@ -88,10 +90,10 @@ public:
 	void Clear_Shrink_Half( vector<size_t> & kept_locs )
 	{
 		vector<bool> seen( _pool.Size(), false );
-		for ( size_t i = 0; i < kept_locs.size(); i++ ) {
+		for ( cache_size_t i = 0; i < kept_locs.size(); i++ ) {
 			seen[kept_locs[i]] = true;
 		}
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			if ( !seen[i] ) delete [] _pool[i]._bits;
 		}
 		_pool.Clear_Shrink_Half( kept_locs );
@@ -100,38 +102,45 @@ public:
 	void Clear_Half( vector<size_t> & kept_locs )
 	{
 		vector<bool> seen( _pool.Size(), false );
-		for ( size_t i = 0; i < kept_locs.size(); i++ ) {
+		for ( cache_size_t i = 0; i < kept_locs.size(); i++ ) {
 			seen[kept_locs[i]] = true;
 		}
-		size_t old_size = kept_locs.size();
-		size_t i = 0;
-		for ( ; i < _pool.Size() / 2; i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size() / 2; i++ ) {
 			if ( !seen[i] ) delete [] _pool[i]._bits;
 		}
-		for ( ; i < _pool.Size(); i++ ) {
-			if ( !seen[i] ) kept_locs.push_back( i );
+		_pool.Clear_Old_Data( kept_locs, _pool.Size() / 2 );
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
+			_pool[i]._parent = _pool[i]._first_child = _pool[i]._next_sibling = CacheEntryID::undef;
 		}
-		_pool.Clear( kept_locs );
-		kept_locs.resize( old_size );
 		_hash_memory = _pool.Memory();
 	}
 	T Default_Caching_Value() const { return _default_caching_value; }
-	size_t Size() const { return _pool.Size(); }
-	size_t Capacity() const { return _pool.Capacity(); }
+	cache_size_t Size() const { return _pool.Size(); }
+	cache_size_t Capacity() const { return _pool.Capacity(); }
 	bool Empty() const { return _pool.Empty(); }
-	size_t Memory() const { return _hash_memory; }
+	void Reserve( cache_size_t capacity )
+	{
+		_hash_memory -= _pool.Capacity() * sizeof(Cacheable_Component<T>);
+		_pool.Reserve( capacity );
+		_hash_memory += _pool.Capacity() * sizeof(Cacheable_Component<T>);
+	}
 	void Shrink_To_Fit()
 	{
 		_pool.Shrink_To_Fit();
 		_hash_memory = _pool.Memory();
 	}
+	size_t Memory() const { return _hash_memory; }
 	CacheEntryID Hit_Component( Component & comp )
 	{
 		Cacheable_Component<T>::_infor = _hit_infor;  /// NOTE: for different Component_Cache, Cacheable_Component::_infor is different, so update Cacheable_Component::_infor before Hit
 		_big_cacheable_component.Assign( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
-		size_t old_cache_size = _pool.Size();
-		size_t pos = _pool.Hit( _big_cacheable_component, _hash_memory );
+		cache_size_t old_cache_size = _pool.Size();
+		cache_size_t pos = _pool.Hit( _big_cacheable_component, _hash_memory );
 		if ( pos == old_cache_size ) {
+			if ( pos == CacheEntryID::undef ) {
+				cerr << "ERROR[Component_Cache]: overflowed, and please activate macro CACHEENTRYID_64BITS!" << endl;
+				exit( 1 );
+			}
 			unsigned size = _big_cacheable_component.Bits_Size();
 			_pool[pos]._bits = new unsigned [size];
 			_pool[pos]._bits[0] = _big_cacheable_component._bits[0];  // has at least one 4-bytes
@@ -172,22 +181,22 @@ public:
 	double Duplicate_Rate()
 	{
 		vector<T> elems;
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			if ( _pool[i]._result != _default_caching_value ) {
 				elems.push_back( _pool[i]._result );
 			}
 		}
 		Quick_Sort( elems );
-		size_t real = 1;
-		for ( size_t i = 1; i < elems.size(); i++ ) {
+		cache_size_t real = 1;
+		for ( cache_size_t i = 1; i < elems.size(); i++ ) {
 			if ( elems[i] != elems[i-1] ) real++;
 		}
 		return 1.0 * elems.size() / real - 1;
 	}
 	double Useless_Rate()
 	{
-		size_t num = 0;
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		cache_size_t num = 0;
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			num += ( _pool[i]._result == _default_caching_value );
 		}
 		return 1.0 * num / _pool.Size();
@@ -195,24 +204,38 @@ public:
 	void Display( ostream & out )
 	{
 		Component comp;
-		for ( size_t i = 0; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
 			Read_Component( i, comp );
 			comp.Display( out );
 		}
 	}
 protected:
-	unsigned Bits_Size( Component & comp ) const
+	void Extend_ClauseID_Encode()
 	{
-		unsigned num_var_bits = comp.Vars_Size() * _hit_infor._vcode_size;
-		unsigned num_cl_bits = comp.ClauseIDs_Size() * _hit_infor._ccode_size;
-		return ( num_var_bits + num_cl_bits - 1 ) / UNSIGNED_SIZE + 1;  /* ceil */
+		Component comp;
+		Cacheable_Component_Infor old_infor = _hit_infor;
+		_hit_infor.Extend_CCode( 1 );
+		Cacheable_Component<T>::_infor = _hit_infor;  /// update Cacheable_Component::_infor before Update
+		_big_cacheable_component.Update_Bits( NumVars( _max_var ), _num_long_cl );
+		for ( cache_size_t i = 0; i < _pool.Size(); i++ ) {
+			Cacheable_Component<T>::_infor = old_infor;  /// update Cacheable_Component::_infor before Hit
+			_pool[i].Read_Component( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
+			delete [] _pool[i]._bits;
+			unsigned new_size = _pool[i].New_Bits_Size( _hit_infor );
+			_pool[i]._bits = new unsigned [new_size];
+			for ( unsigned j = 1; j < new_size; j++ ) _pool[i]._bits[j] = 0;
+			Cacheable_Component<T>::_infor = _hit_infor;  /// update Cacheable_Component::_infor before Hit
+			_pool[i].Assign( comp );  /// this calling needs to use the right _infor.vcode_size and _infor.ccode_size
+		}
+		_pool.Recompute_Entries();
+		_hash_memory = _pool.Memory();
 	}
 	void Verify( CacheEntryID loc, Component & comp )
 	{
 		Component other;
 		Read_Component( loc, other );
 		assert( comp == other );
-		for ( size_t i = 0; i < loc; i++ ) {
+		for ( cache_size_t i = 0; i < loc; i++ ) {
 			Read_Component( i, other );
 			if ( comp == other ) {
 				cerr << "ERROR[Incremental_Component_Cache]: equal entries " << i << " and " << loc << endl;
@@ -318,13 +341,13 @@ public:
 		Entry_Verify_Children( 0 );
 		vector<CacheEntryID> entries = Entry_Descendants( 0 );
 		vector<bool> seen( _pool.Size(), false );
-		for ( size_t i = 0; i < entries.size(); i++ ) {
+		for ( cache_size_t i = 0; i < entries.size(); i++ ) {
 			seen[entries[i]] = true;
 		}
-		for ( size_t i = 1; i < _pool.Size(); i++ ) {
+		for ( cache_size_t i = 1; i < _pool.Size(); i++ ) {
 			if ( !seen[i] ) {
 				if ( !Entry_Is_Isolated( i ) ) {
-					cerr << "ERROR[Incremental_Component_Cache_BigInt]: entry " << i << " is not isolated!" << endl;
+					cerr << "ERROR[Component_Cache]: entry " << i << " is not isolated!" << endl;
 					assert( Entry_Is_Isolated( i ) );
 				}
 			}
@@ -367,7 +390,7 @@ protected:
 		if ( _pool[loc]._first_child != CacheEntryID::undef ) {
 			nodes.push_back( _pool[loc]._first_child );
 		}
-		for ( size_t i = 0; i < nodes.size(); i++ ) {
+		for ( cache_size_t i = 0; i < nodes.size(); i++ ) {
 			CacheEntryID top = nodes[i];
 			if ( _pool[top]._first_child != CacheEntryID::undef ) {
 				nodes.push_back( _pool[top]._first_child );

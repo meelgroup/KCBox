@@ -10,16 +10,22 @@
 namespace KCBox {
 
 
-class CacheEntryID: public Identity<size_t>
+#ifndef CACHEENTRYID_64BITS
+typedef unsigned cache_size_t;
+#else
+typedef size_t cache_size_t;
+#endif // CACHEENTRYID_64BITS
+
+class CacheEntryID: public Identity<cache_size_t>
 {
 public:
 	CacheEntryID() {}
-	CacheEntryID( size_t id ): Identity<size_t>( id ) {}
-	CacheEntryID( const CacheEntryID &cid ): Identity<size_t>( cid._id ) {}
+	CacheEntryID( cache_size_t id ): Identity<cache_size_t>( id ) {}
+	CacheEntryID( const CacheEntryID &cid ): Identity<cache_size_t>( cid._id ) {}
 	CacheEntryID & operator = ( CacheEntryID cid ) { _id = cid._id; return *this; }
 	bool operator == (const CacheEntryID &other) const { return _id == other._id; }
-	bool operator == (const size_t other) const { return _id == other; }
-	bool operator == (const int other) const { return _id == size_t(other); }
+	bool operator == (const cache_size_t other) const { return _id == other; }
+	bool operator == (const int other) const { return _id == cache_size_t(other); }
 	const static CacheEntryID undef;
 };
 

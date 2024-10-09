@@ -11,17 +11,25 @@
 namespace KCBox {
 
 
+#ifndef NODEID_64BITS
+typedef unsigned dag_size_t;
+#else
+typedef size_t dag_size_t;
+#endif // NODEID_64BITS
+
 struct Node_Infor
 {
 	bool visited;
-	unsigned mark;
-	Node_Infor(): visited( false ), mark( UNSIGNED_UNDEF ) {}
+	dag_size_t mark;
+	Node_Infor(): visited( false ), mark( numeric_limits<dag_size_t>::max() ) {}
 	Node_Infor( const Node_Infor & infor ): visited( infor.visited ), mark( infor.mark ) {}
 	void Init()
 	{
 		visited = false;
-		mark = UNSIGNED_UNDEF;
+		mark = numeric_limits<dag_size_t>::max();
 	}
+	void Unmark() { mark = numeric_limits<dag_size_t>::max(); }
+	bool Marked() const { return mark != numeric_limits<dag_size_t>::max(); }
 	void operator = ( Node_Infor & other )
 	{
 		visited = other.visited;
@@ -32,17 +40,33 @@ struct Node_Infor
 		out << "[";
 		if ( visited ) out << "Visited";
 		out << ", ";
-		if ( mark != UNSIGNED_UNDEF ) out << "mark = " << mark;
+		if ( Marked() ) out << "mark = " << mark;
 		out << "]";
 	}
 };
 
-class NodeID: public Identity<unsigned>
+class NodeID: public Identity<dag_size_t>
 {
 public:
 	NodeID() {}
-	NodeID( unsigned id ): Identity<unsigned>( id ) {}
-	NodeID( const NodeID &n ): Identity<unsigned>( n._id ) {}
+	NodeID( dag_size_t id ): Identity<dag_size_t>( id ) {}
+	NodeID( const NodeID &n ): Identity<dag_size_t>( n._id ) {}
+	bool Read( char * & source )
+	{
+		while ( *source == ' ' || *source == '\t' ) source++;
+		unsigned flag;
+	#ifndef NODEID_64BITS
+		flag = sscanf( source, "%u", &_id );
+	#else
+		flag = sscanf( source, "%lu", &_id );
+	#endif // NODEID_64BITS
+		if ( flag != 1 ) {
+			cerr << "ERROR[NodeID]: Invalid input!" << endl;
+		}
+		while ( *source >= '0' && *source <= '9' ) source++;
+		while ( *source == ' ' || *source == '\t' ) source++;
+		return flag == 1;
+	}
 	NodeID & operator = ( const NodeID &node ) { _id = node._id; return *this; }
 	const static NodeID bot;
 	const static NodeID top;
@@ -50,6 +74,26 @@ public:
 	const static NodeID literal( Literal lit ) { return NodeID( 2 + lit - Literal::start ); }
 	const static NodeID undef;
 };
+
+template<typename T_HASH, typename T_NODE> NodeID Hash_Hit_Node( T_HASH & nodes, T_NODE & node )
+{
+	dag_size_t id = nodes.Hit( node );
+	if ( id == NodeID::undef ) {
+		cerr << "ERROR[OBDD]: overflowed, and please activate macro NODEID_64BITS!" << endl;
+		exit( 1 );
+	}
+	return NodeID( id );
+}
+
+template<typename T_HASH, typename T_NODE> NodeID Hash_Hit_Node( T_HASH & nodes, T_NODE & node, size_t hash_memory )
+{
+	dag_size_t id = nodes.Hit( node, hash_memory );
+	if ( id == NodeID::undef ) {
+		cerr << "ERROR[OBDD]: overflowed, and please activate macro NODEID_64BITS!" << endl;
+		exit( 1 );
+	}
+	return NodeID( id );
+}
 
 struct Decision_Node
 {
@@ -74,7 +118,7 @@ public:
 	const Chain & Var_Order() const { return _var_order; }
 	void Generate_Lexicographic_Var_Order( Variable max_var )
 	{
-		for ( unsigned i = Variable::start; i <= max_var; i++ ) {
+		for ( Variable i = Variable::start; i <= max_var; i++ ) {
 			_var_order.Append( i );
 		}
 	}
@@ -135,6 +179,15 @@ public:
 		return *this;
 	}
 	NodeID Root() const { return _root == nullptr ? NodeID::undef : _root->data; }
+};
+
+enum DAG_File_Format
+{
+	DAG_Format_OBDD,
+	DAG_Format_OBDDL,
+	DAG_Format_OBDDC,
+	DAG_Format_DecDNNF,
+	DAG_Format_CDD
 };
 
 class Diagram_Manager: public Assignment

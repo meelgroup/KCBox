@@ -4,7 +4,7 @@
 namespace KCBox {
 
 
-RCDD_Manager::RCDD_Manager( Variable max_var, unsigned estimated_node_num ):
+RCDD_Manager::RCDD_Manager( Variable max_var, dag_size_t estimated_node_num ):
 CCDD_Manager( max_var, estimated_node_num )
 {
 	Allocate_and_Init_Auxiliary_Memory();
@@ -14,7 +14,7 @@ void RCDD_Manager::Allocate_and_Init_Auxiliary_Memory()
 {
 }
 
-RCDD_Manager::RCDD_Manager( Chain & vorder, unsigned estimated_node_num ):
+RCDD_Manager::RCDD_Manager( Chain & vorder, dag_size_t estimated_node_num ):
 CCDD_Manager( vorder, estimated_node_num )
 {
 	Allocate_and_Init_Auxiliary_Memory();
@@ -116,8 +116,8 @@ RCDD_Manager::RCDD_Manager( RCDD_Manager & other ):
 CCDD_Manager( other )
 {
 	Allocate_and_Init_Auxiliary_Memory();
-	for ( unsigned u = _num_fixed_nodes; u < other._nodes.Size(); u++ ) {
-		Push_New_Node( other._nodes[u] );
+	for ( dag_size_t i = _num_fixed_nodes; i < other._nodes.Size(); i++ ) {
+		Push_New_Node( other._nodes[i] );
 	}
 }
 
@@ -154,7 +154,7 @@ BigInt RCDD_Manager::Count_Models( const CDDiagram & rcdd )
 //	    cerr << top << ": ";
 //	    topn.Display( cerr );
 		assert( topn.ch_size >= 0 );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+		if ( topn.infor.Marked() ) {
 			num_node_stack--;
 		}
 		else if ( topn.sym <= _max_var ) {
@@ -234,10 +234,10 @@ BigInt RCDD_Manager::Count_Models( const CDDiagram & rcdd )
 	}
 	result = results[rcdd.Root()];
 	result.Mul_2exp( _nodes[rcdd.Root()].infor.mark );
-    _nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-    _nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+    _nodes[NodeID::bot].infor.Unmark();
+    _nodes[NodeID::top].infor.Unmark();
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	delete [] results;
@@ -342,7 +342,7 @@ NodeID RCDD_Manager::Extract_Share_Semi_Check( Decision_Node & bnode )  // use _
 	unsigned num_shared = Intersection( _nodes[bnode.low].ch, _nodes[bnode.low].ch_size, \
 		_nodes[bnode.high].ch, _nodes[bnode.high].ch_size, _many_nodes );
 	if ( num_shared == 0 ) return Push_Node( bnode );
-	unsigned i, n;
+	NodeID n;
 	if ( num_shared == _nodes[bnode.low].ch_size ) {
 		bnode.low = NodeID::top;
 		bnode.high = Remove_Children( bnode.high, _many_nodes, num_shared );
@@ -359,10 +359,11 @@ NodeID RCDD_Manager::Extract_Share_Semi_Check( Decision_Node & bnode )  // use _
 		n = Push_Node( bnode );
 	}
 	if ( n < _many_nodes[0] ) {
-		for ( i = num_shared - 1; i != UNSIGNED_UNDEF; i-- ) _many_nodes[i+1] = _many_nodes[i];
+		for ( unsigned i = num_shared - 1; i != UNSIGNED_UNDEF; i-- ) _many_nodes[i+1] = _many_nodes[i];
 		_many_nodes[0] = n;
 	}
 	else {
+		unsigned i;
 		for ( i = num_shared - 1; _many_nodes[i] > n; i-- ) _many_nodes[i+1] = _many_nodes[i];
 		_many_nodes[i+1] = n;
 	}
@@ -468,8 +469,8 @@ NodeID RCDD_Manager::Add_Decomposition_Node( Rough_CDD_Node & rnode )  // use _m
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	if ( rnode.ch_size == 0 ) return NodeID::top;
 	if ( rnode.ch_size == 1 ) return rnode.ch[0];
-	unsigned i, tmp_link;
-	unsigned tmp = _nodes[rnode.Last_Child()].sym;  // NOTE: Search NodeID::bot
+	NodeID tmp_link;
+	unsigned i, tmp = _nodes[rnode.Last_Child()].sym;  // NOTE: Search NodeID::bot
 	_nodes[rnode.Last_Child()].sym = CDD_SYMBOL_FALSE;
 	for ( i = 0; _nodes[rnode.ch[i]].sym != CDD_SYMBOL_FALSE; i++ );
 	_nodes[rnode.Last_Child()].sym = tmp;
@@ -493,7 +494,7 @@ NodeID RCDD_Manager::Add_Decomposition_Node( Rough_CDD_Node & rnode )  // use _m
 	return tmp_link;
 }
 
-unsigned RCDD_Manager::Finest( Rough_CDD_Node & rnode )  // use _many_nodes, node_sets, _node_set_sizes
+NodeID RCDD_Manager::Finest( Rough_CDD_Node & rnode )  // use _many_nodes, node_sets, _node_set_sizes
 {
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	unsigned i, j;
@@ -610,7 +611,7 @@ unsigned RCDD_Manager::Add_Equivalence_Nodes( Literal * lit_pairs, unsigned num_
 	return n;
 }
 
-unsigned RCDD_Manager::Finest_Last( Rough_CDD_Node & rnode )
+NodeID RCDD_Manager::Finest_Last( Rough_CDD_Node & rnode )
 {
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	if ( _nodes[rnode.Last_Child()].sym != CDD_SYMBOL_DECOMPOSE ) {
@@ -640,7 +641,7 @@ void RCDD_Manager::Verify_RCDD( NodeID root )
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack ) {
-		unsigned top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 //		cerr << "top = " << top << ": ";  // ToRemove
 //		topn.Display( cerr );  // ToRemove
@@ -670,8 +671,8 @@ void RCDD_Manager::Verify_RCDD( NodeID root )
 	}
 	_nodes[NodeID::bot].infor.visited = false;
 	_nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -726,8 +727,8 @@ void RCDD_Manager::Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & var_c
 		n = NodeID::literal( i, true );
 		_nodes[n].infor.visited = false;
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -772,7 +773,7 @@ void RCDD_Manager::Compute_Vars( NodeID n, Hash_Cluster<Variable> & var_cluster,
 	}
 	else {
 		SetID vars = sets[_nodes[n].ch[0]];
-		unsigned ch = _nodes[n].ch[1];
+		NodeID ch = _nodes[n].ch[1];
 		vars = var_cluster.Union( vars, _nodes[ch].sym );
 		unsigned lit = _nodes[ch].ch[1];
 		_many_vars[0] = _nodes[lit].sym;
@@ -916,9 +917,9 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 		assert( n == NodeID::bot );
 	}
 //	Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
-	unsigned i, old_size;
-	Binary_Map<NodeID, NodeID, NodeID> op_table;
-	Binary_Map_Node<NodeID, NodeID, NodeID> op_node;
+	dag_size_t old_size;
+	Binary_Map<NodeID, SetID, NodeID> op_table;
+	Binary_Map_Node<NodeID, SetID, NodeID> op_node;
 	_path[0] = n;
 	_path_mark[0] = unsigned (-1);
 	_decision_levels[0] = 0;
@@ -926,7 +927,7 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 	_num_result_stack = 0;
 	_num_decisions = 0;
 	while ( _num_levels > 0 ) {
-		unsigned top = _path[_num_levels - 1];
+		NodeID top = _path[_num_levels - 1];
 		if ( Is_Const( top ) ) {
 			_result_stack[_num_result_stack++] = ( top == NodeID::top );
 			_num_levels--;
@@ -934,7 +935,7 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 		}
 		CDD_Node & topn = _nodes[_path[_num_levels - 1]];
 		if ( _path_mark[_num_levels - 1] == unsigned (-1) ) {
-			SetID pre_lits = _num_levels == 1 ? SETID_EMPTY : unsigned(op_table[_cache_stack[_num_levels - 2]].right);
+			SetID pre_lits = _num_levels == 1 ? SETID_EMPTY : op_table[_cache_stack[_num_levels - 2]].right;
 			SetID lits = Pick_Effective_Equ_Decisions( top, pre_lits, var_cluster, sets );
 			old_size = op_table.Size();
 			op_node.left = top;
@@ -1037,13 +1038,13 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 		_path_mark[0] = 0;
 		_num_levels = 1;
 		while ( _num_levels ) {
-			unsigned top = _path[_num_levels - 1];
+			NodeID top = _path[_num_levels - 1];
 			CDD_Node & topn = _nodes[_path[_num_levels - 1]];
 			if ( top == NodeID::top ) {
 				_num_levels--;
 				continue;
 			}
-			SetID pre_lits = _num_levels == 1 ? SETID_EMPTY : unsigned(op_table[_cache_stack[_num_levels - 2]].right);
+			SetID pre_lits = _num_levels == 1 ? SETID_EMPTY : op_table[_cache_stack[_num_levels - 2]].right;
 			SetID lits = Pick_Effective_Equ_Decisions( top, pre_lits, var_cluster, sets );
 			if ( topn.sym <= _max_var ) {
 				if ( _assignment[topn.sym] >= 0 ) {
@@ -1073,7 +1074,7 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 							op_node.left = topn.ch[0];
 							op_node.right = lits;
 							op_node.result = false;
-							unsigned cache_pos = op_table.Hit( op_node );
+							dag_size_t cache_pos = op_table.Hit( op_node );
 							if ( op_table[cache_pos].result ) {
 								lit_vec.push_back( Literal( topn.Var(), false ) );
 								_path_mark[_num_levels - 1]++;
@@ -1108,7 +1109,7 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 					_path_mark[_num_levels++] = 0;
 				}
 				else {
-					for ( i = 1; i < topn.ch_size; i++ ) {
+					for ( unsigned i = 1; i < topn.ch_size; i++ ) {
 						CDD_Node & ch = _nodes[topn.ch[i]];
 						Variable var = ch.Var();
 						if ( _assignment[var] >= 0 ) {
@@ -1124,7 +1125,7 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 		cerr << "ERROR[CDD]: The following assignment is a model of cdd!" << endl;
 		Quick_Sort( lit_vec );
 		cerr << ExtLit( lit_vec[0] ) << " ";
-		for ( i = 1; i < lit_vec.size(); i++ ) {
+		for ( unsigned i = 1; i < lit_vec.size(); i++ ) {
 			if ( lit_vec[i] != lit_vec[i-1] ) cerr << ExtLit( lit_vec[i] ) << " ";
 		}
 		cerr << endl;
@@ -1134,7 +1135,7 @@ void RCDD_Manager::Verify_UNSAT_Under_Assignment( NodeID n, Hash_Cluster<Variabl
 	_visited_nodes.clear();
 }
 
-SetID RCDD_Manager::Pick_Effective_Equ_Decisions( unsigned n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
+SetID RCDD_Manager::Pick_Effective_Equ_Decisions( NodeID n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets )
 {
 	unsigned i, num = 0;
 	Literal * new_lits = _decision_stack + _decision_levels[_num_levels - 1];
@@ -1156,11 +1157,10 @@ SetID RCDD_Manager::Pick_Effective_Equ_Decisions( unsigned n, SetID pre_lits, Ha
 	return _lit_sets.Set( _many_lits, num );
 }
 
-bool RCDD_Manager::Propagate_New_Equ_Decisions( unsigned n )
+bool RCDD_Manager::Propagate_New_Equ_Decisions( NodeID n )
 {
-	unsigned i;
 	CDD_Node & node = _nodes[n];
-	for ( i = 1; i < node.ch_size; i++ ) {
+	for ( unsigned i = 1; i < node.ch_size; i++ ) {
 		Literal lit0( _nodes[node.ch[i]].Var(), true );
 		Literal lit1 = Node2Literal( _nodes[node.ch[i]].ch[1] );
 		if ( Lit_Decided( lit0 ) && Lit_Decided( lit1 ) ) {
@@ -1192,7 +1192,7 @@ void RCDD_Manager::Display( ostream & out )
 	out << "Number of nodes: " << _nodes.Size() << endl;
 	out << "0:\t" << "F 0" << endl;
 	out << "1:\t" << "T 0" << endl;
-	for ( unsigned u = 2; u < _nodes.Size(); u++ ) {
+	for ( dag_size_t u = 2; u < _nodes.Size(); u++ ) {
 		out << u << ":\t";
 		_nodes[u].Display( out, false );
 	}
@@ -1206,7 +1206,7 @@ void RCDD_Manager::Display_Stat( ostream & out )
 	}
 	out << endl;
 	out << "Number of nodes: " << _nodes.Size() << endl;
-	for ( unsigned u = 0; u < _nodes.Size(); u++ ) {
+	for ( dag_size_t u = 0; u < _nodes.Size(); u++ ) {
 		out << u << ":\t";
 		_nodes[u].Display( out, true );
 	}

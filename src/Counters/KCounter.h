@@ -1,8 +1,7 @@
 #ifndef _KCounter_h_
 #define _KCounter_h_
 
-#include "../Component_Types/Incremental_Component.h"
-#include "../Component_Types/Incremental_Component_BigInt.h"
+#include "../Component_Types/Incremental_Component_Cache_Compressed_Clauses.h"
 #include "../Extensive_Inprocessor.h"
 
 
@@ -15,7 +14,7 @@ protected:
 	BigInt * _rsl_stack;  // rsl denotes result
 	unsigned * _aux_rsl_stack;  // record the auxiliary information for results
 	unsigned _num_rsl_stack;  // recording the number of temporary results
-	Incremental_Component_Cache_BigInt _component_cache;
+	Incremental_Component_Cache_Compressed_Clauses<BigInt> _component_cache;
 	Component _incremental_comp;
 	vector<Literal> _equivalent_lit_pairs;
 public:

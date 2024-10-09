@@ -4,7 +4,7 @@
 namespace KCBox {
 
 
-const CacheEntryID CacheEntryID::undef( numeric_limits<size_t>::max() );
+const CacheEntryID CacheEntryID::undef( numeric_limits<cache_size_t>::max() );
 
 
 }

@@ -3374,7 +3374,6 @@ void Preprocessor::Remove_Unseen_Lits_In_Learnts()
 			Add_Binary_Clause_Naive( binary[0], binary[1] );
 			binary.Free();
 		} else i++;
-		Verify_Watched_Lists();
 	}
 }
 

@@ -2,7 +2,7 @@
 #include "Template_Library/Basic_Structures.h"
 #include "Template_Library/Graph_Structures.h"
 #include "Primitive_Types/CNF_Formula.h"
-#include "Compilers/Integrated_Compiler.h"
+#include "Compilers/BDDC_Compiler.h"
 #include "Compilers/DNNF_Compiler.h"
 #include "Compilers/CCDD_Compiler.h"
 #include "Compilers/R2D2_Compiler.h"
@@ -40,10 +40,12 @@ struct Parameters
 	const char * cnf_file;
 	const char * tool;
 	BoolOption quiet;
+	const char * version;
 	Parameters(): quiet( "--quiet", "no display of running information", false )
 	{
-        cnf_file = nullptr;
-        tool = nullptr;
+		cnf_file = nullptr;
+		tool = nullptr;
+		version = nullptr;
 	}
 } parameters;
 
@@ -72,6 +74,7 @@ void Print_Usage()
 	cout << "or " << tools[num_tools - 1]->Tool_Name() << "." << endl;
 	cout << "    " << "--quiet: not display running information." << endl;
 	cout << "    " << "--help: display options." << endl;
+	if ( parameters.version != nullptr ) cout << "    " << "--version: display version." << endl;
 }
 
 void Print_Tool_Additional_Usage()
@@ -90,7 +93,18 @@ void Parse_Parameters( int argc, const char *argv[] )
 	}
 	if ( strcmp( argv[1], "--help" ) == 0 ) {
 		Print_Usage();
-		exit( 1 );
+		exit( 0 );
+	}
+	if ( strcmp( argv[1], "--version" ) == 0 ) {
+		if ( parameters.version != nullptr ) {
+			cout << "version " << parameters.version << endl;
+			exit( 0 );
+		}
+		else {
+			cerr << "ERROR: no version!" << endl;
+			Print_Usage();
+			exit( 1 );
+		}
 	}
 	int i = 2, t = 0;
 	for ( ; t < num_tools; t++ ) {
@@ -130,7 +144,7 @@ void Parse_Tool_Parameters( Tool_Parameters & tool_parameter, int argc, const ch
 	if ( argc == 1 || strcmp( argv[1], "--help" ) == 0 ) {
 		tool_parameter.Helper( cout );
 		Print_Tool_Additional_Usage();
-		exit( 1 );
+		exit( 0 );
 	}
 	int i = 1;
 	parameters.tool = tool_parameter.Tool_Name();
@@ -178,10 +192,13 @@ void Test_Compiler()
 	KC_Language lang = Parse_Language( compiler_parameters.lang );
 	switch ( lang ) {
 		case lang_OBDD:
-			Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			BDDC_Compiler::Test_OBDD_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
 			break;
 		case lang_OBDDC:
-			Compiler::Test_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			BDDC_Compiler::Test_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
+			break;
+		case lang_smooth_OBDDC:
+			BDDC_Compiler::Test_Smooth_OBDDC_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
 			break;
 		case lang_DecDNNF:
 			DNNF_Compiler::Test_DecDNNF_Compiler( parameters.cnf_file, compiler_parameters, parameters.quiet );
@@ -253,7 +270,7 @@ void Test()
 		Test_Compiler();
 	}
 	else if ( strcmp( parameters.tool, counter_parameters.Tool_Name() ) == 0 ) {
-		if ( counter_parameters.diffversion == 1 ) Test_Counter();
+		Test_Counter();
 	}
 	else if ( strcmp( parameters.tool, sampler_parameters.Tool_Name() ) == 0 ) {
 		Test_Sampler();
@@ -284,6 +301,7 @@ int main( int argc, const char *argv[] )
 	int t = 0;
 	for ( ; t < num_tools; t++ ) {
 		if ( strcmp( parameters.procedure_name, tools[t]->Tool_Name() ) == 0 ) {
+			tools[t]->Set_Version( parameters.version );
 			Parse_Tool_Parameters( *tools[t], argc, argv );
 			break;
 		}

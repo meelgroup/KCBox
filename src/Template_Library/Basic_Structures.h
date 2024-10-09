@@ -556,7 +556,8 @@ protected:
 public:
 	BlockVector( unsigned size_per_block, size_t block_count = 0 ): _size( 0 )
 	{
-		_bits_of_size_per_block = Log_Ceil( size_per_block );
+		assert( size_per_block > 0 );
+		_bits_of_size_per_block = Ceil_Log2( size_per_block );
 		_size_per_block = 1 << _bits_of_size_per_block;
 		_block_mask = _size_per_block - 1;
 		_blocks.reserve( 8 );  // exclude 0
@@ -631,7 +632,23 @@ public:
 		}
 		(*this)[_size++] = elem;
 	}
-	void Simply_Erase( size_t i ) { (*this)[i] = (*this)[_size - 1]; _size--; }
+	void Erase_Simply( size_t i ) { (*this)[i] = (*this)[_size - 1]; _size--; }
+	void Erase( size_t i )
+	{
+		for ( size_t j = i + 1; j < _size; j++ ) {
+			(*this)[j-1] = (*this)[j];
+		}
+		_size--;
+	}
+	void Erase( size_t begin, size_t end ) // remove [begin, end)
+	{
+		assert( begin < end && end <= _size );
+		size_t diff = end - begin;
+		for ( size_t j = end; j < _size; j++ ) {
+			(*this)[j - diff] = (*this)[j];
+		}
+		_size -= diff;
+	}
 	T Pop_Back() { return (*this)[--_size]; }
 	void Clear() { _size = 0; }
 	void Swap( BlockVector<T> & other )
@@ -849,6 +866,32 @@ public:
 			kept_locs[i] = Hit( kept_elems[i] );
 		}
 	}
+	void Clear_Shrink_Half( vector<size_t> & kept_locs )
+	{
+		vector<T> kept_elems( kept_locs.size() );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_elems[i] = _data[kept_locs[i]];
+		}
+		Clear();
+		_data.reserve( _data.capacity() / 2 );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_locs[i] = Hit( kept_elems[i] );
+		}
+	}
+	void Clear_Old_Data( vector<size_t> & kept_locs, size_t cleared_size )
+	{
+		assert( 0 < cleared_size && cleared_size <= _data.size() );
+		vector<T> kept_elems( kept_locs.size() );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_elems[i] = _data[kept_locs[i]];
+		}
+		_data.erase( _data.begin(), _data.begin() + cleared_size );
+		Recompute_Entries();
+		_data.reserve( _data.size() + ( _data.capacity() - _data.size() ) / 2 );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_locs[i] = Hit( kept_elems[i] );
+		}
+	}
 	void Swap( Hash_Table<T> & other )
 	{
 		_entries.swap( other._entries );
@@ -1057,6 +1100,20 @@ public:
 		}
 		Clear();
 		_data.Reserve( _data.Capacity() / 2 );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_locs[i] = Hit( kept_elems[i] );
+		}
+	}
+	void Clear_Old_Data( vector<size_t> & kept_locs, size_t cleared_size )
+	{
+		assert( 0 < cleared_size && cleared_size <= _data.Size() );
+		vector<T> kept_elems( kept_locs.size() );
+		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
+			kept_elems[i] = _data[kept_locs[i]];
+		}
+		_data.Erase( 0, cleared_size );
+		Recompute_Entries();
+		_data.Reserve( _data.Size() + ( _data.Capacity() - _data.Size() ) / 2 );
 		for ( unsigned i = 0; i < kept_locs.size(); i++ ) {
 			kept_locs[i] = Hit( kept_elems[i] );
 		}

@@ -77,6 +77,7 @@ bool CDD_Compiler::Create_Init_Level()
 	if ( _current_kdepth <= 1 ) {
 		assert( _component_cache.Size() == 0 );
 		_component_cache.Init( _max_var, _old_num_long_clauses, NodeID::undef );
+		_component_cache.Set_Encoding( running_options.cache_encoding );
 		Component_Cache_Add_Original_Clauses();
 		_component_cache.Hit_Component( _comp_stack[0] );
 		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache = tmp_watch.Get_Elapsed_Seconds();
@@ -250,7 +251,7 @@ void CDD_Compiler::Component_Cache_Clear()
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		if ( _call_stack[i].Existed() ) kept_locs.push_back( _call_stack[i].Get_Caching_Loc() );
 	}
-	_component_cache.Clear( kept_locs );
+	_component_cache.Clear_Shrink_Half( kept_locs );
 	unsigned index = 0;
 	for ( unsigned i = 1; i < _num_levels; i++ ) {
 		_comp_stack[_comp_offsets[i]].caching_loc = kept_locs[index++];

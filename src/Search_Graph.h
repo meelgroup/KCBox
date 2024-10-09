@@ -2,7 +2,7 @@
 #define _Search_Space_h_
 
 #include "KC_Languages/DAG.h"
-#include "Component_Types/Incremental_Component.h"
+#include "Component_Types/Incremental_Component_Cache_Compressed_Clauses.h"
 
 
 namespace KCBox {
@@ -177,13 +177,13 @@ template <typename T> class Search_Graph
 protected:
 	Variable _max_var;
 	vector<Search_Node> _nodes;
-	Incremental_Component_Cache<T> & _component_cache;
+	Incremental_Component_Cache_Compressed_Clauses<T> & _component_cache;
 protected:
 	NodeID * _path;
 	unsigned * _path_mark;
 	vector<NodeID> _visited_nodes;
 public:
-	Search_Graph( Variable max_var, Incremental_Component_Cache<T> & component_cache ):
+	Search_Graph( Variable max_var, Incremental_Component_Cache_Compressed_Clauses<T> & component_cache ):
 		_max_var( max_var ), _component_cache( component_cache )
 	{
 		_nodes.push_back( Search_Node( false ) );

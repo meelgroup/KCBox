@@ -1,6 +1,7 @@
 #ifndef _Partial_Compiler_h_
 #define _Partial_Compiler_h_
 
+#include "../Component_Types/Incremental_Component_Cache.h"
 #include "../Counters/KCounter.h"
 #include "../Weighted_Languages/Partial_CCDD.h"
 

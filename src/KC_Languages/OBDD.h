@@ -17,23 +17,21 @@ namespace KCBox {
 struct BDD_Node_Infor
 {
 	bool visited;
-	unsigned link;
-	unsigned reserved;
+	dag_size_t link;
 	void * ext; // the memory of ext must be free once after it has been used.
-	BDD_Node_Infor(): visited( false ), link( NodeID::undef ), reserved( UNSIGNED_UNDEF ), ext( nullptr ) {}
+	BDD_Node_Infor(): visited( false ), link( NodeID::undef ), ext( nullptr ) {}
 	void Init()
 	{
 		visited = false;
 		link = NodeID::undef;
-		reserved = UNSIGNED_UNDEF;
 		ext = nullptr;
 	}
-	void operator = ( BDD_Node_Infor & other )
+	BDD_Node_Infor & operator = ( const BDD_Node_Infor & other )
 	{
 		visited = other.visited;
 		link = other.link;
-		reserved = other.reserved;
 		ext = other.ext;
+		return *this;
 	}
 };
 
@@ -49,7 +47,7 @@ struct BDD_Node
 	{
 		return ( var == other.var ) + ( low == other.low ) + ( high == other.high ) == 3;
 	}
-	unsigned Key() const
+	uint64_t Key() const
 	{
 		return PAIR( PAIR( var, low ), high );
 	}
@@ -104,10 +102,10 @@ public: // transformation
 	void Remove_Redundant_Nodes();
 	void Remove_Redundant_Nodes( vector<NodeID> & kept_nodes );
 public: // querying
-	unsigned Num_Nodes() const { return _nodes.Size(); }
-	unsigned Num_Nodes( const Diagram & bdd );
-	unsigned Num_Edges( const Diagram & bdd );
-	const BDD_Node & Node( unsigned i ) { return _nodes[i]; }
+	dag_size_t Num_Nodes() const { return _nodes.Size(); }
+	dag_size_t Num_Nodes( const Diagram & bdd );
+	dag_size_t Num_Edges( const Diagram & bdd );
+	const BDD_Node & Node( NodeID i ) { return _nodes[i]; }
 	bool Entail_Clause( const Diagram & bdd, Clause & clause );
 	bool Entail_CNF( const Diagram & bdd, CNF_Formula & cnf );
 	bool Decide_SAT( const Diagram & bdd, const vector<Literal> & assignment );
@@ -145,19 +143,19 @@ public: // transformation
 	Diagram Negate( const Diagram & bdd );
 
 protected:
-	bool Decide_Node( unsigned n );
+	bool Decide_Node( NodeID n );
 protected: // simple inline functions
 	bool Contain( const Diagram & bdd ) { return bdd.Root() < _nodes.Size() && Diagram_Manager::Contain( bdd ); }
 	NodeID Push_Node( BDD_Node & node )
 	{
 		if ( node.low == node.high ) return node.low;
-		else return NodeID( _nodes.Hit( node ) );
+		else return Hash_Hit_Node( _nodes, node );
 	}
 	NodeID Push_Node( Decision_Node & bnode )
 	{
 		if ( bnode.low == bnode.high ) return bnode.low;
 		BDD_Node node( bnode );
-		return NodeID( _nodes.Hit( node ) );
+		return Hash_Hit_Node( _nodes, node );
 	}
 public:
 	static void Debug()

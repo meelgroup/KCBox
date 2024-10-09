@@ -694,7 +694,7 @@ bool CCDD_Compiler::Estimate_Hardness( Component & comp )
 		unsigned density = 0;
 		for ( unsigned i = 0; i < comp.ClauseIDs_Size(); i++ ) {
 			Clause & clause = _long_clauses[comp.ClauseIDs( i )];
-			density += clause.Size() * Log_Ceil( clause.Size() );
+			density += clause.Size() * Ceil_Log2( clause.Size() );
 		}
 		cerr << comp.Vars_Size() << ": " << density << endl;  // ToRemove
 		return density / comp.Vars_Size() >= 8;
@@ -763,7 +763,7 @@ void CCDD_Compiler::Leave_Final_Kernelization( CCDD_Manager & manager )
 	_num_comp_stack += 1;
 	const CDD_Node & sub_root = manager.Node( _rsl_stack[_num_rsl_stack - 1] );
 	NodeID core;
-	unsigned num_imp;
+	unsigned num_imp{}; // give 0 to remove uninitialized warning
 	if ( sub_root.sym == CDD_SYMBOL_DECOMPOSE ) {  /// NOTE: first imp, and then kernelization; need to recover the implied literals that have been used in Compile_With_Implicite_BCP
 		num_imp = manager.Search_First_Non_Literal_Position( _rsl_stack[_num_rsl_stack - 1] );
 		_cdd_rnode.sym = CDD_SYMBOL_DECOMPOSE;

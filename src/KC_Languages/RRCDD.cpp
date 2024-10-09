@@ -4,7 +4,7 @@
 namespace KCBox {
 
 
-R2D2_Manager::R2D2_Manager( Variable max_var, unsigned estimated_node_num ):
+R2D2_Manager::R2D2_Manager( Variable max_var, dag_size_t estimated_node_num ):
 RCDD_Manager( max_var, estimated_node_num )
 {
 	Allocate_and_Init_Auxiliary_Memory();
@@ -15,7 +15,7 @@ void R2D2_Manager::Allocate_and_Init_Auxiliary_Memory()
 	_lit_vector.reserve( NumVars( _max_var ) );
 }
 
-R2D2_Manager::R2D2_Manager( Chain & vorder, unsigned estimated_node_num ):
+R2D2_Manager::R2D2_Manager( Chain & vorder, dag_size_t estimated_node_num ):
 RCDD_Manager( vorder, estimated_node_num )
 {
 	Allocate_and_Init_Auxiliary_Memory();
@@ -87,7 +87,7 @@ NodeID R2D2_Manager::Extract_Share_No_Check( Decision_Node & bnode )  // use _li
 	unsigned num_shared = Intersection( _nodes[bnode.low].ch, _nodes[bnode.low].ch_size, \
 		_nodes[bnode.high].ch, _nodes[bnode.high].ch_size, _many_nodes );
 	assert( num_shared != 0 );
-	unsigned i, n;
+	NodeID n;
 	if ( num_shared == _nodes[bnode.low].ch_size ) {
 		bnode.low = NodeID::top;
 		bnode.high = Remove_Children( bnode.high, _many_nodes, num_shared );
@@ -104,10 +104,11 @@ NodeID R2D2_Manager::Extract_Share_No_Check( Decision_Node & bnode )  // use _li
 		n = Extract_Lit_Equivalences( bnode );
 	}
 	if ( n < _many_nodes[0] ) {
-		for ( i = num_shared - 1; i != UNSIGNED_UNDEF; i-- ) _many_nodes[i+1] = _many_nodes[i];
+		for ( unsigned i = num_shared - 1; i != UNSIGNED_UNDEF; i-- ) _many_nodes[i+1] = _many_nodes[i];
 		_many_nodes[0] = n;
 	}
 	else {
+		unsigned i;
 		for ( i = num_shared - 1; _many_nodes[i] > n; i-- ) _many_nodes[i+1] = _many_nodes[i];
 		_many_nodes[i+1] = n;
 	}
@@ -125,7 +126,7 @@ NodeID R2D2_Manager::Extract_Lit_Equivalences( Decision_Node & bnode )  // use _
 			Literal lit = Node2Literal( bnode.low );
 			NodeID lit_neg_node = NodeID::literal( ~lit );
 			if ( Search_Exi_Nonempty( _nodes[bnode.high].ch, _nodes[bnode.high].ch_size, lit_neg_node ) ) {
-				unsigned high = Remove_Child_No_Check( bnode.high, lit_neg_node );
+				NodeID high = Remove_Child_No_Check( bnode.high, lit_neg_node );
 				_aux_kerne_rnode.ch[0] = Push_Decision_Node( bnode.var, NodeID::top, high );  // check the case where both children are true
 				_aux_kerne_rnode.ch[1] = Push_Decision_Node( bnode.var, bnode.low, lit_neg_node );
 				return Push_Kernelization_Node( _aux_kerne_rnode.ch, 2 );
@@ -138,7 +139,7 @@ NodeID R2D2_Manager::Extract_Lit_Equivalences( Decision_Node & bnode )  // use _
 			Literal lit = Node2Literal( bnode.high );
 			NodeID lit_neg_node = NodeID::literal( ~lit );
 			if ( Search_Exi_Nonempty( _nodes[bnode.low].ch, _nodes[bnode.low].ch_size, lit_neg_node ) ) {
-				unsigned low = Remove_Child_No_Check( bnode.low, lit_neg_node );
+				NodeID low = Remove_Child_No_Check( bnode.low, lit_neg_node );
 				_aux_kerne_rnode.ch[0] = Push_Decision_Node( bnode.var, low, NodeID::top );  // check the case where both children are true
 				_aux_kerne_rnode.ch[1] = Push_Decision_Node( bnode.var, lit_neg_node, bnode.high );
 				return Push_Kernelization_Node( _aux_kerne_rnode.ch, 2 );
@@ -313,7 +314,7 @@ NodeID R2D2_Manager::Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_eq
 					Literal lit = Node2Literal( grandch.ch[1] );
 					if ( !lit_equivalency.Lit_Renamable( lit ) ) _aux_kerne_rnode.Add_Child( child.ch[j] );
 				}
-				unsigned c = Push_Kernelization_Node( _aux_kerne_rnode.ch, _aux_kerne_rnode.ch_size );
+				NodeID c = Push_Kernelization_Node( _aux_kerne_rnode.ch, _aux_kerne_rnode.ch_size );
 				if ( c != NodeID::top ) _aux_decom_rnode.Add_Child( c );
 			}
 			else if ( Is_Equivalence_Node( _nodes[node.ch[i]] ) ) {
@@ -502,8 +503,8 @@ bool R2D2_Manager::Var_Apppeared( NodeID n, Variable var )
 			}
 		}
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 	return appeared;
@@ -551,8 +552,8 @@ void R2D2_Manager::Verify_R2D2( NodeID root )
 	}
 	_nodes[NodeID::bot].infor.visited = false;
 	_nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -568,7 +569,7 @@ void R2D2_Manager::Verify_Node( NodeID n, Hash_Cluster<Variable> & var_cluster, 
 	else if ( node.sym == CDD_SYMBOL_DECOMPOSE ) Verify_Decomposition_Node( node, var_cluster, sets );
 	else if ( node.sym == CDD_SYMBOL_KERNELIZE ) Verify_Kernelization_Node( node, var_cluster, sets );
 	else {
-		cerr << "ERROR[CDD]: Node " << n << " has a wrong symbol!" << endl;
+		cerr << "ERROR[R2D2]: Node " << n << " has a wrong symbol!" << endl;
 		assert( node.sym == false );
 	}
 }
@@ -577,7 +578,7 @@ void R2D2_Manager::Verify_Decision_Node( CDD_Node & node, Hash_Cluster<Variable>
 {
 	assert( node.ch_size == 2 );
 	if ( Is_Const( node.ch[0] ) && Is_Const( node.ch[1] ) ) {
-		cerr << "ERROR[CDD]: Node " << _nodes.Location( node ) << " has two constant children!" << endl;
+		cerr << "ERROR[R2D2]: Node " << _nodes.Location( node ) << " has two constant children!" << endl;
 		assert( !Is_Const( node.ch[0] ) || !Is_Const( node.ch[1] ) );
 	}
 	assert( node.ch[0] != CDD_SYMBOL_FALSE && node.ch[0] != CDD_SYMBOL_FALSE );
@@ -593,7 +594,7 @@ void R2D2_Manager::Verify_Decision_Node( CDD_Node & node, Hash_Cluster<Variable>
 	Decision_Node bnode( node.sym, node.ch[0], node.ch[1] );
 	if ( BOTH_X( _nodes[bnode.low].sym, _nodes[bnode.high].sym, CDD_SYMBOL_DECOMPOSE ) ) {
 		if ( !Intersection_Empty( _nodes[bnode.low].ch, _nodes[bnode.low].ch_size, _nodes[bnode.high].ch, _nodes[bnode.high].ch_size ) ) {
-			cerr << "ERROR[CDD]: Node " << bnode.low << " and Node " << bnode.high << " share children!" << endl;
+			cerr << "ERROR[R2D2]: Node " << bnode.low << " and Node " << bnode.high << " share children!" << endl;
 			assert( Intersection_Empty( _nodes[bnode.low].ch, _nodes[bnode.low].ch_size, _nodes[bnode.high].ch, _nodes[bnode.high].ch_size ) );
 		}
 	}

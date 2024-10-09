@@ -6,7 +6,7 @@ namespace KCBox {
 
 const NodeID NodeID::bot( 0 );
 const NodeID NodeID::top( 1 );
-const NodeID NodeID::undef( UNSIGNED_UNDEF );
+const NodeID NodeID::undef( numeric_limits<dag_size_t>::max() );
 
 Diagram_Manager::Diagram_Manager( Variable max_var )
 {

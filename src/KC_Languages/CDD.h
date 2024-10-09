@@ -85,9 +85,9 @@ struct CDD_Node
 	NodeID & Ch( unsigned i ) { return ch[i]; }
 	unsigned Ch_Size() { return ch_size; }
 	Node_Infor & Infor() { return infor; }
-	unsigned Key() const
+	uint64_t Key() const
 	{
-		unsigned k = PAIR( sym, ch_size );
+		uint64_t k = PAIR( sym, ch_size );
 		k = PAIR( PAIR( k, ch[0] ), ch[1] );
 		for ( unsigned i = 2; i < ch_size; i++ ) k = PAIR( k, ch[i] );
 		return k;
@@ -172,7 +172,7 @@ protected:  // auxiliary memory
 	QSorter _qsorter;
 	size_t _hash_memory;
 public:
-	CDD_Manager( Variable max_var, unsigned estimated_node_num = LARGE_HASH_TABLE );
+	CDD_Manager( Variable max_var, dag_size_t estimated_node_num = LARGE_HASH_TABLE );
 	~CDD_Manager();
 	void Rename( unsigned map[] );
 	void Abandon_Rename( unsigned map[] );
@@ -183,7 +183,7 @@ public:
 	void Display_Nodes( ostream & out );
 	void Display_Stat( ostream & out );
 	void Display_Nodes_Stat( ostream & out );
-	void Display_New_Nodes( ostream & out, unsigned & old_size );
+	void Display_New_Nodes( ostream & out, dag_size_t & old_size );
 	void Display_Nodes( ostream & out, NodeID * nodes, unsigned size );
 	void Display_CDD( ostream & out, const CDDiagram & cdd );
 	void Display_CDD_dot( ostream & out, const CDDiagram & cdd );
@@ -193,15 +193,16 @@ protected:
 	void Compute_Vars( NodeID n );
 	void Free_Auxiliary_Memory();
 public: // querying
-	unsigned Num_Nodes() const { return _nodes.Size(); }
+	dag_size_t Num_Nodes() const { return _nodes.Size(); }
 public: // querying
 	const CDD_Node & Node( NodeID n ) { return _nodes[n]; }
-	unsigned Num_Nodes( const CDDiagram & cdd ) { assert( Contain( cdd ) );  return Num_Nodes( cdd.Root() ); }
-	unsigned Num_Edges( const CDDiagram & cdd ) { assert( Contain( cdd ) );  return Num_Edges( cdd.Root() ); }
+	dag_size_t Num_Nodes( const CDDiagram & cdd ) { assert( Contain( cdd ) );  return Num_Nodes( cdd.Root() ); }
+	dag_size_t Num_Edges( const CDDiagram & cdd ) { assert( Contain( cdd ) );  return Num_Edges( cdd.Root() ); }
 	bool Decide_Valid_With_Condition( const CDDiagram & cdd, const vector<Literal> & assignment );
 protected:
-	unsigned Num_Nodes( NodeID root );
-	unsigned Num_Edges( NodeID root );
+	dag_size_t Num_Nodes( NodeID root );
+	bool Upper_Bound_Of_Num_Nodes( NodeID root, dag_size_t bound );
+	dag_size_t Num_Edges( NodeID root );
 	bool Decide_Valid_Under_Assignment( NodeID root );
 public: // transformation
 	void Clear_Nodes();
@@ -213,40 +214,40 @@ protected:
 	bool Contain( const CDDiagram & cdd ) { return cdd.Root() < _nodes.Size() && Diagram_Manager::Contain( cdd ); }
 	CDDiagram Generate_CDD( NodeID n ) { return CDDiagram( n, &_allocated_nodes ); }
 protected:  // basic functions
-	unsigned & Node_Mark( NodeID n ) { return _nodes[n].infor.mark; }
+	dag_size_t & Node_Mark( NodeID n ) { return _nodes[n].infor.mark; }
 	NodeID Push_Node( CDD_Node & node )  // node.ch will be push into _nodes
 	{
-		unsigned old_size = _nodes.Size();
-		unsigned pos = _nodes.Hit( node, _hash_memory );
+		dag_size_t old_size = _nodes.Size();
+		dag_size_t pos = Hash_Hit_Node( _nodes, node, _hash_memory );
 		if ( pos < old_size ) node.Free();
 		return pos;
 	}
 	NodeID Push_New_Node( CDD_Node & node )  /// node does not appear in _nodes
 	{
-		unsigned old_size = _nodes.Size();
-		unsigned pos = _nodes.Hit( node, _hash_memory );
+		dag_size_t old_size = _nodes.Size();
+		dag_size_t pos = Hash_Hit_Node( _nodes, node, _hash_memory );
 		ASSERT( pos == old_size );  // ToRemove
 		return pos;
 	}
 	NodeID Push_Node( Rough_CDD_Node & rnode )
 	{
-		unsigned i, old_size = _nodes.Size();
+		dag_size_t old_size = _nodes.Size();
 		CDD_Node node( rnode.sym, rnode.ch, rnode.ch_size );
-		unsigned pos = _nodes.Hit( node, _hash_memory );
+		dag_size_t pos = Hash_Hit_Node( _nodes, node, _hash_memory );
 		if ( pos == old_size ) {
 			_nodes[pos].ch = new NodeID [rnode.ch_size];  // NOTE: replace _nodes[pos].ch by a dynamic array
 			_nodes[pos].ch[0] = rnode.ch[0];
 			_nodes[pos].ch[1] = rnode.ch[1];
-			for ( i = 2; i < rnode.ch_size; i++ ) _nodes[pos].ch[i] = rnode.ch[i];
+			for ( unsigned i = 2; i < rnode.ch_size; i++ ) _nodes[pos].ch[i] = rnode.ch[i];
 		}
 		return pos;
 	}
 	NodeID Push_Node( Decision_Node & bnode )
 	{
-		unsigned old_size = _nodes.Size();
+		dag_size_t old_size = _nodes.Size();
 		NodeID ch[2] = { bnode.low, bnode.high };
 		CDD_Node node( bnode.var, ch, 2 );
-		unsigned pos = _nodes.Hit( node, _hash_memory );
+		dag_size_t pos = Hash_Hit_Node( _nodes, node, _hash_memory );
 		if ( pos == old_size ) {
 			_nodes[pos].ch = new NodeID [2];  // NOTE: replace _nodes[pos].ch by a dynamic array
 			_nodes[pos].ch[0] = bnode.low;
@@ -254,13 +255,13 @@ protected:  // basic functions
 		}
 		return pos;
 	}
-	NodeID Push_Decision_Node( Variable var, unsigned low, unsigned high )
+	NodeID Push_Decision_Node( Variable var, NodeID low, NodeID high )
 	{
 		if ( low == high ) return low;
-		unsigned old_size = _nodes.Size();
+		dag_size_t old_size = _nodes.Size();
 		NodeID ch[2] = { low, high };
 		CDD_Node node( var, ch, 2 );
-		unsigned pos = _nodes.Hit( node, _hash_memory );
+		dag_size_t pos = Hash_Hit_Node( _nodes, node, _hash_memory );
 		if ( pos == old_size ) {
 			_nodes[pos].ch = new NodeID [2];  // NOTE: replace _nodes[pos].ch by a dynamic array
 			_nodes[pos].ch[0] = low;
@@ -272,9 +273,9 @@ protected:  // basic functions
 	{
 		if ( size == 0 ) return NodeID::top;
 		if ( size == 1 ) return ch[0];
-		unsigned old_size = _nodes.Size();
+		dag_size_t old_size = _nodes.Size();
 		CDD_Node node( type, ch, size );
-		unsigned pos = _nodes.Hit( node, _hash_memory );
+		dag_size_t pos = Hash_Hit_Node( _nodes, node, _hash_memory );
 		if ( pos == old_size ) {
 			_nodes[pos].ch = new NodeID [size];  // NOTE: replace _nodes[pos].ch by a dynamic array
 			_nodes[pos].ch[0] = ch[0];
@@ -283,7 +284,7 @@ protected:  // basic functions
 		}
 		return pos;
 	}
-	unsigned Search_First_Non_Literal_Position( unsigned n )
+	unsigned Search_First_Non_Literal_Position( NodeID n )
 	{
 		assert( _nodes[n].sym == CDD_SYMBOL_DECOMPOSE );
 		if ( Is_Fixed( _nodes[n].ch[_nodes[n].ch_size - 1] ) ) return _nodes[n].ch_size;

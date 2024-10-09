@@ -4,7 +4,7 @@
 namespace KCBox {
 
 
-CDD_Manager::CDD_Manager( Variable max_var, unsigned estimated_node_num ):
+CDD_Manager::CDD_Manager( Variable max_var, dag_size_t estimated_node_num ):
 Diagram_Manager( max_var ),
 _nodes( 2 * estimated_node_num )
 {
@@ -51,8 +51,8 @@ void CDD_Manager::Add_Fixed_Nodes()
 
 CDD_Manager::~CDD_Manager()
 {
-	for ( unsigned u = 0; u < _nodes.Size(); u++ ) {
-		delete [] _nodes[u].ch;
+	for ( dag_size_t i = 0; i < _nodes.Size(); i++ ) {
+		delete [] _nodes[i].ch;
 	}
 	Free_Auxiliary_Memory();
 }
@@ -67,7 +67,7 @@ void CDD_Manager::Rename( unsigned map[] )
 	unsigned i, j;
 	for ( i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
 		if ( _nodes[i].sym == CDD_SYMBOL_DECOMPOSE ) {
-			unsigned tmp = _nodes[i].ch[_nodes[i].ch_size - 1];
+			NodeID tmp = _nodes[i].ch[_nodes[i].ch_size - 1];
 			_nodes[i].ch[_nodes[i].ch_size - 1] = NodeID::undef;
 			for ( j = 0; _nodes[i].ch[j] < _num_fixed_nodes; j++ ) {
 				_nodes[i].ch[j] = ( map[_nodes[i].ch[j] >> 1] << 1 ) + ( _nodes[i].ch[j] & 1 );
@@ -140,10 +140,45 @@ void CDD_Manager::Enlarge_Max_Var( Variable max_var )
 	Allocate_and_Init_Auxiliary_Memory();
 }
 
-unsigned CDD_Manager::Num_Nodes( NodeID root )
+bool CDD_Manager::Upper_Bound_Of_Num_Nodes( NodeID root, dag_size_t bound )
+{
+	if ( bound == 0 ) return false;
+	if ( Is_Const( root ) ) return true;
+	_node_stack[0] = root;
+	unsigned num_node_stack = 1;
+	while ( num_node_stack > 0 && _visited_nodes.size() < bound ) {
+		NodeID top = _node_stack[--num_node_stack];
+		CDD_Node & topn = _nodes[top];
+		if ( Is_Const( top ) ) continue;
+		if ( !_nodes[topn.ch[0]].infor.visited ) {
+			_node_stack[num_node_stack++] = topn.ch[0];
+			_nodes[topn.ch[0]].infor.visited = true;
+			_visited_nodes.push_back( topn.ch[0] );
+		}
+		if ( !_nodes[topn.ch[1]].infor.visited ) {
+			_node_stack[num_node_stack++] = topn.ch[1];
+			_nodes[topn.ch[1]].infor.visited = true;
+			_visited_nodes.push_back( topn.ch[1] );
+		}
+		for ( unsigned i = 2; i < topn.ch_size; i++ ) {
+			if ( !_nodes[topn.ch[i]].infor.visited ) {
+				_node_stack[num_node_stack++] = topn.ch[i];
+				_nodes[topn.ch[i]].infor.visited = true;
+				_visited_nodes.push_back( topn.ch[i] );
+			}
+		}
+	}
+	dag_size_t node_size = _visited_nodes.size() + 1;  // 1 denotes the root
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.visited = false;
+	}
+	_visited_nodes.clear();
+	return node_size <= bound;
+}
+
+dag_size_t CDD_Manager::Num_Nodes( NodeID root )
 {
 	if ( Is_Const( root ) ) return 1;
-	unsigned i;
 	_node_stack[0] = root;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack > 0 ) {
@@ -160,7 +195,7 @@ unsigned CDD_Manager::Num_Nodes( NodeID root )
 			_nodes[topn.ch[1]].infor.visited = true;
 			_visited_nodes.push_back( topn.ch[1] );
 		}
-		for ( i = 2; i < topn.ch_size; i++ ) {
+		for ( unsigned i = 2; i < topn.ch_size; i++ ) {
 			if ( !_nodes[topn.ch[i]].infor.visited ) {
 				_node_stack[num_node_stack++] = topn.ch[i];
 				_nodes[topn.ch[i]].infor.visited = true;
@@ -168,21 +203,21 @@ unsigned CDD_Manager::Num_Nodes( NodeID root )
 			}
 		}
 	}
-	unsigned node_size = _visited_nodes.size() + 1;  // 1 denotes the root
-	for ( i = 0; i < _visited_nodes.size(); i++ ) {
+	dag_size_t node_size = _visited_nodes.size() + 1;  // 1 denotes the root
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.visited = false;
 	}
 	_visited_nodes.clear();
 	return node_size;
 }
 
-unsigned CDD_Manager::Num_Edges( NodeID root )
+dag_size_t CDD_Manager::Num_Edges( NodeID root )
 {
 	if ( root < 2 ) return 0;
 	else if ( root < _num_fixed_nodes ) return 2;
 	_node_stack[0] = root;
 	unsigned num_node_stack = 1;
-	unsigned result = 0;
+	dag_size_t result = 0;
 	while ( num_node_stack > 0 ) {
 		NodeID top = _node_stack[--num_node_stack];
 		CDD_Node & topn = _nodes[top];
@@ -206,7 +241,7 @@ unsigned CDD_Manager::Num_Edges( NodeID root )
 			}
 		}
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.visited = false;
 	}
 	_visited_nodes.clear();
@@ -259,7 +294,7 @@ bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 		CDD_Node & topn = _nodes[_path[path_len - 1]];
 		if ( topn.sym <= _max_var ) {
 			if ( Var_Decided( topn.Var() ) ) {
-				if ( _nodes[topn.ch[_assignment[topn.sym]]].infor.mark == UNSIGNED_UNDEF ) {
+				if ( !_nodes[topn.ch[_assignment[topn.sym]]].infor.Marked() ) {
 					_path[path_len] = topn.ch[_assignment[topn.sym]];
 					_path_mark[path_len++] = 0;
 				}
@@ -295,7 +330,7 @@ bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 							topn.infor.mark = 0;
 							_visited_nodes.push_back( _path[--path_len] );
 						}
-						else if ( _nodes[topn.ch[1]].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+						else if ( _nodes[topn.ch[1]].infor.Marked() ) { // ch[1] may be a descendant of ch[0]
 							topn.infor.mark = _nodes[topn.ch[1]].infor.mark;
 							_visited_nodes.push_back( _path[--path_len] );
 						}
@@ -314,7 +349,8 @@ bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 		}
 		else {
 			if ( _path_mark[path_len - 1] == 0 ) {
-				unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+				unsigned i;
+				dag_size_t tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
 				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
 				for ( i = 0; _nodes[topn.ch[i]].infor.mark != 0; i++ );
 				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
@@ -344,7 +380,8 @@ bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 					_visited_nodes.push_back( _path[--path_len] );
 				}
 				else {
-					unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+					unsigned i;
+					dag_size_t tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
 					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
 					for ( i = _path_mark[path_len - 1]; _nodes[topn.ch[i]].infor.mark == 1; i++ );
 					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
@@ -367,11 +404,11 @@ bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 	}
 	bool result = _nodes[root].infor.mark == 1;
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
-		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i].infor.Unmark();
+		_nodes[i + i + 1].infor.Unmark();
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	return result;
@@ -379,8 +416,8 @@ bool CDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 
 void CDD_Manager::Clear_Nodes()
 {
-	for ( unsigned u = _num_fixed_nodes; u < _nodes.Size(); u++ ) {
-		delete [] _nodes[u].ch;
+	for ( dag_size_t i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
+		delete [] _nodes[i].ch;
 	}
 	_nodes.Resize( _num_fixed_nodes );
 }
@@ -391,7 +428,7 @@ void CDD_Manager::Remove_Redundant_Nodes()
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		_nodes[itr->data].infor.visited = true;
 	}
-	for ( unsigned i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
+	for ( dag_size_t i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[_nodes[i].ch[0]].infor.visited = true;
 			_nodes[_nodes[i].ch[1]].infor.visited = true;
@@ -403,8 +440,8 @@ void CDD_Manager::Remove_Redundant_Nodes()
 	for ( unsigned i = 0; i < _num_fixed_nodes; i++ ) {
 		_nodes[i].infor.mark = i;
 	}
-	unsigned num_remove = 0;
-	for ( unsigned i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
+	dag_size_t num_remove = 0;
+	for ( dag_size_t i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[i].infor.mark = i - num_remove;
 			_nodes[i - num_remove].sym = _nodes[i].sym;
@@ -424,9 +461,9 @@ void CDD_Manager::Remove_Redundant_Nodes()
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		itr->data = _nodes[itr->data].infor.mark;
 	}
-	unsigned new_size = _nodes.Size() - num_remove;
+	dag_size_t new_size = _nodes.Size() - num_remove;
 	_nodes.Resize( new_size );
-	for ( unsigned i = 0; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = 0; i < _nodes.Size(); i++ ) {
 		_nodes[i].infor.Init();
 	}
 	Shrink_Nodes();
@@ -439,10 +476,10 @@ void CDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		_nodes[itr->data].infor.visited = true;
 	}
-	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
+	for ( dag_size_t i = 0; i < kept_nodes.size(); i++ ) {
 		_nodes[kept_nodes[i]].infor.visited = true;
 	}
-	for ( unsigned i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
+	for ( dag_size_t i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[_nodes[i].ch[0]].infor.visited = true;
 			_nodes[_nodes[i].ch[1]].infor.visited = true;
@@ -451,12 +488,12 @@ void CDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 			}
 		}
 	}
-	unsigned i, num_remove = 0;
-	for ( i = 0; i < _num_fixed_nodes; i++ ) {
+	dag_size_t num_remove = 0;
+	for ( unsigned i = 0; i < _num_fixed_nodes; i++ ) {
 		_nodes[i].infor.mark = i;
 	}
 //	unsigned debug_no = 30715; // 25861;  // 30711;  // ToRemove
-	for ( ; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
 /*		if ( i == debug_no ) {
 			cerr << debug_no << ": ";
 			_nodes[debug_no].Display( cerr );
@@ -480,13 +517,13 @@ void CDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		itr->data = _nodes[itr->data].infor.mark;
 	}
-	for ( i = 0; i < kept_nodes.size(); i++ ) {
-		assert( _nodes[kept_nodes[i]].infor.mark != UNSIGNED_UNDEF );
+	for ( dag_size_t i = 0; i < kept_nodes.size(); i++ ) {
+		assert( _nodes[kept_nodes[i]].infor.Marked() );
 		kept_nodes[i] = _nodes[kept_nodes[i]].infor.mark;
 	}
-	unsigned new_size = _nodes.Size() - num_remove;
+	dag_size_t new_size = _nodes.Size() - num_remove;
 	_nodes.Resize( new_size );
-	for ( i = 0; i < _nodes.Size(); i++ ) _nodes[i].infor.Init();
+	for ( dag_size_t i = 0; i < _nodes.Size(); i++ ) _nodes[i].infor.Init();
 	_hash_memory = _nodes.Memory();
 }
 
@@ -536,7 +573,7 @@ void CDD_Manager::Display_Nodes( ostream & out )
 	out << "Number of nodes: " << _nodes.Size() << endl;
 	out << "0:\t" << "F 0" << endl;
 	out << "1:\t" << "T 0" << endl;
-	for ( unsigned i = 2; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = 2; i < _nodes.Size(); i++ ) {
 		out << i << ":\t";
 		_nodes[i].Display( out, false );
 	}
@@ -551,13 +588,13 @@ void CDD_Manager::Display_Stat( ostream & out )
 void CDD_Manager::Display_Nodes_Stat( ostream & out )
 {
 	out << "Number of nodes: " << _nodes.Size() << endl;
-	for ( unsigned i = 0; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = 0; i < _nodes.Size(); i++ ) {
 		out << i << ":\t";
 		_nodes[i].Display( out, true );
 	}
 }
 
-void CDD_Manager::Display_New_Nodes( ostream & out, unsigned & old_size )
+void CDD_Manager::Display_New_Nodes( ostream & out, dag_size_t & old_size )
 {
 	for ( ; old_size < _nodes.Size(); old_size++ ) {
 		out << old_size << ":\t";
@@ -601,7 +638,7 @@ void CDD_Manager::Display_CDD( ostream & out, const CDDiagram & cdd )
 			childn.infor.visited = true;
 		}
 	}
-	for ( unsigned i = 0; i < cdd.Root(); i++ ) {
+	for ( dag_size_t i = 0; i < cdd.Root(); i++ ) {
 		if ( _nodes[i].infor.visited ) {
 			out << i << ":\t";
 			_nodes[i].Display( out );
@@ -650,7 +687,7 @@ void CDD_Manager::Display_CDD_dot( ostream & out, const CDDiagram & cdd )
 	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
 	_nodes[NodeID::top].infor.visited = false;
 	out << "  node_1 [label=T,shape=square]" << endl;
-	for ( unsigned i = 2; i <= cdd.Root(); i++ ) {
+	for ( dag_size_t i = 2; i <= cdd.Root(); i++ ) {
 		if ( !_nodes[i].infor.visited ) continue;
 		_nodes[i].infor.visited = false;
 		if ( _nodes[i].sym == CDD_SYMBOL_CONJOIN ) {

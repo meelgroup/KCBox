@@ -297,6 +297,18 @@ include_directories(${PreLite_SOURCE_DIR})
 # Compile flags:
 
 add_definitions(-D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS)
+option(NODEID_64BITS "Use 64 bits of NodeID" OFF)
+if (NODEID_64BITS) 
+    add_definitions(-DNODEID_64BITS)
+endif()
+option(CACHEENTRYID_64BITS "Use 64 bits of CacheEntryID" OFF)
+if (CACHEENTRYID_64BITS) 
+    add_definitions(-DCACHEENTRYID_64BITS)
+endif()
+option(ACTIVATE_CLHASH "Activate clhash" OFF)
+if (ACTIVATE_CLHASH) 
+    add_definitions(-DACTIVATE_CLHASH)
+endif()
 
 #--------------------------------------------------------------------------------------------------
 # Build Targets:
@@ -320,8 +332,8 @@ include_directories(${PROJECT_SOURCE_DIR}/cadical/src/)
 include_directories(${Boost_INCLUDE_DIRS})
 
 add_executable(${TOOLNAME}
+	src/Compilers/BDDC_Compiler.cpp
 	src/Compilers/CDD_Compiler.cpp
-	src/Compilers/Integrated_Compiler.cpp
 	src/Compilers/CCDD_Compiler.cpp
 	src/Compilers/RCDD_Compiler.cpp
 	src/Compilers/R2D2_Compiler.cpp
@@ -334,6 +346,7 @@ add_executable(${TOOLNAME}
 	src/KC_Languages/DAG.cpp
 	src/KC_Languages/OBDD.cpp
 	src/KC_Languages/OBDD[AND].cpp
+	src/KC_Languages/smooth-OBDD[AND].cpp
 	src/KC_Languages/CCDD.cpp
 	src/KC_Languages/CDD.cpp
 	src/KC_Languages/DecDNNF.cpp

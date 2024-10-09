@@ -184,7 +184,7 @@ void OBDD_Manager::Remove_Redundant_Nodes()
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		_nodes[itr->data].infor.visited = true;
 	}
-	for ( unsigned i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
+	for ( dag_size_t i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[_nodes[i].low].infor.visited = true;
 			_nodes[_nodes[i].high].infor.visited = true;
@@ -193,8 +193,8 @@ void OBDD_Manager::Remove_Redundant_Nodes()
 	for ( unsigned i = 0; i < _num_fixed_nodes; i++ ) {
 		_nodes[i].infor.mark = i;
 	}
-	unsigned num_remove = 0;
-	for ( unsigned i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
+	dag_size_t num_remove = 0;
+	for ( dag_size_t i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[i].infor.mark = i - num_remove;
 			_nodes[i - num_remove].var = _nodes[i].var;
@@ -206,9 +206,9 @@ void OBDD_Manager::Remove_Redundant_Nodes()
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		itr->data = _nodes[itr->data].infor.mark;
 	}
-	unsigned new_size = _nodes.Size() - num_remove;
+	dag_size_t new_size = _nodes.Size() - num_remove;
 	_nodes.Resize( new_size );
-	for ( unsigned i = 0; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = 0; i < _nodes.Size(); i++ ) {
 		_nodes[i].infor.Init();
 	}
 	Shrink_Nodes();
@@ -220,21 +220,21 @@ void OBDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		_nodes[itr->data].infor.visited = true;
 	}
-	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
+	for ( dag_size_t i = 0; i < kept_nodes.size(); i++ ) {
 		_nodes[kept_nodes[i]].infor.visited = true;
 	}
-	for ( unsigned i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
+	for ( dag_size_t i = _nodes.Size() - 1; i >= _num_fixed_nodes; i-- ) {
 		if ( _nodes[i].infor.visited ) {
 			_nodes[_nodes[i].low].infor.visited = true;
 			_nodes[_nodes[i].high].infor.visited = true;
 		}
 	}
-	unsigned i, num_remove = 0;
-	for ( i = 0; i < _num_fixed_nodes; i++ ) {
+	dag_size_t num_remove = 0;
+	for ( unsigned i = 0; i < _num_fixed_nodes; i++ ) {
 		_nodes[i].infor.mark = i;
 	}
 //	unsigned debug_no = 30715; // 25861;  // 30711;  // ToRemove
-	for ( ; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = _num_fixed_nodes; i < _nodes.Size(); i++ ) {
 /*		if ( i == debug_no ) {
 			cerr << debug_no << ": ";
 			_nodes[debug_no].Display( cerr );
@@ -250,17 +250,17 @@ void OBDD_Manager::Remove_Redundant_Nodes( vector<NodeID> & kept_nodes )
 	for ( itr = _allocated_nodes.Front(); itr != _allocated_nodes.Head(); itr = _allocated_nodes.Next( itr ) ) {
 		itr->data = _nodes[itr->data].infor.mark;
 	}
-	for ( unsigned i = 0; i < kept_nodes.size(); i++ ) {
-		assert( _nodes[kept_nodes[i]].infor.mark != UNSIGNED_UNDEF );
+	for ( dag_size_t i = 0; i < kept_nodes.size(); i++ ) {
+		assert( _nodes[kept_nodes[i]].infor.Marked() );
 		kept_nodes[i] = _nodes[kept_nodes[i]].infor.mark;
 	}
-	unsigned new_size = _nodes.Size() - num_remove;
+	dag_size_t new_size = _nodes.Size() - num_remove;
 	_nodes.Resize( new_size );
-	for ( i = 0; i < _nodes.Size(); i++ ) _nodes[i].infor.Init();
+	for ( dag_size_t i = 0; i < _nodes.Size(); i++ ) _nodes[i].infor.Init();
 	_hash_memory = _nodes.Memory();
 }
 
-unsigned OBDD_Manager::Num_Nodes( const Diagram & bdd )
+dag_size_t OBDD_Manager::Num_Nodes( const Diagram & bdd )
 {
 	assert( Contain( bdd ) );
 	if ( bdd.Root() < 2 ) return 1;
@@ -282,22 +282,22 @@ unsigned OBDD_Manager::Num_Nodes( const Diagram & bdd )
 			_visited_nodes.push_back( topn.high );
 		}
 	}
-	unsigned node_size = _visited_nodes.size() + 1;  // 1 denotes the root
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	dag_size_t node_size = _visited_nodes.size() + 1;  // 1 denotes the root
+	for ( const NodeID & n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 	return node_size;
 }
 
-unsigned OBDD_Manager::Num_Edges( const Diagram & bdd )
+dag_size_t OBDD_Manager::Num_Edges( const Diagram & bdd )
 {
 	assert( Contain( bdd ) );
 	if ( bdd.Root() < 2 ) return 0;
 	else if ( bdd.Root() < _num_fixed_nodes ) return 2;
 	_node_stack[0] = bdd.Root();
 	unsigned num_node_stack = 1;
-	unsigned result = 0;
+	dag_size_t result = 0;
 	while ( num_node_stack > 0 ) {
 		NodeID top = _node_stack[--num_node_stack];
 		BDD_Node & topn = _nodes[top];
@@ -314,8 +314,8 @@ unsigned OBDD_Manager::Num_Edges( const Diagram & bdd )
 			_visited_nodes.push_back( topn.high );
 		}
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( const NodeID & n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 	return result;
@@ -362,7 +362,7 @@ bool OBDD_Manager::Decide_SAT_Under_Assignment( NodeID root )
 		BDD_Node & topn = _nodes[_path[path_len - 1]];
 		if ( Var_Decided( topn.var ) ) {
 			NodeID ch = topn.Ch( _assignment[topn.var] );
-			if ( _nodes[ch].infor.mark == UNSIGNED_UNDEF ) {
+			if ( !_nodes[ch].infor.Marked() ) {
 				_path[path_len] = ch;
 				_path_mark[path_len++] = 0;
 			}
@@ -398,7 +398,7 @@ bool OBDD_Manager::Decide_SAT_Under_Assignment( NodeID root )
 						topn.infor.mark = 1;
 						_visited_nodes.push_back( _path[--path_len] );
 					}
-					else if ( _nodes[topn.high].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+					else if ( _nodes[topn.high].infor.Marked() ) { // ch[1] may be a descendant of ch[0]
 						topn.infor.mark = _nodes[topn.high].infor.mark;
 						_visited_nodes.push_back( _path[--path_len] );
 					}
@@ -417,11 +417,11 @@ bool OBDD_Manager::Decide_SAT_Under_Assignment( NodeID root )
 	}
 	bool result = _nodes[root].infor.mark == 1;
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
-		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i].infor.Unmark();
+		_nodes[i + i + 1].infor.Unmark();
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	return result;
@@ -500,7 +500,7 @@ bool OBDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 	while ( path_len ) {
 		BDD_Node & topn = _nodes[_path[path_len - 1]];
 		if ( Var_Decided( topn.var ) ) {
-			if ( _nodes[topn.Ch(_assignment[topn.var])].infor.mark == UNSIGNED_UNDEF ) {
+			if ( !_nodes[topn.Ch(_assignment[topn.var])].infor.Marked() ) {
 				_path[path_len] = topn.Ch(_assignment[topn.var]);
 				_path_mark[path_len++] = 0;
 			}
@@ -536,7 +536,7 @@ bool OBDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 						topn.infor.mark = 0;
 						_visited_nodes.push_back( _path[--path_len] );
 					}
-					else if ( _nodes[topn.high].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+					else if ( _nodes[topn.high].infor.Marked() ) { // ch[1] may be a descendant of ch[0]
 						topn.infor.mark = _nodes[topn.high].infor.mark;
 						_visited_nodes.push_back( _path[--path_len] );
 					}
@@ -555,11 +555,11 @@ bool OBDD_Manager::Decide_Valid_Under_Assignment( NodeID root )
 	}
 	bool result = _nodes[root].infor.mark == 1;
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
-		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i].infor.Unmark();
+		_nodes[i + i + 1].infor.Unmark();
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	return result;
@@ -588,7 +588,7 @@ BigInt OBDD_Manager::Count_Models( const Diagram & bdd )
 		BDD_Node & topn = _nodes[top];
 //		cerr << top << ": ";
 //		topn.Display( cerr );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+		if ( topn.infor.Marked() ) {
 			num_node_stack--;
 		}
 		else if ( _node_mark_stack[num_node_stack - 1] ) {
@@ -624,10 +624,10 @@ BigInt OBDD_Manager::Count_Models( const Diagram & bdd )
 	}
 	result = results[bdd.Root()];
 	result.Mul_2exp( _nodes[bdd.Root()].infor.mark );
-	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.Unmark();
+	_nodes[NodeID::top].infor.Unmark();
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	delete [] results;
@@ -730,7 +730,7 @@ BigInt OBDD_Manager::Count_Models_Under_Assignment( NodeID root, unsigned assign
 		BDD_Node & topn = _nodes[top];
 //		cerr << top << ": ";
 //		topn.Display( cerr );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+		if ( topn.infor.Marked() ) {
 			num_node_stack--;
 		}
 		else if ( Var_Decided( Variable(topn.var) ) ) {
@@ -785,10 +785,10 @@ BigInt OBDD_Manager::Count_Models_Under_Assignment( NodeID root, unsigned assign
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.Unmark();
+	_nodes[NodeID::top].infor.Unmark();
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	delete [] results;
@@ -893,7 +893,7 @@ void OBDD_Manager::Mark_Models_Under_Assignment( NodeID root, const vector<doubl
 	}
 	_nodes[NodeID::bot].infor.visited = false;
 	_nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.visited = false;
 	}
 	_visited_nodes.clear();
@@ -1224,7 +1224,7 @@ void OBDD_Manager::Mark_Models_Under_Assignment( NodeID root, vector<BigFloat> &
 	}
 	_nodes[NodeID::bot].infor.visited = false;
 	_nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
 		_nodes[_visited_nodes[i]].infor.visited = false;
 	}
 	_visited_nodes.clear();
@@ -1323,7 +1323,7 @@ bool OBDD_Manager::Entail( const Diagram & left, const Diagram & right )
 	_path[0] = left.Root();
 	_node_stack[0] = right.Root();
 	_path_mark[0] = 0;
-	unsigned * c_stack = new unsigned [2 * _max_var + 2];  // c denotes cache
+	dag_size_t * c_stack = new dag_size_t [2 * _max_var + 2];  // c denotes cache
 	unsigned path_len = 1;
 	bool * r_stack = new bool [2 * _max_var + 2];  // r denotes result
 	unsigned num_r_stack = 0;
@@ -1451,7 +1451,7 @@ Diagram OBDD_Manager::Conjoin( const Diagram & left, const Diagram & right )
 	_node_mark_stack[0] = 1;
 	unsigned num_n_stack = 1;
 	_num_result_stack = 0;
-	unsigned * c_stack = new unsigned [2 * _max_var + 2];  // c denotes cache
+	dag_size_t * c_stack = new dag_size_t [2 * _max_var + 2];  // c denotes cache
 	unsigned * v_stack = new unsigned [2 * _max_var + 2];  // v denotes var
 	while ( num_n_stack ) {
 		op_table_node.left = _node_stack[num_n_stack - 1];
@@ -1466,7 +1466,7 @@ Diagram OBDD_Manager::Conjoin( const Diagram & left, const Diagram & right )
 		}
 		else if ( _node_mark_stack[num_n_stack - 1] ) {
 			_node_mark_stack[num_n_stack - 1] = false;  // NOTE: indicate that this case is computed
-			unsigned old_size = _op_table.Size();
+			dag_size_t old_size = _op_table.Size();
 			c_stack[num_n_stack - 1] = _op_table.Hit( op_table_node );
 			if ( c_stack[num_n_stack - 1] < old_size ) {
 				_result_stack[_num_result_stack++] = _op_table[c_stack[num_n_stack - 1]].result;
@@ -1527,7 +1527,7 @@ Diagram OBDD_Manager::Disjoin( const Diagram & left, const Diagram & right )
 	_node_mark_stack[0] = 1;
 	unsigned num_n_stack = 1;
 	_num_result_stack = 0;
-	unsigned * c_stack = new unsigned [2 * _max_var + 2];  // c denotes cache
+	dag_size_t * c_stack = new dag_size_t [2 * _max_var + 2];  // c denotes cache
 	unsigned * v_stack = new unsigned [2 * _max_var + 2];  // v denotes var
 	while ( num_n_stack ) {
 		op_table_node.left = _node_stack[num_n_stack - 1];
@@ -1542,7 +1542,7 @@ Diagram OBDD_Manager::Disjoin( const Diagram & left, const Diagram & right )
 		}
 		else if ( _node_mark_stack[num_n_stack - 1] ) {
 			_node_mark_stack[num_n_stack - 1]--;  // NOTE: indicate that this case is computed
-			unsigned old_size = _op_table.Size();
+			dag_size_t old_size = _op_table.Size();
 			c_stack[num_n_stack - 1] = _op_table.Hit( op_table_node );
 			if ( c_stack[num_n_stack - 1] < old_size ) {
 				_result_stack[_num_result_stack++] = _op_table[c_stack[num_n_stack - 1]].result;
@@ -1598,7 +1598,7 @@ Diagram OBDD_Manager::Negate( const Diagram & bdd )
 {
 	assert( Contain( bdd ) );
 	if ( Is_Fixed( bdd.Root() ) ) {
-		unsigned neg = bdd.Root();
+		dag_size_t neg = bdd.Root();
 		neg = neg ^ 0x01;
 		return Generate_Diagram( NodeID( neg ) );
 	}
@@ -1612,7 +1612,7 @@ Diagram OBDD_Manager::Negate( const Diagram & bdd )
 		BDD_Node & topn = _nodes[top];
 //		cerr << top << ": ";
 //		topn.Display( cerr );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) num_node_stack--;
+		if ( topn.infor.Marked() ) num_node_stack--;
 		else {
 			if ( _node_mark_stack[num_node_stack - 1] ) {
 				_node_mark_stack[num_node_stack - 1] = false;
@@ -1623,8 +1623,8 @@ Diagram OBDD_Manager::Negate( const Diagram & bdd )
 			}
 			else {
 				num_node_stack--;
-				unsigned low = _nodes[topn.low].infor.mark;
-				unsigned high = _nodes[topn.high].infor.mark;
+				dag_size_t low = _nodes[topn.low].infor.mark;
+				dag_size_t high = _nodes[topn.high].infor.mark;
 				Decision_Node dnode( topn.var, low, high );
 				topn.infor.mark = Push_Node( dnode );
 				_visited_nodes.push_back( top );
@@ -1632,10 +1632,10 @@ Diagram OBDD_Manager::Negate( const Diagram & bdd )
 		}
 	}
 	Diagram result = Generate_Diagram( _nodes[bdd.Root()].infor.mark );
-	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.Unmark();
+	_nodes[NodeID::top].infor.Unmark();
+	for ( dag_size_t i = 0; i < _visited_nodes.size(); i++ ) {
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	return result;
@@ -1695,13 +1695,12 @@ EPCCL_Theory * OBDD_Manager::Convert_EPCCL( const Diagram & bdd )
 
 void OBDD_Manager::Display( ostream & out )
 {
-	unsigned i;
 	out << "Variable order: ";
 	_var_order.Display( out );
 	out << "Number of nodes: " << _nodes.Size() << endl;
 	out << "0:\t F - -" << endl;
 	out << "1:\t T - -" << endl;
-	for ( i = 2; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = 2; i < _nodes.Size(); i++ ) {
 		out << i << ":\t " << _nodes[i].var << ' ' << _nodes[i].low << ' ' << _nodes[i].high << endl;
 	}
 }
@@ -1713,7 +1712,7 @@ void OBDD_Manager::Display_dot( ostream & out )
 		<< "center = true" << endl;
 	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
 	out << "  node_1 [label=T,shape=square]" << endl;
-	for ( unsigned i = 2; i < _nodes.Size(); i++ ) {
+	for ( dag_size_t i = 2; i < _nodes.Size(); i++ ) {
 		out << "  node_" << i << "[label=" << _nodes[i].var << ",shape=circle] " << endl;
 		out << "  node_" << i << " -> " << "node_" << _nodes[i].low << " [style = dotted]" << endl;
 		out << "  node_" << i << " -> " << "node_" << _nodes[i].high << " [style = solid]" << endl;
@@ -1754,7 +1753,7 @@ void OBDD_Manager::Display_OBDD_dot( ostream & out, Diagram & bdd )
 	out << "  node_0 [label=F,shape=square]" << endl;  //⊥
 	_nodes[NodeID::top].infor.visited = false;
 	out << "  node_1 [label=T,shape=square]" << endl;
-	for ( unsigned i = 2; i <= bdd.Root(); i++ ) {
+	for ( dag_size_t i = 2; i <= bdd.Root(); i++ ) {
 		if ( !_nodes[i].infor.visited ) continue;
 		_nodes[i].infor.visited = false;
 		out << "  node_" << i << "[label=" << _nodes[i].var << ",shape=circle] " << endl;

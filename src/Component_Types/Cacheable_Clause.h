@@ -13,7 +13,7 @@ struct Cacheable_Clause_Infor
 	unsigned _lit_code_mask;  // used to recover
 	void Init( Variable max_var )
 	{
-        _lit_code_size = 1 + Log_Ceil( max_var - Variable::start + 1 );  // one for sign
+        _lit_code_size = 1 + Ceil_Log2( max_var - Variable::start + 1 );  // one for sign
         _lit_code_mask = UNSIGNED_UNDEF >> ( UNSIGNED_SIZE - _lit_code_size );
     }
 };

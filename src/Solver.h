@@ -120,6 +120,7 @@ protected:
 		}
 	}
 	Literal Current_Decision() const { return _dec_stack[_dec_offsets[_num_levels - 1]]; }
+	Literal Decision_Of_Level( unsigned level ) const { return _dec_stack[_dec_offsets[level]]; }
 	unsigned Num_Current_Imps() const { return _num_dec_stack - _dec_offsets[_num_levels - 1] - 1; }
 	unsigned Num_Imps_On_Level( unsigned level ) const
 	{

@@ -22,6 +22,7 @@ struct Rough_BDDC_Node
 	~Rough_BDDC_Node() { delete [] ch; }
 	void Reset_Max_Var( Variable max_var ) { delete [] ch; ch = new NodeID [max_var + 1]; }
 	void Add_Child( NodeID child ) { ch[ch_size++] = child; }
+	void Add_Children( NodeID * children, unsigned size ){ for ( unsigned i = 0; i < size; i++ ) ch[ch_size++] = children[i]; }
 	void Display( ostream & out )
 	{
 		if ( sym == BDD_SYMBOL_FALSE ) out << "F 0";
@@ -36,6 +37,12 @@ struct Rough_BDDC_Node
 		}
 	}
 };
+
+extern inline ostream & operator << ( ostream & out, Rough_BDDC_Node & rnode )
+{
+	rnode.Display( out );
+	return out;
+}
 
 struct BDDC_Node
 {
@@ -71,9 +78,9 @@ struct BDDC_Node
 	NodeID & Ch( unsigned i ) { return ch[i]; }
 	unsigned Ch_Size() { return ch_size; }
 	Node_Infor & Infor() { return infor; }
-	unsigned Key() const
+	uint64_t Key() const
 	{
-		unsigned k = PAIR( sym, ch_size );
+		uint64_t k = PAIR( sym, ch_size );
 		for ( unsigned i = 0; i < ch_size; i++ ) k = PAIR( k, ch[i] );
 		return k;
 	}
@@ -180,14 +187,14 @@ struct BDDC_Running_Time
 
 struct BDDC_Op_Node
 {
-	unsigned left;
-	unsigned right;
-	unsigned result;
+	dag_size_t left;
+	dag_size_t right;
+	dag_size_t result;
 	bool operator == ( BDDC_Op_Node & other )
 	{
 		return left == other.left && right == other.right;
 	}
-	unsigned Key() const
+	uint64_t Key() const
 	{
 		return PAIR( left, right );
 	}
@@ -195,15 +202,15 @@ struct BDDC_Op_Node
 
 struct BDDC_Ternary_Op_Node
 {
-	unsigned left;
-	unsigned right;
-	unsigned imp;
-	unsigned result;
+	dag_size_t left;
+	dag_size_t right;
+	dag_size_t imp;
+	dag_size_t result;
 	bool operator == ( BDDC_Ternary_Op_Node & other )
 	{
 		return ( left == other.left ) + ( right == other.right ) + ( imp == other.imp ) == 3;
 	}
-	unsigned Key() const
+	uint64_t Key() const
 	{
 		return PAIR( PAIR( left, right ), imp );
 	}
@@ -212,7 +219,7 @@ struct BDDC_Ternary_Op_Node
 class OBDDC_Manager: public Diagram_Manager, public Linear_Order
 {
 	friend bool Is_Equivalent( OBDDC_Manager & manager1, Diagram bddc1, OBDDC_Manager & manager2, Diagram bddc2 );
-	friend class Compiler;
+	friend class BDDC_Compiler;
 protected:
 	Large_Hash_Table<BDDC_Node> _nodes;
 protected: //auxiliary memory
@@ -223,41 +230,35 @@ protected: //auxiliary memory
 	QSorter _qsorter;
 	size_t _hash_memory;
 public:
-	/* NOTE:
-	* mode = 1: it is a BDDC file
-	* mode = 3: it is a OBDD file
-	* mode = 4: it is a OBDD-L file
-	*/
-	OBDDC_Manager( Variable max_var,  unsigned node_num = LARGE_HASH_TABLE );
-	OBDDC_Manager( const Chain & order, unsigned node_num = 100 ); // Only called by the static generating functions
-	OBDDC_Manager( istream & fin, int mode = 1 );
+	OBDDC_Manager( Variable max_var,  dag_size_t node_num = LARGE_HASH_TABLE );
+	OBDDC_Manager( const Chain & order, dag_size_t node_num = 100 ); // Only called by the static generating functions
+	OBDDC_Manager( istream & fin );
 	OBDDC_Manager( OBDDC_Manager & other );
 	~OBDDC_Manager();
 	void Reorder( const Chain & new_order );
 	void Rename( unsigned map[] );
 	void Abandon_Rename( unsigned map[] );
-	OBDDC_Manager * Copy_BDDC_Standard_Order( unsigned root ); /// For each decision node u, the position of the low children of u is less than that of the high children of of u. Furthermore, for any two children v and w of decomposition node u, the position of v is less than that of u if the min_var of v is less than that of u
-	const BDDC_Node & Node( unsigned i ) { return _nodes[i]; }
-	unsigned Add_Node( Rough_BDDC_Node & rnode );
-	unsigned Add_Decision_Node( Decision_Node & bnode ) { return Decompose_Decision( bnode ); }
-	unsigned Add_Decomposition_Node( Rough_BDDC_Node & rnode );
+	OBDDC_Manager * Copy_BDDC_Standard_Order( NodeID root ); /// For each decision node u, the position of the low children of u is less than that of the high children of of u. Furthermore, for any two children v and w of decomposition node u, the position of v is less than that of u if the min_var of v is less than that of u
+	const BDDC_Node & Node( NodeID i ) { return _nodes[i]; }
+	NodeID Add_Node( Rough_BDDC_Node & rnode );
+	NodeID Add_Decision_Node( Decision_Node & bnode ) { return Decompose_Decision( bnode ); }
+	NodeID Add_Decomposition_Node( Rough_BDDC_Node & rnode );
 	Diagram Decompose_Infty( OBDD_Manager & bdd_manager, Diagram & bdd );
-	void Decompose_Infty();
 	Diagram Convert_Down_ROBDD( const Diagram & bddc, OBDD_Manager & bdd_manager );
 	Diagram Generate_OBDDC( NodeID root ) { assert( root < _nodes.Size() );  return Generate_Diagram( root ); }
 	void Display( ostream & out );
 	void Display_Stat( ostream & out );
 	void Display_dot( ostream & out );
-	void Display_New_Nodes( ostream & out, unsigned & old_size );
+	void Display_New_Nodes( ostream & out, dag_size_t & old_size );
 	void Display_OBDDC( ostream & out, const Diagram & bddc );
 	void Display_OBDDC_dot( ostream & out, const Diagram & bddc );
 protected:
 	void Allocate_and_Init_Auxiliary_Memory();
 	void Free_Auxiliary_Memory();
 	void Add_Fixed_Nodes();
-	void Verify_OBDDC( unsigned root );
-	void Verify_Ordered_Decision( unsigned root );
-	void Verify_ROBDDC_Finest( unsigned root );
+	void Verify_OBDDC( NodeID root );
+	void Verify_Ordered_Decision( NodeID root );
+	void Verify_ROBDDC_Finest( NodeID root );
 protected:
 	NodeID Finest( Rough_BDDC_Node * p );
 	NodeID Finest_Exi( Rough_BDDC_Node * p );
@@ -303,9 +304,9 @@ public: // transformation
 	void Remove_Redundant_Nodes();
 	void Remove_Redundant_Nodes( vector<NodeID> & kept_nodes );
 public: // querying
-	unsigned Num_Nodes() const { return _nodes.Size(); }
-	unsigned Num_Nodes( const Diagram & bddc ) { assert( Contain( bddc ) );  return Num_Nodes( bddc.Root() ); }
-	unsigned Num_Edges( const Diagram & bddc ) { assert( Contain( bddc ) );  return Num_Edges( bddc.Root() ); }
+	dag_size_t Num_Nodes() const { return _nodes.Size(); }
+	dag_size_t Num_Nodes( const Diagram & bddc ) { assert( Contain( bddc ) );  return Num_Nodes( bddc.Root() ); }
+	dag_size_t Num_Edges( const Diagram & bddc ) { assert( Contain( bddc ) );  return Num_Edges( bddc.Root() ); }
 	unsigned Min_Decomposition_Depth( const Diagram & bddc );
 	size_t Memory();
 	bool Entail_Clause( const Diagram & bddc, Clause & cl );
@@ -327,8 +328,8 @@ public: // querying
 	void Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const Diagram & bddc, vector<vector<bool>> & samples, const vector<Literal> & term );
 	void Uniformly_Sample_With_Condition( Random_Generator & rand_gen, const Diagram & bddc, const vector<double> & weights, vector<vector<bool>> & samples, const vector<Literal> & term );
 protected:
-	unsigned Num_Nodes( NodeID root );
-	unsigned Num_Edges( NodeID root );
+	dag_size_t Num_Nodes( NodeID root );
+	dag_size_t Num_Edges( NodeID root );
 	bool Decide_Node_SAT_Under_Assignment( NodeID root );
 	bool Decide_Node_UNSAT_Under_Assignment( NodeID root );
 	void Verify_Node_UNSAT_Under_Assignment( NodeID root );
@@ -347,45 +348,45 @@ protected:
 	void Verify_Entail_CNF( NodeID root, CNF_Formula & cnf );
 
 protected:
-	void Real_Var_Num( unsigned n );
+	void Real_Var_Num( NodeID n );
 
 protected:
 	bool Var_LT( unsigned u, unsigned v ) { return _var_order.Less_Than( u, v ); }
 	bool Var_LE( unsigned u, unsigned v ) { return _var_order.Less_Eq( u, v ); }
 	bool Contain( const Diagram & bddc ) { return bddc.Root() < _nodes.Size() && Diagram_Manager::Contain( bddc ); }
-	unsigned Push_Node( BDDC_Node node )  // node.ch will be push into _nodes
+	dag_size_t Push_Node( BDDC_Node node )  // node.ch will be push into _nodes
 	{
-		unsigned old_size = _nodes.Size();
-		unsigned pos = _nodes.Hit( node );
+		dag_size_t old_size = _nodes.Size();
+		dag_size_t pos = Hash_Hit_Node( _nodes, node );
 		if ( pos < old_size ) node.Free();
 		return pos;
 	}
-	unsigned Push_New_Node( BDDC_Node node )  /// node does not appear in manager
+	dag_size_t Push_New_Node( BDDC_Node node )  /// node does not appear in manager
 	{
-		unsigned old_size = _nodes.Size();
-		unsigned pos = _nodes.Hit( node );
+		dag_size_t old_size = _nodes.Size();
+		dag_size_t pos = Hash_Hit_Node( _nodes, node );
 		assert( pos == old_size );  // ToRemove
 		return pos;
 	}
-	unsigned Push_Node( Rough_BDDC_Node & rnode )
+	dag_size_t Push_Node( Rough_BDDC_Node & rnode )
 	{
-		unsigned i, old_size = _nodes.Size();
+		dag_size_t old_size = _nodes.Size();
 		BDDC_Node node( rnode.sym, rnode.ch, rnode.ch_size );
-		unsigned pos = _nodes.Hit( node );
+		dag_size_t pos = Hash_Hit_Node( _nodes, node );
 		if ( pos == old_size ) {
 			_nodes[pos].ch = new NodeID [rnode.ch_size];  // NOTE: replace _nodes[pos].ch by a dynamic array
 			_nodes[pos].ch[0] = rnode.ch[0];
 			_nodes[pos].ch[1] = rnode.ch[1];
-			for ( i = 2; i < rnode.ch_size; i++ ) _nodes[pos].ch[i] = rnode.ch[i];
+			for ( unsigned i = 2; i < rnode.ch_size; i++ ) _nodes[pos].ch[i] = rnode.ch[i];
 		}
 		return pos;
 	}
-	unsigned Push_Node( Decision_Node & bnode )
+	dag_size_t Push_Node( Decision_Node & bnode )
 	{
-		unsigned old_size = _nodes.Size();
+		dag_size_t old_size = _nodes.Size();
 		NodeID ch[2] = { bnode.low, bnode.high };
 		BDDC_Node node( bnode.var, ch, 2 );
-		unsigned pos = _nodes.Hit( node );
+		dag_size_t pos = Hash_Hit_Node( _nodes, node );
 		if ( pos == old_size ) {
 			_nodes[pos].ch = new NodeID [2];  // NOTE: replace _nodes[pos].ch by a dynamic array
 			_nodes[pos].ch[0] = bnode.low;
@@ -410,7 +411,7 @@ protected:
 			target[i] = tmp;
 		}
 	}
-	void Sort_Children_Over_GLB_Reverse( unsigned n, NodeID * target )  /// sort by comparing glb of subgraph
+	void Sort_Children_Over_GLB_Reverse( dag_size_t n, NodeID * target )  /// sort by comparing glb of subgraph
 	{
 		assert( _nodes[n].sym == DECOMP_SYMBOL_CONJOIN );
 		for ( unsigned i = 0; i < _nodes[n].ch_size; i++ ) {
@@ -426,7 +427,7 @@ protected:
 			target[i] = tmp;
 		}
 	}
-	unsigned Search_First_Non_Literal_Position( unsigned n )
+	unsigned Search_First_Non_Literal_Position( dag_size_t n )
 	{
 		assert( _nodes[n].sym == DECOMP_SYMBOL_CONJOIN );
 		if ( Is_Fixed( _nodes[n].ch[_nodes[n].ch_size - 1] ) ) return _nodes[n].ch_size;

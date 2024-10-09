@@ -1,4 +1,4 @@
-#include "Integrated_Compiler.h"
+#include "BDDC_Compiler.h"
 #include <sstream>
 #include <sys/sysinfo.h>
 
@@ -9,18 +9,18 @@ namespace KCBox {
 using namespace std;
 
 
-Compiler::Compiler():
+BDDC_Compiler::BDDC_Compiler():
 _num_rsl_stack( 0 ),
 _remove_redundancy_trigger( running_options.removing_redundant_nodes_trigger )
 {
 }
 
-Compiler::~Compiler()
+BDDC_Compiler::~BDDC_Compiler()
 {
 	Free_Auxiliary_Memory();
 }
 
-void Compiler::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToDo: whether can we optimize when max_var < _max_var
+void BDDC_Compiler::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToDo: whether can we optimize when max_var < _max_var
 {
 	if ( _max_var == max_var ) {
 		if ( running_options.profile_compiling != Profiling_Close ) statistics.Init_Compiler();
@@ -32,21 +32,23 @@ void Compiler::Allocate_and_Init_Auxiliary_Memory( Variable max_var )  // ToDo: 
 	Inprocessor::Allocate_and_Init_Auxiliary_Memory( max_var );
 	_rsl_stack = new NodeID [2 * max_var + 2];
 	_bddc_rnode.Reset_Max_Var( max_var );
+	_aux_var_sets = new const vector<unsigned> * [max_var];
 }
 
-void Compiler::Free_Auxiliary_Memory()
+void BDDC_Compiler::Free_Auxiliary_Memory()
 {
 	if ( _max_var == Variable::undef ) return;
 	delete [] _rsl_stack;
+	delete [] _aux_var_sets;
 }
 
-void Compiler::Reset()
+void BDDC_Compiler::Reset()
 {
 	Inprocessor::Reset();
 	_component_cache.Reset();
 }
 
-size_t Compiler::Memory()
+size_t BDDC_Compiler::Memory()
 {
 	if ( _max_var == Variable::undef ) return 0;
 	size_t mem = Preprocessor::Memory() + Inprocessor::Memory() + _component_cache.Memory();
@@ -57,7 +59,7 @@ size_t Compiler::Memory()
 	return mem;
 }
 
-Diagram Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+Diagram BDDC_Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
 {
 	assert( Is_Linear_Ordering( heur ) );
 	StopWatch begin_watch, tmp_watch;
@@ -134,7 +136,7 @@ Diagram Compiler::Compile( OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic
 	return manager.Generate_OBDDC( result );
 }
 
-NodeID Compiler::Make_Node_With_Init_Imp( OBDDC_Manager & manager, NodeID node )
+NodeID BDDC_Compiler::Make_Node_With_Init_Imp( OBDDC_Manager & manager, NodeID node )
 {
 	StopWatch begin_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
@@ -150,7 +152,7 @@ NodeID Compiler::Make_Node_With_Init_Imp( OBDDC_Manager & manager, NodeID node )
 	return result;
 }
 
-void Compiler::Reorder_BDDC_Manager( OBDDC_Manager & manager )
+void BDDC_Compiler::Reorder_BDDC_Manager( OBDDC_Manager & manager )
 {
 	Chain new_order;
 	for ( unsigned i = 0; i < _var_order.Size(); i++ ) {
@@ -161,7 +163,7 @@ void Compiler::Reorder_BDDC_Manager( OBDDC_Manager & manager )
 	manager.Reorder( new_order );
 }
 
-void Compiler::Create_Init_Level()
+void BDDC_Compiler::Create_Init_Level()
 {
 	StopWatch tmp_watch;
 	_dec_offsets[0] = 0;  // NOTE: the first bit facilitates loop break
@@ -179,12 +181,13 @@ void Compiler::Create_Init_Level()
 	assert( _component_cache.Size() == 0 );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) tmp_watch.Start();
 	_component_cache.Init( _max_var, _old_num_long_clauses, NodeID::undef );
+	_component_cache.Set_Encoding( running_options.cache_encoding );
 	_component_cache.Hit_Component( _comp_stack[0] );
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache = tmp_watch.Get_Elapsed_Seconds();
 }
 
 
-void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
+void BDDC_Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 {
 	unsigned old_num_levels = _num_levels;
 	unsigned old_num_rsl_stack = _num_rsl_stack;
@@ -334,7 +337,7 @@ void Compiler::Compile_With_Implicite_BCP( OBDDC_Manager & manager )
 	assert( _num_levels == old_num_levels - 1 && _num_rsl_stack == old_num_rsl_stack + 1 );
 }
 
-void Compiler::Backjump_Decision( unsigned num_kept_levels )
+void BDDC_Compiler::Backjump_Decision( unsigned num_kept_levels )
 {
 	assert( num_kept_levels < _num_levels );
 	assert( _state_stack[_num_levels - 1] == 0 );
@@ -348,7 +351,7 @@ void Compiler::Backjump_Decision( unsigned num_kept_levels )
 	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 }
 
-NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node )
+NodeID BDDC_Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node )
 {
 	StopWatch begin_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
@@ -363,7 +366,7 @@ NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID node )
 	return result;
 }
 
-NodeID Compiler::Component_Cache_Map_Current_Component()
+NodeID BDDC_Compiler::Component_Cache_Map_Current_Component()
 {
 	StopWatch tmp_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) tmp_watch.Start();
@@ -376,7 +379,7 @@ NodeID Compiler::Component_Cache_Map_Current_Component()
 	return _component_cache.Read_Result( loc );
 }
 
-void Compiler::Component_Cache_Connect_Current_Component()
+void BDDC_Compiler::Component_Cache_Connect_Current_Component()
 {
 	if ( Is_Current_Level_Decision() || Active_Position_On_Level( _num_levels - 1 ) == 0 ) {
 		_component_cache.Entry_Add_Child( Parent_of_Current_Component().caching_loc, Current_Component().caching_loc );
@@ -384,14 +387,14 @@ void Compiler::Component_Cache_Connect_Current_Component()
 	else _component_cache.Entry_Add_Sibling( Previous_Component().caching_loc, Current_Component().caching_loc );
 }
 
-void Compiler::Backtrack()
+void BDDC_Compiler::Backtrack()
 {
 	_num_levels--;
 	Un_BCP( _dec_offsets[_num_levels] );
 	_num_comp_stack = _comp_offsets[_num_levels];
 }
 
-void Compiler::Extend_New_Level()
+void BDDC_Compiler::Extend_New_Level()
 {
 	_dec_offsets[_num_levels] = _num_dec_stack;
 	_comp_offsets[_num_levels] = _num_comp_stack;
@@ -399,7 +402,7 @@ void Compiler::Extend_New_Level()
 	_state_stack[_num_levels++] = 0;
 }
 
-NodeID Compiler::Make_Decision_Node( OBDDC_Manager & manager, NodeID low, NodeID high )
+NodeID BDDC_Compiler::Make_Decision_Node( OBDDC_Manager & manager, NodeID low, NodeID high )
 {
 	StopWatch begin_watch;
 	assert( low != NodeID::bot );  // backjump guarantees this
@@ -429,7 +432,7 @@ NodeID Compiler::Make_Decision_Node( OBDDC_Manager & manager, NodeID low, NodeID
 	return result;
 }
 
-void Compiler::Component_Cache_Clear()
+void BDDC_Compiler::Component_Cache_Clear()
 {
 	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "clear cache" << endl;
 	StopWatch watch;
@@ -441,7 +444,7 @@ void Compiler::Component_Cache_Clear()
 			kept_locs.push_back( _comp_stack[j].caching_loc );
 		}
 	}
-	_component_cache.Clear( kept_locs );
+	_component_cache.Clear_Shrink_Half( kept_locs );
 	for ( unsigned i = 1, k = 0; i < _num_levels; i++ ) {
 		_comp_stack[_comp_offsets[i]].caching_loc = kept_locs[k++];
 		for ( unsigned j = _comp_offsets[i] + 1; j <= _active_comps[i]; j++ ) {
@@ -452,7 +455,7 @@ void Compiler::Component_Cache_Clear()
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_cnf_cache += watch.Get_Elapsed_Seconds();
 }
 
-void Compiler::Component_Cache_Reconnect_Components()
+void BDDC_Compiler::Component_Cache_Reconnect_Components()
 {
 	_component_cache.Entry_Set_Isolated( Active_Component( 1 ).caching_loc );
 	for ( unsigned i = 2; i < _num_levels; i++ ) {
@@ -466,7 +469,7 @@ void Compiler::Component_Cache_Reconnect_Components()
 	}
 }
 
-void Compiler::Remove_Redundant_Nodes( OBDDC_Manager & manager )
+void BDDC_Compiler::Remove_Redundant_Nodes( OBDDC_Manager & manager )
 {
 	StopWatch watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) watch.Start();
@@ -495,7 +498,7 @@ void Compiler::Remove_Redundant_Nodes( OBDDC_Manager & manager )
 	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_dag += watch.Get_Elapsed_Seconds();
 }
 
-void Compiler::Backjump_Decomposition( unsigned num_kept_levels )
+void BDDC_Compiler::Backjump_Decomposition( unsigned num_kept_levels )
 {
 	assert( num_kept_levels < _num_levels );
 	_num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
@@ -509,14 +512,14 @@ void Compiler::Backjump_Decomposition( unsigned num_kept_levels )
 	if ( !Finished_Decision_Of_Current_Component() ) _component_cache.Entry_Disconnect_Parent( Current_Component().caching_loc );
 }
 
-void Compiler::Backtrack_Halfway()
+void BDDC_Compiler::Backtrack_Halfway()
 {
 	_num_rsl_stack -= _active_comps[_num_levels - 1] - _comp_offsets[_num_levels - 1];
 	_rsl_stack[_num_rsl_stack - 1] = NodeID::bot;
 	Backtrack();
 }
 
-NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID * nodes, unsigned num )
+NodeID BDDC_Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID * nodes, unsigned num )
 {
 	StopWatch begin_watch;
 	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
@@ -534,7 +537,7 @@ NodeID Compiler::Make_Node_With_Imp( OBDDC_Manager & manager, NodeID * nodes, un
 	return result;
 }
 
-void Compiler::Compile_With_SAT_Imp_Computing( OBDDC_Manager & manager )
+void BDDC_Compiler::Compile_With_SAT_Imp_Computing( OBDDC_Manager & manager )
 {
 	StopWatch tmp_watch;
 	Variable var;
@@ -649,7 +652,7 @@ void Compiler::Compile_With_SAT_Imp_Computing( OBDDC_Manager & manager )
 	assert( _num_levels == 1 && _num_rsl_stack == 1 );
 }
 
-void Compiler::Verify_Result_Component( Component & comp, OBDDC_Manager & manager, NodeID result )
+void BDDC_Compiler::Verify_Result_Component( Component & comp, OBDDC_Manager & manager, NodeID result )
 {
 	CNF_Formula * cnf = Output_Original_Clauses_In_Component( comp );
 	manager.Verify_ROBDDC_Finest( result );
@@ -668,7 +671,7 @@ void Compiler::Verify_Result_Component( Component & comp, OBDDC_Manager & manage
 	delete cnf;
 }
 
-void Compiler::Display_Statistics( unsigned option )
+void BDDC_Compiler::Display_Statistics( unsigned option )
 {
 	switch ( option ) {
 		case 0:
@@ -701,7 +704,7 @@ void Compiler::Display_Statistics( unsigned option )
 	statistics.Init_Compiler();
 }
 
-void Compiler::Display_Memory_Status( ostream & out )
+void BDDC_Compiler::Display_Memory_Status( ostream & out )
 {
 	size_t i, mem = 0;
 	for ( i = 0; i < _long_clauses.size(); i++ ) {
@@ -714,7 +717,7 @@ void Compiler::Display_Memory_Status( ostream & out )
 	out << running_options.display_prefix << "Total memory: " << Memory() / (1.0 * 1024 * 1024) << "M" << endl;
 }
 
-void Compiler::Display_Result_Stack( ostream & out )
+void BDDC_Compiler::Display_Result_Stack( ostream & out )
 {
 	unsigned num = 0;
 	for ( unsigned i = 2; i < _num_levels; i++ ) {
@@ -750,14 +753,14 @@ void Compiler::Display_Result_Stack( ostream & out )
 	}
 }
 
-void Compiler::Display_Result_Statistics( ostream & out, OBDDC_Manager & manager, NodeID root )
+void BDDC_Compiler::Display_Result_Statistics( ostream & out, OBDDC_Manager & manager, NodeID root )
 {
 	out << running_options.display_prefix << "Number of nodes: " << manager.Num_Nodes( root ) << endl;
 	out << running_options.display_prefix << "Number of edges: " << manager.Num_Edges( root ) << endl;
 //	out << running_options.display_prefix << "Number of models: " << manager.Count_Models( bddc ) << endl;
 }
 
-Diagram Compiler::Compile( OBDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+Diagram BDDC_Compiler::Compile( OBDD_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
 {
 	OBDDC_Manager bddc_manager( cnf.Max_Var() );
 	Diagram bddc = Compile( bddc_manager, cnf, heur, vorder );
@@ -813,7 +816,7 @@ Diagram Compiler::Compile( OBDD_Manager & manager, CNF_Formula & cnf, Heuristic 
 	return bdd;
 }
 
-void Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )
+void BDDC_Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )
 {
 	running_options.var_ordering_heur = heur;
 	switch ( running_options.var_ordering_heur ) {
@@ -839,7 +842,7 @@ void Compiler::Choose_Running_Options( Heuristic heur, Chain & vorder )
 	}
 }
 
-void Compiler::Compute_Var_Order_Automatical()
+void BDDC_Compiler::Compute_Var_Order_Automatical()
 {
 	const unsigned treewidth_bound = _unsimplifiable_num_vars / 4;
 	Compute_Var_Order_Min_Fill_Heuristic_Bound( treewidth_bound );
@@ -854,7 +857,7 @@ void Compiler::Compute_Var_Order_Automatical()
 	}
 }
 
-void Compiler::Choose_Implicate_Computing_Strategy()
+void BDDC_Compiler::Choose_Implicate_Computing_Strategy()
 {
 	assert( running_options.imp_strategy == Automatical_Imp_Computing );
 	if ( running_options.var_ordering_heur == minfill ) {
@@ -871,7 +874,407 @@ void Compiler::Choose_Implicate_Computing_Strategy()
 	running_options.sat_employ_external_solver_always = false;
 }
 
-bool Compiler::Is_Memory_Exhausted()
+Diagram BDDC_Compiler::Compile( Smooth_OBDDC_Manager & manager, CNF_Formula & cnf, Heuristic heur, Chain & vorder )
+{
+	assert( Is_Linear_Ordering( heur ) );
+	StopWatch begin_watch, tmp_watch;
+	if ( !running_options.display_compiling_process ) running_options.display_preprocessing_process = false;
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Compiling..." << endl;
+	Allocate_and_Init_Auxiliary_Memory( cnf.Max_Var() );
+	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
+	assert( _num_levels == 0 && _num_dec_stack == 0 && _num_comp_stack == 0 );
+	running_options.recover_exterior = true;
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Begin preprocess..." << endl;
+	bool cnf_sat = Preprocess( cnf, _models_stack[0] );
+	if ( running_options.display_compiling_process ) cout << running_options.display_prefix << "Preprocess done." << endl;
+	if ( !cnf_sat ) {
+		_num_levels--;
+		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
+		if ( running_options.display_compiling_process ) {
+			cout << running_options.display_prefix << "Done." << endl;
+			if ( running_options.profile_compiling >= Profiling_Abstract ) {
+//				Display_Statistics( 0 );
+				cout << running_options.display_prefix << "Number of edges: " << 0 << endl;
+//				cout << running_options.display_prefix << "Number of models: " << 0 << endl;
+			}
+		}
+		Reset();
+		return manager.Generate_OBDDC( NodeID::bot );
+	}
+	if ( Non_Unary_Clauses_Empty() ) {
+		NodeID result = Make_Node_With_Init_Imp( manager, NodeID::top );
+		Un_BCP( _dec_offsets[--_num_levels] );
+		if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
+		if ( running_options.display_compiling_process ) {
+			cout << running_options.display_prefix << "Done." << endl;
+			if ( running_options.profile_compiling >= Profiling_Abstract ) {
+				Display_Statistics( 0 );
+				Display_Result_Statistics( cout, manager, result );
+			}
+		}
+		Reset();
+		return manager.Generate_OBDDC( result );
+	}
+	Gather_Infor_For_Counting();
+	Choose_Running_Options( heur, vorder );
+	if ( heur != FixedLinearOrder ) Reorder_BDDC_Manager( manager );
+	Create_Init_Level();
+	if ( running_options.imp_strategy != SAT_Imp_Computing ) {
+		Recycle_Models( _models_stack[0] );
+		if ( Large_Scale_Problem() ) _model_pool->Free_Unallocated_Models();
+		Compile_With_Implicite_BCP( manager );
+	}
+	else Compile_With_SAT_Imp_Computing( manager );
+	_num_rsl_stack--;
+	NodeID result = Make_Node_With_Init_Imp( manager, _rsl_stack[0] );
+	Backtrack();
+	if ( running_options.display_compiling_process && running_options.profile_compiling >= Profiling_Abstract ) statistics.time_compile = begin_watch.Get_Elapsed_Seconds();
+	if ( debug_options.verify_learnts ) Verify_Learnts( cnf );
+	if ( running_options.display_compiling_process ) {
+		cout << running_options.display_prefix << "Done." << endl;
+		if ( running_options.profile_compiling >= Profiling_Abstract ) {
+			Display_Statistics( 1 );
+			Display_Memory_Status( cout );
+			Display_Result_Statistics( cout, manager, result );
+		}
+	}
+	Reset();
+	if ( debug_options.verify_compilation ) {
+//		manager.Display_Stat( cout );  // ToRemove
+		manager.Verify_Smooth_ROBDDC_Finest( result );
+		manager.Verify_Entail_CNF( result, cnf );
+		BigInt count = manager.Count_Models( result );
+		BigInt verified_count = Count_Verified_Models_sharpSAT( cnf );
+		assert( count == verified_count );
+	}
+	return manager.Generate_OBDDC( result );
+}
+
+void BDDC_Compiler::Compile_With_Implicite_BCP( Smooth_OBDDC_Manager & manager )
+{
+	unsigned old_num_levels = _num_levels;
+	unsigned old_num_rsl_stack = _num_rsl_stack;
+	Variable var;
+	NodeID cached_result;
+	Reason backjump_reason = Reason::undef;  // just used for omitting warning
+	unsigned backjump_level;
+	while ( _num_levels >= old_num_levels ) {
+		if ( DEBUG_OFF ) {
+			if ( Num_Components_On_Current_Level() <= 1 && _state_stack[_num_levels - 1] == 0 )
+				Display_Component( Parent_of_Current_Component(), cerr );  // ToRemove
+			else Display_Component( Current_Component(), cerr );  // ToRemove
+			Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	//		system( "pause" );
+			Display_Comp_And_Decision_Stacks( cerr );  // ToRemove
+		}
+		if ( Num_Components_On_Current_Level() <= 1 ) { // decision or preparation
+			switch ( _state_stack[_num_levels - 1] ) {
+			case 0:
+				backjump_reason = Get_Approx_Imp_Component( Parent_of_Current_Component(), backjump_level );
+				if ( backjump_reason != Reason::undef ) {
+					Backjump_Decision( backjump_level );
+					_rsl_stack[_num_rsl_stack++] = NodeID::bot;  /// NOTE: cannot omit when in high decision, and need to be AFTER backjump
+					break;
+				}
+				_num_comp_stack += Dynamic_Decompose_Component( Parent_of_Current_Component(), _comp_stack + _comp_offsets[_num_levels - 1] );
+				if ( Is_Current_Level_Empty() ) {
+					_rsl_stack[_num_rsl_stack++] = Make_Node_With_Imp( manager, NodeID::top );
+					Backtrack();
+				}
+				else if ( Is_Current_Level_Decision() ) {
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != NodeID::undef ) {  /// NOTE: backjump makes that there exists cacheable component with undef result
+						if ( debug_options.verify_component_compilation ) {
+							Verify_Result_Component( Current_Component(), manager, cached_result );
+						}
+						_rsl_stack[_num_rsl_stack++] = Make_Node_With_Imp( manager, cached_result );
+						Backtrack();
+					}
+					else _state_stack[_num_levels - 1]++;
+				}
+				else _state_stack[_num_levels - 1] = 0;
+				break;
+			case 1:
+				_state_stack[_num_levels - 1]++;
+				var = Pick_Good_Var_Linearly_Component( Current_Component() );
+				Extend_New_Level();
+				Assign( Literal( var, false ) );
+				break;
+			case 2:
+				if ( _rsl_stack[_num_rsl_stack - 1] != NodeID::bot ) {
+					_state_stack[_num_levels - 1]++;
+					Extend_New_Level();
+					Assign( ~_dec_stack[_num_dec_stack] );
+				}
+				else {
+					_num_rsl_stack--;  // pop 0
+					_num_comp_stack = _comp_offsets[_num_levels - 1];  // re-decompose
+					_state_stack[_num_levels - 1] = 0;
+					Assign( ~_dec_stack[_num_dec_stack], backjump_reason );  // reason is assigned in the last iteration
+				}
+				break;
+			case 3:
+				assert( _num_rsl_stack > 1 );
+//				manager.Display( cerr );  // ToRemove
+				_num_rsl_stack--;
+				_rsl_stack[_num_rsl_stack - 1] = Make_Decision_Node( manager, _rsl_stack[_num_rsl_stack - 1], _rsl_stack[_num_rsl_stack] );
+				if ( _num_levels != 2 ) _rsl_stack[_num_rsl_stack - 1] = Make_Node_With_Imp( manager, _rsl_stack[_num_rsl_stack - 1] );  // NOTE: _dec_offsets[_num_levels - 1] is equal to the number of initial implied literals
+				Backtrack();
+				break;
+			}
+		}
+		else { // decomposition
+			assert( _active_comps[_num_levels - 1] == _comp_offsets[_num_levels - 1] + _state_stack[_num_levels - 1] / 3 );
+			if ( Is_Current_Level_Active() ) {  // not all components have been processed
+				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
+				case 0:
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != NodeID::undef ) {  /// NOTE: backjump makes that there are unknown cacheable component
+						if ( debug_options.verify_component_compilation ) {
+							Verify_Result_Component( Current_Component(), manager, cached_result );
+						}
+						_rsl_stack[_num_rsl_stack++] = cached_result;
+						_active_comps[_num_levels - 1]++;
+						_state_stack[_num_levels - 1] += 2;
+					}
+					else {
+						var = Pick_Good_Var_Linearly_Component( Current_Component() );
+						Extend_New_Level();
+						Assign( Literal( var, false ) );
+					}
+					break;
+				case 1:
+					if ( _rsl_stack[_num_rsl_stack - 1] != NodeID::bot ) {
+						Extend_New_Level();
+						Assign( ~_dec_stack[_num_dec_stack] );
+					}
+					else {
+						_num_rsl_stack--;  // pop 0
+						Assign( ~_dec_stack[_num_dec_stack], backjump_reason );
+						backjump_reason = Get_Approx_Imp_Component( Current_Component(), backjump_level );  /// current component rather than parent component
+						if ( backjump_reason != Reason::undef ) {
+							Backjump_Decomposition( backjump_level );
+							_rsl_stack[_num_rsl_stack++] = NodeID::bot;  /// NOTE: cannot omit when in high decision, and need to be AFTER backjump
+							break;
+						}
+						unsigned num_comp = Dynamic_Decompose_Component( Current_Component(), _comp_stack + _num_comp_stack );
+						_num_comp_stack += num_comp - 1;  // Replace one component with its sub-components
+						Current_Component() = _comp_stack[_num_comp_stack];
+						if ( Is_Current_Level_Decision() && !Is_Current_Level_Active() ) {	// all components except one collapsed into literals
+							_rsl_stack[_num_rsl_stack - 1] = Make_Node_With_Imp( manager, _rsl_stack[_num_rsl_stack - 1] );  // overwrite the result of the only one component
+							Backtrack();
+						}
+						else if ( Is_Current_Level_Decision() ) {	// all components except one collapsed into literals, and this component is not handled yet
+							assert( _active_comps[_num_levels - 1] == _num_comp_stack - 1 );
+							cached_result = Component_Cache_Map_Current_Component();  /// NOTE: the current component was after the collapsed one
+							if ( cached_result != NodeID::undef ) {  /// NOTE: backjump makes that there are unknown cacheable component
+								if ( debug_options.verify_component_compilation ) {
+									Verify_Result_Component( Current_Component(), manager, cached_result );
+								}
+								_rsl_stack[_num_rsl_stack++] = Make_Node_With_Imp( manager, cached_result );
+								Backtrack();
+							}
+							else _state_stack[_num_levels - 1] = 1;
+						}
+						else _state_stack[_num_levels - 1] -= 2;
+					}
+					break;
+				case 2:
+					assert( _num_rsl_stack > 1 );
+					_num_rsl_stack--;
+					_rsl_stack[_num_rsl_stack - 1] = Make_Decision_Node( manager, _rsl_stack[_num_rsl_stack - 1], _rsl_stack[_num_rsl_stack] );  // NOTE: there exists no implied literal
+					_active_comps[_num_levels - 1]++;
+					break;
+				}
+			}
+			else {  // all components are already processed
+				_num_rsl_stack -= Num_Components_On_Current_Level();
+				assert( _num_levels > 2 );  // not decompose the initial formula
+//				manager.Display( cerr );  // ToRemove
+				_rsl_stack[_num_rsl_stack] = Make_Node_With_Imp( manager, _rsl_stack + _num_rsl_stack, Num_Components_On_Current_Level() );
+				_num_rsl_stack++;
+				Backtrack();
+			}
+		}
+	}
+	assert( _num_levels == old_num_levels - 1 && _num_rsl_stack == old_num_rsl_stack + 1 );
+}
+
+NodeID BDDC_Compiler::Make_Node_With_Imp( Smooth_OBDDC_Manager & manager, NodeID node )
+{
+	StopWatch begin_watch;
+	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
+	_bddc_rnode.sym = DECOMP_SYMBOL_CONJOIN;
+	_bddc_rnode.ch_size = 0;
+	for ( unsigned i = _dec_offsets[_num_levels - 1] + 1; i < _num_dec_stack; i++ ) {
+		_bddc_rnode.ch[_bddc_rnode.ch_size++] = NodeID::literal( _dec_stack[i] );
+	}
+	Delete( Parent_of_Current_Component().VarIDs(), unsigned(Decision_Of_Level( _num_levels - 1 ).Var()), _aux_varIDs );
+	_aux_var_sets[0] = &_aux_varIDs;
+	if ( node != NodeID::top ) {
+		_bddc_rnode.Add_Child( node );
+		_aux_var_sets[_bddc_rnode.ch_size] = &(Current_Component().VarIDs());
+	}
+	NodeID result = manager.Add_Decomposition_Node( _bddc_rnode, _aux_var_sets );
+	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_dag += begin_watch.Get_Elapsed_Seconds();
+	return result;
+}
+
+NodeID BDDC_Compiler::Make_Node_With_Imp( Smooth_OBDDC_Manager & manager, NodeID * nodes, unsigned num )
+{
+	StopWatch begin_watch;
+	if ( running_options.profile_compiling >= Profiling_Abstract ) begin_watch.Start();
+	_bddc_rnode.sym = DECOMP_SYMBOL_CONJOIN;
+	_bddc_rnode.ch_size = 0;
+	for ( unsigned i = _dec_offsets[_num_levels - 1] + 1; i < _num_dec_stack; i++ ) {
+		_bddc_rnode.Add_Child( NodeID::literal( _dec_stack[i] ) );
+	}
+	Delete( Parent_of_Current_Component().VarIDs(), unsigned(Decision_Of_Level( _num_levels - 1 ).Var()), _aux_varIDs );
+	_aux_var_sets[0] = &_aux_varIDs;
+	for ( unsigned i = 0; i < num; i++ ) {
+		_bddc_rnode.Add_Child( nodes[i] );
+		_aux_var_sets[_bddc_rnode.ch_size] = &(_comp_stack[_comp_offsets[_num_levels - 1] + i].VarIDs());
+	}
+	NodeID result = manager.Add_Decomposition_Node( _bddc_rnode, _aux_var_sets );
+	if ( running_options.profile_compiling >= Profiling_Abstract ) statistics.time_gen_dag += begin_watch.Get_Elapsed_Seconds();
+	return result;
+}
+
+void BDDC_Compiler::Compile_With_SAT_Imp_Computing( Smooth_OBDDC_Manager & manager )
+{
+	StopWatch tmp_watch;
+	Variable var;
+	NodeID cached_result;
+	Move_Models( _models_stack[0], _models_stack[1] );
+	while ( _num_levels > 1 ) {
+		if ( DEBUG_OFF ) {
+			if ( Num_Components_On_Current_Level() <= 1 && _state_stack[_num_levels - 1] == 0 )
+				Display_Component( Parent_of_Current_Component(), cerr );  // ToRemove
+			else Display_Component( Current_Component(), cerr );  // ToRemove
+			Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+	//		system( "pause" );
+			Display_Comp_And_Decision_Stacks( cerr );  // ToRemove
+		}
+		if ( Num_Components_On_Current_Level() <= 1 ) { // decision or preparation
+			switch ( _state_stack[_num_levels - 1] ) {
+			case 0:
+				Get_All_Imp_Component( Parent_of_Current_Component(), _models_stack[_num_levels - 1] );
+				_num_comp_stack += Dynamic_Decompose_Component( Parent_of_Current_Component(), _comp_stack + _comp_offsets[_num_levels - 1] );
+				if ( Is_Current_Level_Empty() ) {
+					_rsl_stack[_num_rsl_stack++] = Make_Node_With_Imp( manager, NodeID::top );
+					Recycle_Models( _models_stack[_num_levels - 1] );
+					Backtrack();
+				}
+				else if ( Is_Current_Level_Decision() ) {
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != NodeID::undef ) {  // no backjump
+						if ( debug_options.verify_component_compilation ) {
+							Verify_Result_Component( Current_Component(), manager, cached_result );
+						}
+						_rsl_stack[_num_rsl_stack++] = Make_Node_With_Imp( manager, cached_result );
+						Recycle_Models( _models_stack[_num_levels - 1] );
+						Backtrack();
+					}
+					else _state_stack[_num_levels - 1]++;
+				}
+				else _state_stack[_num_levels - 1] = 0;
+				break;
+			case 1:
+				_state_stack[_num_levels - 1]++;
+				var = Pick_Good_Var_Linearly_Component( Current_Component() );
+				Extend_New_Level();
+				Pick_Models( _models_stack[_num_levels - 2], Literal( var, false ), _models_stack[_num_levels - 1] );
+				Assign( Literal( var, false ) );
+				break;
+			case 2:
+				assert( _rsl_stack[_num_rsl_stack - 1] != NodeID::bot );
+				_state_stack[_num_levels - 1]++;
+				Extend_New_Level();
+				Move_Models( _models_stack[_num_levels - 2], _models_stack[_num_levels - 1] );
+				Assign( ~_dec_stack[_num_dec_stack] );
+				break;
+			case 3:
+				assert( _models_stack[_num_levels - 1].empty() );
+				assert( _num_rsl_stack > 1 );
+				_num_rsl_stack--;
+				_rsl_stack[_num_rsl_stack - 1] = Make_Decision_Node( manager, _rsl_stack[_num_rsl_stack - 1], _rsl_stack[_num_rsl_stack] );
+				if ( _num_levels != 2 ) _rsl_stack[_num_rsl_stack - 1] = Make_Node_With_Imp( manager, _rsl_stack[_num_rsl_stack - 1] );  // NOTE: _dec_offsets[_num_levels - 1] is equal to the number of initial implied literals
+				Backtrack();
+				break;
+			}
+		}
+		else { // decomposition
+			assert( _active_comps[_num_levels - 1] == _comp_offsets[_num_levels - 1] + _state_stack[_num_levels - 1] / 3 );
+			if ( Is_Current_Level_Active() ) {  // not all components have been processed
+				switch ( _state_stack[_num_levels - 1]++ % 3 ) {
+				case 0:
+					cached_result = Component_Cache_Map_Current_Component();
+					if ( cached_result != NodeID::undef ) {  // no backjump
+						if ( debug_options.verify_component_compilation ) {
+							Verify_Result_Component( Current_Component(), manager, cached_result );
+						}
+						_rsl_stack[_num_rsl_stack++] = cached_result;
+						_active_comps[_num_levels - 1]++;
+						_state_stack[_num_levels - 1] += 2;
+					}
+					else {
+						var = Pick_Good_Var_Linearly_Component( Current_Component() );
+						Extend_New_Level();
+						Inherit_Models( _models_stack[_num_levels - 2], Literal( var, false ), _models_stack[_num_levels - 1] );
+						Assign( Literal( var, false ) );
+					}
+					break;
+				case 1:
+					assert( _rsl_stack[_num_rsl_stack - 1] != NodeID::bot );
+					Extend_New_Level();
+					Inherit_Models( _models_stack[_num_levels - 2], ~_dec_stack[_num_dec_stack], _models_stack[_num_levels - 1] );
+					Assign( ~_dec_stack[_num_dec_stack] );
+					break;
+				case 2:
+					assert( _num_rsl_stack > 1 );
+					_num_rsl_stack--;
+					_rsl_stack[_num_rsl_stack - 1] = Make_Decision_Node( manager, _rsl_stack[_num_rsl_stack - 1], _rsl_stack[_num_rsl_stack] );  // NOTE: there exist no implied literals
+					assert( _rsl_stack[_num_rsl_stack - 1] != NodeID::bot );
+					_active_comps[_num_levels - 1]++;
+					break;
+				}
+			}
+			else {  // all components are already processed
+				_num_rsl_stack -= Num_Components_On_Current_Level();
+				assert( _num_levels > 2 );  // not decompose the initial formula
+//				manager.Display_Stat( cerr );  // ToRemove
+//				Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+				_rsl_stack[_num_rsl_stack] = Make_Node_With_Imp( manager, _rsl_stack + _num_rsl_stack, Num_Components_On_Current_Level() );
+//				Debug_Print_Visit_Number( cerr, __LINE__ );  // ToRemove
+				_num_rsl_stack++;
+				Recycle_Models( _models_stack[_num_levels - 1] );
+				Backtrack();
+			}
+		}
+	}
+	assert( _num_levels == 1 && _num_rsl_stack == 1 );
+}
+
+void BDDC_Compiler::Verify_Result_Component( Component & comp, Smooth_OBDDC_Manager & manager, NodeID result )
+{
+	CNF_Formula * cnf = Output_Original_Clauses_In_Component( comp );
+	manager.Verify_Smooth_ROBDDC_Finest( result );
+	BigInt count = manager.Count_Models( result );
+	BigInt verified_count = Count_Verified_Models_sharpSAT( *cnf );
+	if ( verified_count != count ) {
+		manager.Display( cerr );  // ToRemove
+		cerr << "NodeID: " << result << endl;
+		comp.Display( cerr );
+		Display_Decision_Stack( cerr, _num_levels - 1 );
+		cerr << *cnf;
+		cerr << "Count: " << count << endl;
+		cerr << "Verified count: " << verified_count << endl;
+		assert( verified_count == count );
+	}
+	delete cnf;
+}
+
+bool BDDC_Compiler::Is_Memory_Exhausted()
 {
 	size_t counterram = Memory();  // int overflows
 	struct sysinfo info;

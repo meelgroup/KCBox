@@ -19,7 +19,7 @@ protected:  // auxiliary memory
 	SetID * _many_sets;
 	Rough_CDD_Node _aux_rnode;
 public:
-	DecDNNF_Manager( Variable max_var, unsigned estimated_node_num = LARGE_HASH_TABLE );
+	DecDNNF_Manager( Variable max_var, dag_size_t estimated_node_num = LARGE_HASH_TABLE );
 	DecDNNF_Manager( istream & fin );
 	DecDNNF_Manager( DecDNNF_Manager & other );
 	~DecDNNF_Manager();
@@ -70,31 +70,31 @@ protected:
 	NodeID Extract_Part_Left_No_Check( Decision_Node & bnode );
 	NodeID Remove_Child_No_Check_GE_3( NodeID parent, NodeID child );
 	NodeID Extract_Part_Right_No_Check( Decision_Node & bnode );
-	unsigned Finest( Rough_CDD_Node & rnode );
-	unsigned Finest_Exi( Rough_CDD_Node & rnode );
+	NodeID Finest( Rough_CDD_Node & rnode );
+	NodeID Finest_Exi( Rough_CDD_Node & rnode );
 	NodeID Add_Child( NodeID parent, NodeID child );
 	NodeID Add_Children( NodeID parent, NodeID * children, unsigned num_ch );
 	NodeID Remove_Child( NodeID parent, NodeID child );
 	NodeID Remove_Child_No_Check( NodeID parent, NodeID child ); // "child" is really a child of "parent"
-	NodeID Remove_Child_No_Check_Change( unsigned parent, unsigned child ); // called by "Condition_Min_Change"
-	NodeID Remove_Child_No_Check_Rough( Rough_BDDC_Node & parent, unsigned child );
-	NodeID Remove_Child_No_Check_Rough_Change( Rough_BDDC_Node & parent, unsigned child );
+	NodeID Remove_Child_No_Check_Change( NodeID parent, NodeID child ); // called by "Condition_Min_Change"
+	NodeID Remove_Child_No_Check_Rough( Rough_BDDC_Node & parent, NodeID child );
+	NodeID Remove_Child_No_Check_Rough_Change( Rough_BDDC_Node & parent, NodeID child );
 	NodeID Remove_Children( NodeID parent, NodeID * children, unsigned num_ch );
 	NodeID Remove_Lit_Equivalences( NodeID n, Lit_Equivalency & lit_equivalency );
 	NodeID Push_Decomposition_Node_After_Extracting( Rough_CDD_Node & rnode );
 	NodeID Push_Core_After_Extracting( Decision_Node & bnode );
 	unsigned Transform_Lit_Equivalences( Lit_Equivalency & lit_equivalency, NodeID * equ_nodes );
-	NodeID Replace_Child( unsigned parent, unsigned child, unsigned new_child );
-	NodeID Replace_Child_Nonconstant( unsigned parent, unsigned child, unsigned new_child ); // result is not constant
-	NodeID Replace_Child_Internal( unsigned parent, unsigned child, unsigned new_child ); // new_child is internal
-	NodeID Replace_Child_Internal_Same( unsigned parent, unsigned child, unsigned new_child ); // the symbols of "child" and "new_child" are same
-	NodeID Replace_Child_Internal_Different( unsigned parent, unsigned child, unsigned new_child ); // the symbols of "child" and "new_child" are different
-	NodeID Replace_Child_Nonconstant_Change( unsigned parent, unsigned child, unsigned new_child ); // called by "Condition_Min_Change"
-	NodeID Replace_Child_Internal_Change( unsigned parent, unsigned child, unsigned new_child );
-	NodeID Replace_Child_Internal_Different_Change( unsigned parent, unsigned child, unsigned new_child ); // change infor.min_var and infor.num_var
-	NodeID Replace_Child_Rough( Rough_BDDC_Node & parent, unsigned child, unsigned new_child );
+	NodeID Replace_Child( NodeID parent, NodeID child, NodeID new_child );
+	NodeID Replace_Child_Nonconstant( NodeID parent, NodeID child, NodeID new_child ); // result is not constant
+	NodeID Replace_Child_Internal( NodeID parent, NodeID child, NodeID new_child ); // new_child is internal
+	NodeID Replace_Child_Internal_Same( NodeID parent, NodeID child, NodeID new_child ); // the symbols of "child" and "new_child" are same
+	NodeID Replace_Child_Internal_Different( NodeID parent, NodeID child, NodeID new_child ); // the symbols of "child" and "new_child" are different
+	NodeID Replace_Child_Nonconstant_Change( NodeID parent, NodeID child, NodeID new_child ); // called by "Condition_Min_Change"
+	NodeID Replace_Child_Internal_Change( NodeID parent, NodeID child, NodeID new_child );
+	NodeID Replace_Child_Internal_Different_Change( NodeID parent, NodeID child, NodeID new_child ); // change infor.min_var and infor.num_var
+	NodeID Replace_Child_Rough( Rough_BDDC_Node & parent, NodeID child, NodeID new_child );
 protected:
-	unsigned Finest_Last( Rough_CDD_Node & rnode );
+	NodeID Finest_Last( Rough_CDD_Node & rnode );
 public: // transforming
 	CDDiagram Condition( const CDDiagram & dnnf, const vector<Literal> & term );
 protected:
@@ -109,7 +109,7 @@ protected:
 protected:
 	void Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Compute_Vars( NodeID n, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
-	SetID Pick_Effective_Equ_Decisions( unsigned n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	SetID Pick_Effective_Equ_Decisions( NodeID n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 protected:  // basic functions
 	NodeID Push_Decomposition_Node( NodeID * ch, unsigned size )
 	{
@@ -127,7 +127,7 @@ protected:  // basic functions
 		CDD_Node node( _nodes[n].sym, ch, _nodes[n].ch_size );
 		return Push_Node( node );
 	}
-	unsigned Search_First_Non_Literal_Position( unsigned n )
+	unsigned Search_First_Non_Literal_Position( NodeID n )
 	{
 		assert( _nodes[n].sym == CDD_SYMBOL_DECOMPOSE );
 		if ( Is_Fixed( _nodes[n].ch[_nodes[n].ch_size - 1] ) ) return _nodes[n].ch_size;

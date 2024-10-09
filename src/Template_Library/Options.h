@@ -162,9 +162,9 @@ class Tool_Parameters
 protected:
 	const char * _tool_name;
 	vector<Option *> _options;
-	vector<float> _versions;
+	const char * _version;
 public:
-	Tool_Parameters( const char * tool ): _tool_name( tool ) {}
+	Tool_Parameters( const char * tool ): _tool_name( tool ), _version( nullptr ) {}
 	const char * Tool_Name() { return _tool_name; }
 	void Add_Option( Option * option )
 	{
@@ -177,10 +177,13 @@ public:
 		}
 		return nullptr;
 	}
-	void Add_Version( const float version )
+	void Set_Version( const char * version )
 	{
-		assert( _versions.empty() || _versions.back() < version );
-		_versions.push_back( version );
+		if ( _version != nullptr ) {
+			cerr << "ERROR: the version was set!" << endl;
+			exit( 1 );
+		}
+		_version = version;
 	}
 	virtual bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
@@ -191,9 +194,14 @@ public:
 				exit( 1 );
 			}
 			if ( strcmp( argv[i], "--version" ) == 0 ) {
-				if ( _versions.empty() ) cout << "ERROR: no version " << endl;
-				else cout << "version " << _versions.back() << endl;
-				exit( 1 );
+				if ( _version == nullptr ) {
+					cout << "ERROR: no version!" << endl;
+					return false;
+				}
+				else {
+					cout << "version " << _version << endl;
+					exit( 0 );
+				}
 			}
 			unsigned j = 0;
 			for ( ; j < _options.size(); j++ ) {

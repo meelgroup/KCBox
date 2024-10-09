@@ -12,8 +12,8 @@ class RCDD_Manager: public CCDD_Manager
 {
     friend class RCDD_Compiler;
 public:
-	RCDD_Manager( Variable max_var, unsigned estimated_node_num = LARGE_HASH_TABLE );
-	RCDD_Manager( Chain & order, unsigned estimated_node_num = LARGE_HASH_TABLE );
+	RCDD_Manager( Variable max_var, dag_size_t estimated_node_num = LARGE_HASH_TABLE );
+	RCDD_Manager( Chain & order, dag_size_t estimated_node_num = LARGE_HASH_TABLE );
 	RCDD_Manager( istream & fin );
 	RCDD_Manager( RCDD_Manager & other );
 	~RCDD_Manager();
@@ -30,8 +30,8 @@ public: // querying
 	BigInt Count_Models( const CDDiagram & rcdd );
 protected:
 	void Assign( Literal lit ) { if ( Lit_Undecided( lit ) ) { _assignment[lit.Var()] = lit.Sign(); _decision_stack[_num_decisions++] = lit; } }
-	SetID Pick_Less_Equ_Decisions( unsigned n, SetID pre_lits );  // select decisions whose variables less than the current decision node
-	bool Propagate_New_Equ_Decisions( unsigned n );
+	SetID Pick_Less_Equ_Decisions( NodeID n, SetID pre_lits );  // select decisions whose variables less than the current decision node
+	bool Propagate_New_Equ_Decisions( NodeID n );
 	void Cancel_Current_Equ_Decisions();
 	BigInt Count_Models( NodeID root ) { return CCDD_Manager::Count_Models( root ); }
 public: // transformation
@@ -49,33 +49,21 @@ protected:
 	NodeID Extract_Part_Left_No_Check( Decision_Node & bnode );
 	NodeID Remove_Child_No_Check_GE_3( NodeID parent, NodeID child );
 	NodeID Extract_Part_Right_No_Check( Decision_Node & bnode );
-	unsigned Finest( Rough_CDD_Node & rnode );
-	unsigned Finest_Exi( Rough_CDD_Node & rnode );
+	NodeID Finest( Rough_CDD_Node & rnode );
+	NodeID Finest_Exi( Rough_CDD_Node & rnode );
 	NodeID Add_Child( NodeID parent, NodeID child );
 	NodeID Add_Children( NodeID parent, NodeID * children, unsigned num_ch );
 	NodeID Remove_Child( NodeID parent, NodeID child );
 	NodeID Remove_Child_No_Check( NodeID parent, NodeID child ); // "child" is really a child of "parent"
-	NodeID Remove_Child_No_Check_Change( unsigned parent, unsigned child ); // called by "Condition_Min_Change"
-	NodeID Remove_Child_No_Check_Rough( Rough_BDDC_Node & parent, unsigned child );
-	NodeID Remove_Child_No_Check_Rough_Change( Rough_BDDC_Node & parent, unsigned child );
 	NodeID Remove_Children( NodeID parent, NodeID * children, unsigned num_ch );
 	unsigned Transform_Lit_Equivalences( Lit_Equivalency & lit_equivalency, NodeID * equ_nodes );
-	NodeID Replace_Child( unsigned parent, unsigned child, unsigned new_child );
-	NodeID Replace_Child_Nonconstant( unsigned parent, unsigned child, unsigned new_child ); // result is not constant
-	NodeID Replace_Child_Internal( unsigned parent, unsigned child, unsigned new_child ); // new_child is internal
-	NodeID Replace_Child_Internal_Same( unsigned parent, unsigned child, unsigned new_child ); // the symbols of "child" and "new_child" are same
-	NodeID Replace_Child_Internal_Different( unsigned parent, unsigned child, unsigned new_child ); // the symbols of "child" and "new_child" are different
-	NodeID Replace_Child_Nonconstant_Change( unsigned parent, unsigned child, unsigned new_child ); // called by "Condition_Min_Change"
-	NodeID Replace_Child_Internal_Change( unsigned parent, unsigned child, unsigned new_child );
-	NodeID Replace_Child_Internal_Different_Change( unsigned parent, unsigned child, unsigned new_child ); // change infor.min_var and infor.num_var
-	NodeID Replace_Child_Rough( Rough_BDDC_Node & parent, unsigned child, unsigned new_child );
 public: // transformation
 	CDDiagram Convert_Up( OBDD_Manager & bdd_manager, const Diagram & bdd );
 	CDDiagram Convert_Up( OBDDC_Manager & bddc_manager, const Diagram & bddc );
 	Diagram Convert_Down( const CDDiagram & rcdd, OBDD_Manager & bdd_manager );
 	Diagram Convert_Down( const CDDiagram & rcdd, OBDDC_Manager & bddc_manager );
 protected:
-	unsigned Finest_Last( Rough_CDD_Node & rnode );
+	NodeID Finest_Last( Rough_CDD_Node & rnode );
 public: // transforming
 	CDDiagram Condition( const CDDiagram & rcdd, vector<int> elits );
 protected:
@@ -90,9 +78,9 @@ protected:
 protected:
 	void Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 	void Compute_Vars( NodeID n, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
-	SetID Pick_Effective_Equ_Decisions( unsigned n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
+	SetID Pick_Effective_Equ_Decisions( NodeID n, SetID pre_lits, Hash_Cluster<Variable> & var_cluster, vector<SetID> & sets );
 protected:  // basic functions
-	Variable Node_GLB( unsigned n )
+	Variable Node_GLB( NodeID n )
 	{
 		CDD_Node & node = _nodes[n];
 		if ( node.sym <= _max_var ) return node.Var();
@@ -124,7 +112,7 @@ protected:  // basic functions
 		Decision_Node bnode( lit.Var(), ch[0], ch[1] );
 		return Push_Node( bnode );  // Not check low == high
 	}
-	unsigned Search_First_Non_Literal_Position( unsigned n )
+	unsigned Search_First_Non_Literal_Position( NodeID n )
 	{
 		assert( _nodes[n].sym == CDD_SYMBOL_DECOMPOSE );
 		if ( Is_Fixed( _nodes[n].ch[_nodes[n].ch_size - 1] ) ) return _nodes[n].ch_size;

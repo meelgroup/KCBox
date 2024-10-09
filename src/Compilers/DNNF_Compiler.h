@@ -99,6 +99,7 @@ public:
 		compiler.running_options.mixed_imp_computing = true;
 		compiler.running_options.trivial_variable_bound = 128;
 		compiler.running_options.display_kernelizing_process = false;
+		compiler.running_options.cache_encoding = Parse_Cache_Encoding_Strategy( parameters.cache_enc );
 		compiler.running_options.max_memory = parameters.memo;
 		compiler.running_options.removing_redundant_nodes_trigger *= parameters.memo / 4;
 		Heuristic heur = Parse_Heuristic( parameters.heur );

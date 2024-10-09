@@ -53,7 +53,6 @@ struct Preprocessor_Parameters: public Tool_Parameters
 struct Counter_Parameters: public Tool_Parameters
 {
 	BoolOption competition;
-	FloatOption diffversion;
 	BoolOption weighted;
 	IntOption mpf_prec;
 	StringOption condition;
@@ -65,7 +64,6 @@ struct Counter_Parameters: public Tool_Parameters
 	IntOption format;
 	Counter_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		competition( "--competition", "working for mc competition", false ),
-		diffversion( "--diffversion", "running with a given version", 1 ),
 		weighted( "--weighted", "weighted model counting", false ),
 		mpf_prec( "--mpf-prec", "the times of the default precision of mpf_t", 1 ),
 		condition( "--condition", "the assignment file for counting models with conditioning", nullptr ),
@@ -77,7 +75,6 @@ struct Counter_Parameters: public Tool_Parameters
 		format( "--format", "MC Competition format (0), miniC2D format (1)", 0, 0, 1 )
 	{
 		Add_Option( &competition );
-		Add_Option( &diffversion );
 		Add_Option( &weighted );
 		Add_Option( &mpf_prec );
 		Add_Option( &condition );
@@ -87,22 +84,10 @@ struct Counter_Parameters: public Tool_Parameters
 		Add_Option( &kdepth );
 		Add_Option( &clear_half );
 		Add_Option( &format );
-		Add_Version( 1 );
-		if ( diffversion != _versions.back() ) {
-			cerr << "Warning: the default version of " << tool_name << " is " << diffversion << " rather than the latest version " << _versions.back() << endl;
-		}
 	}
 	bool Parse_Parameters( int & i, int argc, const char *argv[] )
 	{
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
-		if ( diffversion.Exists() && !Search_Exi_Nonempty( _versions, float(diffversion) ) ) {
-			cerr << "ERROR: Current versions:";
-			for ( float ver: _versions ) {
-				cerr << " " << ver;
-			}
-			cerr << endl;
-			return false;
-		}
 		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && strcmp( heur, "FlowCutter") != 0 && \
 			strcmp( heur, "LinearLRW") != 0 && strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCS") != 0 && \
 			strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
@@ -127,6 +112,7 @@ enum KC_Language
 {
 	lang_OBDD,
 	lang_OBDDC,
+	lang_smooth_OBDDC,
 	lang_DecDNNF,
 	lang_RRCDD,
 	lang_CCDD,
@@ -137,16 +123,45 @@ extern inline KC_Language Parse_Language( const char * lang )
 {
 	if ( strcmp( lang, "OBDD" ) == 0 ) return lang_OBDD;
 	else if ( strcmp( lang, "OBDD[AND]" ) == 0 ) return lang_OBDDC;
+	else if ( strcmp( lang, "smooth-OBDD[AND]" ) == 0 ) return lang_smooth_OBDDC;
 	else if ( strcmp( lang, "Decision-DNNF" ) == 0 ) return lang_DecDNNF;
 	else if ( strcmp( lang, "R2-D2" ) == 0 ) return lang_RRCDD;
 	else if ( strcmp( lang, "CCDD" ) == 0 ) return lang_CCDD;
 	else return lang_invalid;
 }
 
+inline ostream & operator << ( ostream & out, KC_Language & lang )
+{
+	switch ( lang ) {
+	case lang_OBDD:
+		out << "OBDD";
+		break;
+	case lang_OBDDC:
+		out << "OBDD[AND]";
+		break;
+	case lang_smooth_OBDDC:
+		out << "smooth-OBDD[AND]";
+		break;
+	case lang_DecDNNF:
+		out << "Decision-DNNF";
+		break;
+	case lang_RRCDD:
+		out << "R2-D2";
+		break;
+	case lang_CCDD:
+		out << "CCDD";
+		break;
+	default:
+		out << "invalid language";
+	}
+	return out;
+}
+
 struct Compiler_Parameters: public Tool_Parameters
 {
 	StringOption lang;
 	StringOption heur;
+	StringOption cache_enc;
 	FloatOption memo;
 	IntOption kdepth;
 	StringOption out_file;
@@ -163,6 +178,7 @@ struct Compiler_Parameters: public Tool_Parameters
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		lang( "--lang", "KC language OBDD, OBDD[AND], Decision-DNNF, R2-D2, or CCDD", "OBDD[AND]" ),
 		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
+		cache_enc( "--cache-encoding", "component cache encoding strategy (simple or difference)", "simple" ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		kdepth( "--kdepth", "maximum kernelization depth (only applicable for CCDD)", 128 ),
 		out_file( "--out", "the output file with compilation", nullptr ),
@@ -179,6 +195,7 @@ struct Compiler_Parameters: public Tool_Parameters
 	{
 		Add_Option( &lang );
 		Add_Option( &heur );
+		Add_Option( &cache_enc );
 		Add_Option( &memo );
 		Add_Option( &kdepth );
 		Add_Option( &out_file );
@@ -198,7 +215,7 @@ struct Compiler_Parameters: public Tool_Parameters
 		if ( !Tool_Parameters::Parse_Parameters( i, argc, argv ) ) return false;
 		KC_Language kclang = Parse_Language( lang );
 		if ( kclang == lang_invalid ) {
-			cerr << "ERROR: the language is not support!" << endl;
+			cerr << "ERROR: the language is not supported!" << endl;
 			return false;
 		}
 		if ( kclang != lang_CCDD && kdepth.Exists() ) {
@@ -209,7 +226,7 @@ struct Compiler_Parameters: public Tool_Parameters
 		}
 		if ( Weighted_Query() ) {
 			if ( kclang == lang_CCDD || kclang == lang_RRCDD ) {
-				cerr << "ERROR: a weighted query must work with OBDD, OBDD[AND], or Decision-DNNF!" << endl;
+				cerr << "ERROR: a weighted query must work with OBDD, OBDD[AND], smooth-OBDD[AND], or Decision-DNNF!" << endl;
 				return false;
 			}
 		}
@@ -224,6 +241,10 @@ struct Compiler_Parameters: public Tool_Parameters
 		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
 			strcmp( heur, "FlowCutter") != 0 && strcmp( heur, "LinearLRW") != 0 && \
 			strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
+			return false;
+		}
+		if ( strcmp( cache_enc, "difference") == 0 && ( kclang == lang_CCDD || kclang == lang_RRCDD ) ) {
+			cerr << "ERROR: --cache-encoding difference cannot work with kernelization!" << endl;
 			return false;
 		}
 		return true;
@@ -440,6 +461,35 @@ enum Dynamic_Decomposition_Strategy
 	Decompose_Without_Sorting  /// improved version of the one used in sharpSAT
 };
 
+enum Cache_Encoding_Strategy
+{
+	Simple_Cache_Encoding,  /// {1, 3, 5, 7, 8 } => 0x13578 with the assumption of 4 bits for each integer
+	Difference_Cache_Encoding  /// {1, 3, 5, 7, 8 } => 0x122E with the assumption of 4 bits for each integer
+};
+
+extern inline Cache_Encoding_Strategy Parse_Cache_Encoding_Strategy( const char * heur )
+{
+	if ( strcmp( heur, "simple" ) == 0 ) return Simple_Cache_Encoding;
+	else if ( strcmp( heur, "difference" ) == 0 ) return Difference_Cache_Encoding;
+	else {
+		cerr << "ERROR: wrong cache encoding strategy!" << endl;
+		exit( 0 );
+	}
+}
+
+inline ostream & operator << ( ostream & out, Cache_Encoding_Strategy & encoding )
+{
+	switch ( encoding ) {
+	case Simple_Cache_Encoding:
+		out << "simple";
+		break;
+	case Difference_Cache_Encoding:
+		out << "difference";
+		break;
+	}
+	return out;
+}
+
 enum Profiling_Level
 {
 	Profiling_Close = 0,
@@ -506,6 +556,7 @@ struct Running_Options
 	float trivial_length_bound;
 	unsigned treewidth_bound;  /// NOTE: when the minfill treewidth is greater than treewidth_bound, we will terminate the construction of Simple_TreeD
 	bool compute_duplicate_rate;
+	Cache_Encoding_Strategy cache_encoding = Simple_Cache_Encoding;
 	unsigned removing_redundant_nodes_trigger;
 	bool display_compiling_process;
 	bool display_memory_status;
@@ -661,6 +712,7 @@ struct Running_Options
 		out << display_prefix << "trivial_density_bound = " << trivial_density_bound << endl;
 		out << display_prefix << "trivial_length_bound = " << trivial_length_bound << endl;
 		out << display_prefix << "treewidth_bound = " << treewidth_bound << endl;
+		out << display_prefix << "cache_encoding = " << cache_encoding << endl;
 		out << display_prefix << "removing_redundant_nodes_trigger = " << removing_redundant_nodes_trigger << endl;
 		out << display_prefix << "display_compiling_process = " << display_compiling_process << endl;
 		out << display_prefix << "profile_compiling = " << profile_compiling << endl;

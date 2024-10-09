@@ -962,7 +962,7 @@ bool KCounter::Estimate_Hardness( Component & comp )
 		unsigned density = 0;
 		for ( unsigned i = 0; i < comp.ClauseIDs_Size(); i++ ) {
 			Clause & clause = _long_clauses[comp.ClauseIDs( i )];
-			density += clause.Size() * Log_Ceil( clause.Size() );
+			density += clause.Size() * Ceil_Log2( clause.Size() );
 		}
 		cerr << comp.Vars_Size() << ": " << density << endl;  // ToRemove
 		return density / comp.Vars_Size() >= 8;

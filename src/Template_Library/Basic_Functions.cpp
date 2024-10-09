@@ -495,7 +495,7 @@ extern unsigned Read_Unsigned_Change( char * & source )
 	return a;
 }
 
-extern double Read_Float_Change( char * & source )
+extern float Read_Float_Change( char * & source )
 {
 	while ( *source == ' ' || *source == '\t' ) source++;
 	float f;

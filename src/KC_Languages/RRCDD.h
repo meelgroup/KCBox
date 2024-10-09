@@ -13,8 +13,8 @@ class R2D2_Manager: public RCDD_Manager
 protected:  // auxiliary memory
 	vector<Literal> _lit_vector;
 public:
-	R2D2_Manager( Variable max_var, unsigned estimated_node_num = LARGE_HASH_TABLE );
-	R2D2_Manager( Chain & order, unsigned estimated_node_num = LARGE_HASH_TABLE );
+	R2D2_Manager( Variable max_var, dag_size_t estimated_node_num = LARGE_HASH_TABLE );
+	R2D2_Manager( Chain & order, dag_size_t estimated_node_num = LARGE_HASH_TABLE );
 	R2D2_Manager( istream & fin );
 	R2D2_Manager( R2D2_Manager & other );
 	~R2D2_Manager();

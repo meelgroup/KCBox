@@ -5,7 +5,7 @@
 #include "../KC_Languages/OBDD[AND].h"
 #include "../KC_Languages/RCDD.h"
 #include "../KC_Languages/RRCDD.h"
-#include "../Component_Types/Incremental_Component.h"
+#include "../Component_Types/Incremental_Component_Cache_Compressed_Clauses.h"
 #include "../Search_Graph.h"
 
 
@@ -17,7 +17,7 @@ class CDD_Compiler: public Extensive_Inprocessor
 protected:
 	NodeID * _rsl_stack; // rsl denotes result
 	unsigned _num_rsl_stack;  // recording the number of temporary results
-	Incremental_Component_Cache<NodeID> _component_cache;
+	Incremental_Component_Cache_Compressed_Clauses<NodeID> _component_cache;
 	vector<Literal> _equivalent_lit_pairs;
 	Rough_CDD_Node _cdd_rnode;
 	Component _incremental_comp;

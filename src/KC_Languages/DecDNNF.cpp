@@ -4,7 +4,7 @@
 namespace KCBox {
 
 
-DecDNNF_Manager::DecDNNF_Manager( Variable max_var, unsigned estimated_node_num ):
+DecDNNF_Manager::DecDNNF_Manager( Variable max_var, dag_size_t estimated_node_num ):
 CDD_Manager( max_var, estimated_node_num )
 {
 	Allocate_and_Init_Auxiliary_Memory();
@@ -107,8 +107,8 @@ DecDNNF_Manager::DecDNNF_Manager( DecDNNF_Manager & other ):
 CDD_Manager( other._max_var, other._nodes.Size() * 2 )
 {
 	Allocate_and_Init_Auxiliary_Memory();
-	for ( unsigned u = _num_fixed_nodes; u < other._nodes.Size(); u++ ) {
-		Push_New_Node( other._nodes[u] );
+	for ( dag_size_t i = _num_fixed_nodes; i < other._nodes.Size(); i++ ) {
+		Push_New_Node( other._nodes[i] );
 	}
 }
 
@@ -157,7 +157,7 @@ BigInt DecDNNF_Manager::Count_Models( NodeID root )
 //		cerr << top << ": ";
 //		topn.Display( cerr );
 		assert( topn.ch_size >= 0 );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+		if ( topn.infor.Marked() ) {
 			num_node_stack--;
 		}
 		else if ( topn.sym <= _max_var ) {
@@ -225,10 +225,10 @@ BigInt DecDNNF_Manager::Count_Models( NodeID root )
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.Unmark();
+	_nodes[NodeID::top].infor.Unmark();
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	delete [] results;
@@ -354,7 +354,7 @@ BigInt DecDNNF_Manager::Count_Models_Under_Assignment( NodeID root, unsigned ass
 //		cerr << top << ": ";
 //		topn.Display( cerr );
 		assert( topn.ch_size >= 0 );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+		if ( topn.infor.Marked() ) {
 			num_node_stack--;
 		}
 		else if ( topn.sym <= _max_var ) {
@@ -463,10 +463,10 @@ BigInt DecDNNF_Manager::Count_Models_Under_Assignment( NodeID root, unsigned ass
 	}
 	result = results[root];
 	result.Mul_2exp( _nodes[root].infor.mark );
-	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.Unmark();
+	_nodes[NodeID::top].infor.Unmark();
+	for ( NodeID id: _visited_nodes ) {
+		_nodes[id].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	delete [] results;
@@ -610,8 +610,8 @@ void DecDNNF_Manager::Mark_Models_Under_Assignment( NodeID root, const vector<do
 	}
 	_nodes[NodeID::bot].infor.visited = false;
 	_nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -1136,8 +1136,8 @@ void DecDNNF_Manager::Mark_Models_Under_Assignment( NodeID root, vector<BigFloat
 	}
     _nodes[NodeID::bot].infor.visited = false;
     _nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -1278,8 +1278,8 @@ void DecDNNF_Manager::Statistics( const CDDiagram & dnnf )
 	unsigned num_node_stack = 1;
 	_nodes[NodeID::bot].infor.visited = true;
 	_nodes[NodeID::top].infor.visited = true;
-	unsigned num_nodes = 2;
-	unsigned num_edges = 0;
+	dag_size_t num_nodes = 2;
+	dag_size_t num_edges = 0;
 	while ( num_node_stack ) {
 	    NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
@@ -1527,13 +1527,13 @@ NodeID DecDNNF_Manager::Add_Decomposition_Node( Rough_CDD_Node & rnode )  // use
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	if ( rnode.ch_size == 0 ) return NodeID::top;
 	if ( rnode.ch_size == 1 ) return rnode.ch[0];
-	unsigned i, tmp_link;
-	unsigned tmp = _nodes[rnode.Last_Child()].sym;  // NOTE: Search NodeID::bot
+	NodeID tmp_link;
+	unsigned i, tmp = _nodes[rnode.Last_Child()].sym;  // NOTE: Search NodeID::bot
 	_nodes[rnode.Last_Child()].sym = CDD_SYMBOL_FALSE;
 	for ( i = 0; _nodes[rnode.ch[i]].sym != CDD_SYMBOL_FALSE; i++ );
 	_nodes[rnode.Last_Child()].sym = tmp;
 	if ( _nodes[rnode.ch[i]].sym == CDD_SYMBOL_FALSE )
-		tmp_link = CDD_SYMBOL_FALSE;
+		tmp_link = NodeID::bot;
 	else {
 		unsigned tmp_size = 0;
 		for ( i = 0; i < rnode.ch_size; i++ ) {
@@ -1553,7 +1553,7 @@ NodeID DecDNNF_Manager::Add_Decomposition_Node( Rough_CDD_Node & rnode )  // use
 	return tmp_link;
 }
 
-unsigned DecDNNF_Manager::Finest( Rough_CDD_Node & rnode )  // use _many_nodes, node_sets, _node_set_sizes
+NodeID DecDNNF_Manager::Finest( Rough_CDD_Node & rnode )  // use _many_nodes, node_sets, _node_set_sizes
 {
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	unsigned i, j;
@@ -1588,7 +1588,7 @@ unsigned DecDNNF_Manager::Finest( Rough_CDD_Node & rnode )  // use _many_nodes, 
 	}
 }
 
-unsigned DecDNNF_Manager::Finest_Last( Rough_CDD_Node & rnode )
+NodeID DecDNNF_Manager::Finest_Last( Rough_CDD_Node & rnode )
 {
 	assert( rnode.sym == CDD_SYMBOL_DECOMPOSE );
 	if ( _nodes[rnode.Last_Child()].sym != CDD_SYMBOL_DECOMPOSE ) {
@@ -1639,7 +1639,7 @@ CDDiagram DecDNNF_Manager::Condition( const CDDiagram & dnnf, const vector<Liter
 		CDD_Node & topn = _nodes[top];
 //	    cerr << top << ": ";
 //	    topn.Display( cerr );
-		if ( topn.infor.mark != UNSIGNED_UNDEF ) {
+		if ( topn.infor.Marked() ) {
 			num_node_stack--;
 		}
 		else if ( topn.sym <= _max_var ) {
@@ -1716,10 +1716,10 @@ CDDiagram DecDNNF_Manager::Condition( const CDDiagram & dnnf, const vector<Liter
 		}
 	}
 	NodeID result = _nodes[dnnf.Root()].infor.mark;
-	_nodes[NodeID::bot].infor.mark = UNSIGNED_UNDEF;
-	_nodes[NodeID::top].infor.mark = UNSIGNED_UNDEF;
+	_nodes[NodeID::bot].infor.Unmark();
+	_nodes[NodeID::top].infor.Unmark();
 	for ( NodeID n: _visited_nodes ) {
-		_nodes[n].infor.mark = UNSIGNED_UNDEF;
+		_nodes[n].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	for ( ; ii != (unsigned) -1; ii-- ) {
@@ -1740,7 +1740,7 @@ void DecDNNF_Manager::Verify_DecDNNF( NodeID root )
 	_node_mark_stack[0] = true;
 	unsigned num_node_stack = 1;
 	while ( num_node_stack ) {
-		unsigned top = _node_stack[num_node_stack - 1];
+		NodeID top = _node_stack[num_node_stack - 1];
 		CDD_Node & topn = _nodes[top];
 //		cerr << "top = " << top << ": ";  // ToRemove
 //		topn.Display( cerr );  // ToRemove
@@ -1770,8 +1770,8 @@ void DecDNNF_Manager::Verify_DecDNNF( NodeID root )
 	}
 	_nodes[NodeID::bot].infor.visited = false;
 	_nodes[NodeID::top].infor.visited = false;
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -1829,8 +1829,8 @@ void DecDNNF_Manager::Compute_Var_Sets( NodeID root, Hash_Cluster<Variable> & va
 		n = NodeID::literal( i, true );
 		_nodes[n].infor.visited = false;
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.visited = false;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.visited = false;
 	}
 	_visited_nodes.clear();
 }
@@ -1875,7 +1875,7 @@ void DecDNNF_Manager::Compute_Vars( NodeID n, Hash_Cluster<Variable> & var_clust
 	}
 	else {
 		SetID vars = sets[_nodes[n].ch[0]];
-		unsigned ch = _nodes[n].ch[1];
+		NodeID ch = _nodes[n].ch[1];
 		vars = var_cluster.Union( vars, _nodes[ch].sym );
 		unsigned lit = _nodes[ch].ch[1];
 		_many_vars[0] = _nodes[lit].sym;
@@ -1997,7 +1997,7 @@ bool DecDNNF_Manager::Decide_SAT_Under_Assignment( NodeID root )
 		CDD_Node & topn = _nodes[_path[path_len - 1]];
 		if ( topn.sym <= _max_var ) {
 			if ( Var_Decided( topn.Var() ) ) {
-				if ( _nodes[topn.ch[_assignment[topn.sym]]].infor.mark == UNSIGNED_UNDEF ) {
+				if ( !_nodes[topn.ch[_assignment[topn.sym]]].infor.Marked() ) {
 					_path[path_len] = topn.ch[_assignment[topn.sym]];
 					_path_mark[path_len++] = 0;
 				}
@@ -2033,7 +2033,7 @@ bool DecDNNF_Manager::Decide_SAT_Under_Assignment( NodeID root )
 							topn.infor.mark = 1;
 							_visited_nodes.push_back( _path[--path_len] );
 						}
-						else if ( _nodes[topn.ch[1]].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+						else if ( _nodes[topn.ch[1]].infor.Marked() ) { // ch[1] may be a descendant of ch[0]
 							topn.infor.mark = _nodes[topn.ch[1]].infor.mark;
 							_visited_nodes.push_back( _path[--path_len] );
 						}
@@ -2052,7 +2052,8 @@ bool DecDNNF_Manager::Decide_SAT_Under_Assignment( NodeID root )
 		}
 		else {
 			if ( _path_mark[path_len - 1] == 0 ) {
-				unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+				unsigned i;
+				dag_size_t tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
 				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
 				for ( i = 0; _nodes[topn.ch[i]].infor.mark != 0; i++ );
 				_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
@@ -2082,7 +2083,8 @@ bool DecDNNF_Manager::Decide_SAT_Under_Assignment( NodeID root )
 					_visited_nodes.push_back( _path[--path_len] );
 				}
 				else {
-					unsigned i, tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
+					unsigned i;
+					dag_size_t tmp = _nodes[topn.ch[topn.ch_size - 1]].infor.mark;
 					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = 0;
 					for ( i = _path_mark[path_len - 1]; _nodes[topn.ch[i]].infor.mark == 1; i++ );
 					_nodes[topn.ch[topn.ch_size - 1]].infor.mark = tmp;
@@ -2105,11 +2107,11 @@ bool DecDNNF_Manager::Decide_SAT_Under_Assignment( NodeID root )
 	}
 	bool result = _nodes[root].infor.mark == 1;
 	for ( Variable i = Variable::start; i <= _max_var; i++ ) {
-		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
-		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i].infor.Unmark();
+		_nodes[i + i + 1].infor.Unmark();
 	}
-	for ( unsigned i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+	for ( NodeID n: _visited_nodes ) {
+		_nodes[n].infor.Unmark();
 	}
 	_visited_nodes.clear();
 	return result;
@@ -2183,7 +2185,7 @@ void DecDNNF_Manager::Verify_UNSAT_Under_Assignment( NodeID n )
 		CDD_Node * top = &(_nodes[_path[path_len - 1]]);
 		if ( top->sym <= _max_var ) {
 			if ( _assignment[top->sym] >= 0 ) {
-				if ( _nodes[top->ch[_assignment[top->sym]]].infor.mark == UNSIGNED_UNDEF ) {
+				if ( !_nodes[top->ch[_assignment[top->sym]]].infor.Marked() ) {
 					_path[path_len] = top->ch[_assignment[top->sym]];
 					_path_mark[path_len++] = 0;
 				}
@@ -2219,7 +2221,7 @@ void DecDNNF_Manager::Verify_UNSAT_Under_Assignment( NodeID n )
 							top->infor.mark = 1;
 							_visited_nodes.push_back( _path[--path_len] );
 						}
-						else if ( _nodes[top->ch[1]].infor.mark != UNSIGNED_UNDEF ) { // ch[1] may be a descendant of ch[0]
+						else if ( _nodes[top->ch[1]].infor.Marked() ) { // ch[1] may be a descendant of ch[0]
 							top->infor.mark = _nodes[top->ch[1]].infor.mark;
 							_visited_nodes.push_back( _path[--path_len] );
 						}
@@ -2238,7 +2240,7 @@ void DecDNNF_Manager::Verify_UNSAT_Under_Assignment( NodeID n )
 		}
 		else {
 			if ( _path_mark[path_len - 1] == 0 ) {
-				unsigned tmp = _nodes[top->ch[top->ch_size - 1]].infor.mark;
+				dag_size_t tmp = _nodes[top->ch[top->ch_size - 1]].infor.mark;
 				_nodes[top->ch[top->ch_size - 1]].infor.mark = 0;
 				for ( i = 0; _nodes[top->ch[i]].infor.mark != 0; i++ );
 				_nodes[top->ch[top->ch_size - 1]].infor.mark = tmp;
@@ -2267,7 +2269,7 @@ void DecDNNF_Manager::Verify_UNSAT_Under_Assignment( NodeID n )
 					_visited_nodes.push_back( _path[--path_len] );
 				}
 				else {
-					unsigned tmp = _nodes[top->ch[top->ch_size - 1]].infor.mark;
+					dag_size_t tmp = _nodes[top->ch[top->ch_size - 1]].infor.mark;
 					_nodes[top->ch[top->ch_size - 1]].infor.mark = 0;
 					for ( i = _path_mark[path_len - 1]; _nodes[top->ch[i]].infor.mark == 1; i++ );
 					_nodes[top->ch[top->ch_size - 1]].infor.mark = tmp;
@@ -2343,11 +2345,11 @@ void DecDNNF_Manager::Verify_UNSAT_Under_Assignment( NodeID n )
 		assert( _nodes[n].infor.mark == 0 );
 	}
 	for ( i = Variable::start; i <= _max_var; i++ ) {
-		_nodes[i + i].infor.mark = UNSIGNED_UNDEF;
-		_nodes[i + i + 1].infor.mark = UNSIGNED_UNDEF;
+		_nodes[i + i].infor.Unmark();
+		_nodes[i + i + 1].infor.Unmark();
 	}
 	for ( i = 0; i < _visited_nodes.size(); i++ ) {
-		_nodes[_visited_nodes[i]].infor.mark = UNSIGNED_UNDEF;
+		_nodes[_visited_nodes[i]].infor.Unmark();
 	}
 	_visited_nodes.clear();
 }

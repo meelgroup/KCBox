@@ -66,32 +66,42 @@ extern inline unsigned Binary_Bit_Num_2step( unsigned num )
 	return i + i + ( num > 0 );
 }
 
-extern inline unsigned Log_Ceil( unsigned num ) // num > 0
+extern inline int Log2( unsigned v )
 {
-	unsigned i;
-	for ( i = 0, num--; num > 0; i++ ) num >>= 1;
-	return i;
+	#define SIXTEEN(n) n, n, n, n, n, n, n, n, n, n, n, n, n, n, n, n
+	static const int8_t log_table256[256] = { -1, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+		SIXTEEN(4), SIXTEEN(5), SIXTEEN(5), SIXTEEN(6), SIXTEEN(6), SIXTEEN(6), SIXTEEN(6),
+		SIXTEEN(7), SIXTEEN(7), SIXTEEN(7), SIXTEEN(7), SIXTEEN(7), SIXTEEN(7), SIXTEEN(7), SIXTEEN(7)
+	};
+	unsigned int t, tt; // temporaries
+	if ((tt = v >> 16) != 0) return ((t = tt >> 8) != 0) ? 24 + log_table256[t] : 16 + log_table256[tt];
+	else return ((t = v >> 8) != 0) ? 8 + log_table256[t] : log_table256[v];
+}
+
+extern inline unsigned Ceil_Log2( unsigned num ) // num > 0, otherwise it gives 64
+{
+	return Log2( num - 1 ) + 1;
 }
 
 template<typename T>
 extern inline unsigned Binary_Bit_One_Num( T number )
 {
-    static int count_table[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, \
-                                1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
-                                1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
-                                2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
-                                1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
-                                2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
-                                2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
-                                3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
-                                1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
-                                2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
-                                2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
-                                3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
-                                2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
-                                3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
-                                3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
-                                4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8};
+    static uint8_t count_table[] = {0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, \
+                                    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
+                                    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
+                                    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
+                                    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
+                                    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
+                                    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
+                                    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
+                                    1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 3, 4, 3, 4, 4, 5, \
+                                    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
+                                    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
+                                    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
+                                    2, 3, 3, 4, 3, 4, 4, 5, 3, 4, 4, 5, 4, 5, 5, 6, \
+                                    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
+                                    3, 4, 4, 5, 4, 5, 5, 6, 4, 5, 5, 6, 5, 6, 6, 7, \
+                                    4, 5, 5, 6, 5, 6, 6, 7, 5, 6, 6, 7, 6, 7, 7, 8};
 	unsigned count = 0;
 	for ( ; number > 255; number >>= 8 ) {
         count += count_table[number & 255];
@@ -1022,11 +1032,20 @@ extern inline void Insert( T * source, unsigned len, T element, T * target )
 }
 
 template<typename T>
-extern inline void Delete( T * source, unsigned len, T element, T * target )
+extern inline void Delete( const T * source, unsigned len, T element, T * target )
 {
 	unsigned i;
 	for ( i = 0; source[i] != element; i++ ) target[i] = source[i];
 	for ( i++; i < len; i++ ) target[i - 1] = source[i];
+}
+
+template<typename T>
+extern inline void Delete( const vector<T> & source, T element, vector<T> & target )
+{
+	target.resize( source.size() - 1 );
+	unsigned i;
+	for ( i = 0; source[i] != element; i++ ) target[i] = source[i];
+	for ( i++; i < source.size(); i++ ) target[i - 1] = source[i];
 }
 
 template<typename T>
@@ -1141,7 +1160,7 @@ extern int Read_Integer_Change( char * & source );
 
 extern unsigned Read_Unsigned_Change( char * & source );
 
-extern double Read_Float_Change( char * & source );
+extern float Read_Float_Change( char * & source );
 
 extern double Read_Double_Change( char * & source );
 
