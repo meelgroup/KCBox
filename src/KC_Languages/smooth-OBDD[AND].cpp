@@ -376,7 +376,7 @@ NodeID Smooth_OBDDC_Manager::Add_Decomposition_Node( Rough_BDDC_Node & rnode, co
 		for ( unsigned i = 0; i < allvars.size(); i++ ) {
 			if ( j < vars0.size() && vars0[j] == allvars[i] ) j++;
 			else if ( k < vars1.size() && vars1[k] == allvars[i] ) k++;
-			else _aux_rnode.Add_Child( Push_Auxiliary_Node( allvars[i] ) );
+			else rnode.Add_Child( Push_Auxiliary_Node( allvars[i] ) );
 		}
 	}
 	else {
