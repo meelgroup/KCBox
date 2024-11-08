@@ -177,7 +177,7 @@ struct Compiler_Parameters: public Tool_Parameters
 	StringOption condition;
 	Compiler_Parameters( const char * tool_name ): Tool_Parameters( tool_name ),
 		lang( "--lang", "KC language OBDD, OBDD[AND], Decision-DNNF, R2-D2, or CCDD", "OBDD[AND]" ),
-		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
+		heur( "--heur", "heuristic strategy (auto, minfill, FlowCutter, lexicographic, LinearLRW, VSADS, DLCP, or dynamic_minfill)", "auto" ),
 		cache_enc( "--cache-encoding", "component cache encoding strategy (simple or difference)", "simple" ),
 		memo( "--memo", "the available memory in GB", 4 ),
 		kdepth( "--kdepth", "maximum kernelization depth (only applicable for CCDD)", 128 ),
@@ -239,9 +239,14 @@ struct Compiler_Parameters: public Tool_Parameters
 			return false;
 		}
 		if ( strcmp( heur, "auto") != 0 && strcmp( heur, "minfill") != 0 && \
-			strcmp( heur, "FlowCutter") != 0 && strcmp( heur, "LinearLRW") != 0 && \
+			strcmp( heur, "FlowCutter") != 0 && strcmp( heur, "lexicographic") != 0 && strcmp( heur, "LinearLRW") != 0 && \
 			strcmp( heur, "VSADS") != 0 && strcmp( heur, "DLCP") != 0 && strcmp( heur, "dynamic_minfill") != 0 ) {
 			return false;
+		} else if ( kclang == lang_OBDD || kclang == lang_OBDDC || kclang == lang_smooth_OBDDC || kclang == lang_RRCDD ) {
+			if ( strcmp( heur, "VSADS") == 0 || strcmp( heur, "DLCP") == 0 || strcmp( heur, "dynamic_minfill") == 0 ) {
+				cerr << "ERROR: linear ordering is required!" << endl;
+				return false;
+			}
 		}
 		if ( strcmp( cache_enc, "difference") == 0 && ( kclang == lang_CCDD || kclang == lang_RRCDD ) ) {
 			cerr << "ERROR: --cache-encoding difference cannot work with kernelization!" << endl;
@@ -379,6 +384,7 @@ extern inline Heuristic Parse_Heuristic( const char * heur )
 	if ( strcmp( heur, "auto" ) == 0 ) return AutomaticalHeur;
 	else if ( strcmp( heur, "minfill" ) == 0 ) return minfill;
 	else if ( strcmp( heur, "FlowCutter" ) == 0 ) return FlowCutter;
+	else if ( strcmp( heur, "lexicographic" ) == 0 ) return LexicographicOrder;
 	else if ( strcmp( heur, "LinearLRW" ) == 0 ) return LinearLRW;
 	else if ( strcmp( heur, "VSADS" ) == 0 ) return VSADS;
 	else if ( strcmp( heur, "DLCS" ) == 0 ) return DLCS;
