@@ -8,8 +8,8 @@ CDD_Manager::CDD_Manager( Variable max_var, dag_size_t estimated_node_num ):
 Diagram_Manager( max_var ),
 _nodes( 2 * estimated_node_num )
 {
-	Allocate_and_Init_Auxiliary_Memory();
 	Add_Fixed_Nodes();
+	Allocate_and_Init_Auxiliary_Memory();
 }
 
 void CDD_Manager::Allocate_and_Init_Auxiliary_Memory()

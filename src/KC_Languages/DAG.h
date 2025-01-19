@@ -85,9 +85,10 @@ template<typename T_HASH, typename T_NODE> NodeID Hash_Hit_Node( T_HASH & nodes,
 	return NodeID( id );
 }
 
-template<typename T_HASH, typename T_NODE> NodeID Hash_Hit_Node( T_HASH & nodes, T_NODE & node, size_t hash_memory )
+template<typename T_HASH, typename T_NODE> NodeID Hash_Hit_Node( T_HASH & nodes, T_NODE & node, size_t & hash_memory )
 {
 	dag_size_t id = nodes.Hit( node, hash_memory );
+//	ASSERT( hash_memory == nodes.Memory() );  // ToRemove
 	if ( id == NodeID::undef ) {
 		cerr << "ERROR[OBDD]: overflowed, and please activate macro NODEID_64BITS!" << endl;
 		exit( 1 );
