@@ -979,7 +979,7 @@ lbool KCounter::Try_Final_Kernelization()
 	Sort_Clauses_For_Caching();
 	BigInt cached_result;
 	if ( Current_Component().Vars_Size() == 0 ) {
-		Current_Component().caching_loc == CacheEntryID::undef;
+		Current_Component().caching_loc = CacheEntryID::undef;
 		cached_result = 1;
 	}
 	else cached_result = Component_Cache_Map_Current_Component();
@@ -1088,7 +1088,7 @@ lbool KCounter::Try_Kernelization()
 	Sort_Clauses_For_Caching();
 	BigInt cached_result;
 	if ( Current_Component().Vars_Size() == 0 ) {
-		Current_Component().caching_loc == CacheEntryID::undef;
+		Current_Component().caching_loc = CacheEntryID::undef;
 		cached_result = 1;
 	}
 	else cached_result = Component_Cache_Map_Current_Component();

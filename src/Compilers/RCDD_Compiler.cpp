@@ -641,7 +641,7 @@ lbool RCDD_Compiler::Try_Kernelization( RCDD_Manager & manager )
 	Sort_Clauses_For_Caching();
 	NodeID cached_result;
 	if ( Current_Component().Vars_Size() == 0 ) {
-		Current_Component().caching_loc == CacheEntryID::undef;
+		Current_Component().caching_loc = CacheEntryID::undef;
 		cached_result = NodeID::top;
 	}
 	else cached_result = Component_Cache_Map( Current_Component() );
