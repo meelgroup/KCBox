@@ -117,7 +117,7 @@ CDDiagram CCDD_Compiler::Compile( CCDD_Manager & manager, CNF_Formula & cnf, Heu
 		else {
 			_lit_equivalency.Reorder( _var_order );
 			Encode_Long_Clauses();
-			assert( _long_clause_ids.back() == _old_num_long_clauses - 1 );
+			assert( _old_num_long_clauses == 0 || _long_clause_ids.back() == _old_num_long_clauses - 1 );
 			Compile_With_SAT_Imp_Computing( manager );
 		}
 		_num_rsl_stack--;

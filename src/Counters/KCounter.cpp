@@ -1325,7 +1325,7 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, vector<Model *> & models )
 		if ( running_options.max_kdepth > 1 ) {
 			if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) _lit_equivalency.Reorder( _var_order );
 			Encode_Long_Clauses();
-			assert( _long_clause_ids.back() == _old_num_long_clauses - 1 );
+			assert( _old_num_long_clauses == 0 || _long_clause_ids.back() == _old_num_long_clauses - 1 );
 		}
 		Count_With_SAT_Imp_Computing();
 	}
@@ -1411,7 +1411,7 @@ BigInt KCounter::Count_Models( CNF_Formula & cnf, vector<Model *> & models, doub
 		if ( running_options.max_kdepth > 1 ) {
 			if ( Is_Linear_Ordering( running_options.var_ordering_heur ) ) _lit_equivalency.Reorder( _var_order );
 			Encode_Long_Clauses();
-			assert( _long_clause_ids.back() == _old_num_long_clauses - 1 );
+			assert( _old_num_long_clauses == 0 || _long_clause_ids.back() == _old_num_long_clauses - 1 );
 		}
 		Count_With_SAT_Imp_Computing( timeout );
 	}
