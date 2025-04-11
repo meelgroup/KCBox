@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 #include <sys/time.h>
 #include <iostream>
 #include <fstream>
